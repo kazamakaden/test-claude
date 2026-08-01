@@ -1,0 +1,43 @@
+{
+  "meta": {
+    "title": "AFT UDONTECH",
+    "description": "แดชบอร์ดองค์การนักวิชาชีพในอนาคตแห่งประเทศไทย วิทยาลัยเทคนิคอุดรธานี"
+  },
+  "nav": {
+    "home": "หน้าแรก",
+    "calendar": "ปฏิทิน",
+    "projects": "โครงการ",
+    "activities": "กิจกรรม",
+    "documents": "เอกสาร",
+    "members": "สมาชิก",
+    "reports": "รายงาน",
+    "announcements": "ประกาศ",
+    "login": "เข้าสู่ระบบ",
+    "dashboard": "แดชบอร์ด",
+    "profile": "โปรไฟล์",
+    "notifications": "การแจ้งเตือน"
+  },
+  "common": {
+    "skipToContent": "ข้ามไปยังเนื้อหาหลัก",
+    "toggleTheme": "สลับธีมสว่าง/มืด",
+    "toggleLanguage": "เปลี่ยนภาษา",
+    "openMenu": "เปิดเมนู",
+    "closeMenu": "ปิดเมนู",
+    "signOut": "ออกจากระบบ",
+    "settings": "ตั้งค่า",
+    "comingSoon": "อยู่ระหว่างพัฒนา",
+    "comingSoonDescription": "ฟีเจอร์นี้จะเปิดให้ใช้งานในเฟสถัดไป",
+    "devRole": "บทบาท (โหมดพัฒนา)"
+  },
+  "roles": {
+    "guest": "ผู้เยี่ยมชม",
+    "student": "นักเรียน/สมาชิก",
+    "teacher": "ครู",
+    "admin": "ผู้ดูแลระบบ"
+  },
+  "footer": {
+    "orgName": "องค์การนักวิชาชีพในอนาคตแห่งประเทศไทย",
+    "collegeName": "วิทยาลัยเทคนิคอุดรธานี",
+    "copyright": "สงวนลิขสิทธิ์"
+  }
+}

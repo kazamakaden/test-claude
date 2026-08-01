@@ -1,0 +1,54 @@
+import Link from "next/link";
+import Image from "next/image";
+import { Button } from "@/components/ui/button";
+import { getDictionary } from "@/lib/i18n/get-dictionary";
+import type { Locale } from "@/lib/i18n/config";
+
+export default async function HomePage({
+  params,
+}: {
+  params: Promise<{ lang: string }>;
+}) {
+  const { lang: rawLang } = await params;
+  const lang = rawLang as Locale;
+  const dict = await getDictionary(lang);
+
+  return (
+    <div className="mx-auto flex max-w-7xl flex-col items-center gap-8 px-4 py-20 text-center sm:px-6 lg:px-8">
+      <Image
+        src="/brand/logo.png"
+        alt="AFT UDONTECH"
+        width={96}
+        height={96}
+        sizes="96px"
+        priority
+        className="size-24"
+      />
+      <div className="flex flex-col gap-3">
+        <h1 className="font-heading text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
+          {dict.meta.title}
+        </h1>
+        <p className="max-w-xl text-base text-muted-foreground">
+          {dict.meta.description}
+        </p>
+      </div>
+      <div className="flex flex-wrap items-center justify-center gap-3">
+        <Button
+          size="lg"
+          nativeButton={false}
+          render={<Link href={`/${lang}/login`} />}
+        >
+          {dict.nav.login}
+        </Button>
+        <Button
+          size="lg"
+          variant="outline"
+          nativeButton={false}
+          render={<Link href={`/${lang}/activities`} />}
+        >
+          {dict.nav.activities}
+        </Button>
+      </div>
+    </div>
+  );
+}

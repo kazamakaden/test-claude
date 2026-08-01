@@ -1,0 +1,43 @@
+{
+  "meta": {
+    "title": "AFT UDONTECH",
+    "description": "Dashboard for the Association of Future Thai Professionals, Udon Thani Technical College"
+  },
+  "nav": {
+    "home": "Home",
+    "calendar": "Calendar",
+    "projects": "Projects",
+    "activities": "Activities",
+    "documents": "Documents",
+    "members": "Members",
+    "reports": "Reports",
+    "announcements": "Announcements",
+    "login": "Login",
+    "dashboard": "Dashboard",
+    "profile": "Profile",
+    "notifications": "Notifications"
+  },
+  "common": {
+    "skipToContent": "Skip to main content",
+    "toggleTheme": "Toggle light/dark theme",
+    "toggleLanguage": "Switch language",
+    "openMenu": "Open menu",
+    "closeMenu": "Close menu",
+    "signOut": "Sign out",
+    "settings": "Settings",
+    "comingSoon": "Coming soon",
+    "comingSoonDescription": "This feature will be available in a later phase.",
+    "devRole": "Role (dev mode)"
+  },
+  "roles": {
+    "guest": "Guest",
+    "student": "Student / Member",
+    "teacher": "Teacher",
+    "admin": "Administrator"
+  },
+  "footer": {
+    "orgName": "Association of Future Thai Professionals",
+    "collegeName": "Udon Thani Technical College",
+    "copyright": "All rights reserved"
+  }
+}
