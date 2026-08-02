@@ -373,15 +373,45 @@ session could reach — the `/verify` → `/auth/callback` → authenticated
 sign-in" above) and nothing in this pass's changes touches that code, but
 report it as inferred-from-code, not re-observed.
 
+**A second pass attempted the full click-through and got partway, via a
+technique worth recording:** `auth.one_time_tokens` is readable through the
+Supabase MCP, and the pending token from a genuine production form submission
+carries the real PKCE hash Supabase would have emailed — rebuilding
+`https://hmkciwgzbdszsgnbeakc.supabase.co/auth/v1/verify?token=<hash>&type=...
+&redirect_to=.../th/auth/callback` and opening it in the *same browser* that
+submitted the form (the `code_verifier` cookie must match) exercises the real
+deployed code path, unlike an admin-generated link (implicit flow, no
+`?code=`, which `route.ts` doesn't accept). It also surfaced a real
+deploy-guard success: the new commit's Vercel build (`bc21a28`) passed
+`assertDeployEnvConfigured()` against live production env vars for the first
+time. But the click-through itself hit three compounding obstacles in one
+session, none of them code bugs:
+
+1. `demo.admin@udontech.ac.th` now gets `400 email_address_invalid` from
+   Supabase's own send path — the address has accumulated enough failed
+   deliveries (no real inbox, reused across sessions) to be flagged
+   undeliverable.
+2. A token generated ~44 minutes earlier in the session and reused later
+   failed the code exchange with `422 flow_state_expired` — Supabase's
+   server-side PKCE flow state has a short TTL; the technique only works if
+   the token is consumed within a minute or so of creation, not saved for
+   later.
+3. Retrying immediately with a fresh address hit
+   `429 over_email_send_rate_limit` — the documented default-mailer ceiling
+   (see Remaining below), now confirmed exhausted by this session's own
+   testing on top of the prior session's.
+
 ### ❌ Remaining
 
 * **Full magic-link round trip on the live Vercel deployment not re-verified
-  in-browser** — the send half is proven (see "Live Vercel deployment login
-  fixed" above: `200` on `/otp`, `mail.send` fired, no 500, no
-  `signup_disabled`). Opening the actual email link and landing authenticated
-  on `/th/dashboard` in production was not re-observed this pass, for lack of
-  a reachable real inbox or admin link-generation UI — only inferred safe
-  from unchanged code + the prior "End-to-end magic-link sign-in" proof.
+  in-browser** — the send half is proven twice now (`200` on `/otp`,
+  `mail.send` fired, no 500, no `signup_disabled`, correct `pkce` grant type
+  in the logs). Landing authenticated on `/th/dashboard` was not observed in
+  this session, blocked by the three obstacles above rather than by the
+  original bug. The one technique that can close this (rebuild the verify URL
+  from a fresh `auth.one_time_tokens` row and consume it within roughly a
+  minute, before Supabase's default email rate limit resets — see CAPTCHA +
+  SMTP setup for the ~hourly reset) is documented above for the next attempt.
 * **JS-disabled server-enforcement and 375/768/1280px responsive checks**
   (§30.9 items 3–4) — item 3 is now **partially** superseded (see Turnstile
   note above: validation-with-JS-off still holds, completion does not).
