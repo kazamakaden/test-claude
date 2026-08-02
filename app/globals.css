@@ -144,11 +144,26 @@
 }
 
 .bg-hero {
-  background: radial-gradient(ellipse at top, #eef1f5, #f6f8fa 60%);
+  background:
+    radial-gradient(900px 480px at 50% -8%, rgba(31, 74, 117, 0.16), transparent 60%),
+    radial-gradient(700px 420px at 12% 108%, rgba(62, 109, 156, 0.1), transparent 55%),
+    radial-gradient(ellipse at top, #eef1f5, #f6f8fa 60%);
 }
 
 .dark .bg-hero {
-  background: radial-gradient(ellipse at top, #1f2d3d, #0c121c 60%);
+  background:
+    radial-gradient(900px 480px at 50% -8%, rgba(127, 168, 212, 0.22), transparent 60%),
+    radial-gradient(700px 420px at 88% 108%, rgba(221, 229, 238, 0.07), transparent 55%),
+    radial-gradient(ellipse at top, #1f2d3d, #0c121c 60%);
+}
+
+.hero-glow {
+  background: radial-gradient(circle, rgba(31, 74, 117, 0.22), transparent 70%);
+  filter: blur(28px);
+}
+
+.dark .hero-glow {
+  background: radial-gradient(circle, rgba(127, 168, 212, 0.3), transparent 70%);
 }
 
 .text-gradient-brand {

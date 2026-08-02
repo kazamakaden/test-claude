@@ -14,14 +14,18 @@ export default async function HomePage({
   const dict = await getDictionary(lang);
 
   return (
-    <div className="bg-hero mx-auto flex min-h-[calc(100dvh-5rem)] max-w-7xl flex-col items-center justify-center gap-8 rounded-b-3xl px-4 py-20 text-center sm:px-6 lg:px-8">
+    <div className="bg-hero relative mx-auto flex min-h-[calc(100dvh-5rem)] max-w-7xl flex-col items-center justify-center gap-8 overflow-hidden rounded-b-3xl px-4 py-20 text-center sm:px-6 lg:px-8">
+      <div
+        aria-hidden
+        className="hero-glow pointer-events-none absolute top-8 size-64 -translate-y-1/4"
+      />
       <Image
         src="/brand/logo.png"
         alt="AFT UDONTECH"
         width={96}
         height={96}
         priority
-        className="size-24"
+        className="relative size-24"
       />
       <div className="flex flex-col gap-3">
         <h1 className="text-gradient-brand font-heading text-3xl font-semibold tracking-tight sm:text-4xl">
