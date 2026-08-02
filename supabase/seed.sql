@@ -40,6 +40,17 @@ insert into public.documents (title, status) values
   ('รายงานสรุปกิจกรรมค่ายอาสา', 'draft'),
   ('หนังสือขออนุมัติจัดกิจกรรม', 'pending_approval');
 
+-- §12 e-book shelf demo rows — status 'official' so anon can see them
+-- (documents_select_official, 0008_dashboard_rls.sql). flipbook_url is a
+-- real, publicly viewable AnyFlip book (verified reachable at
+-- authoring time), used as a stand-in until the college's own อวท.
+-- publications are added via docs/add-ebook.md; the other two rows have no
+-- flipbook_url on purpose, to exercise the "book not attached" empty state.
+insert into public.documents (title, description, status, flipbook_url, published_at) values
+  ('ปฏิทินกิจกรรม อวท. ตัวอย่าง', 'ตัวอย่างหนังสือ e-book แบบพลิกหน้าสำหรับสาธิตระบบ', 'official', 'https://anyflip.com/aasdd/luel/', now() - interval '10 days'),
+  ('คู่มือนักเรียน อวท. (ตัวอย่าง)', 'เอกสารอย่างเป็นทางการ ยังไม่แนบไฟล์ e-book', 'official', null, now() - interval '30 days'),
+  ('รายงานประจำปี อวท. (ตัวอย่าง)', 'เอกสารอย่างเป็นทางการ ยังไม่แนบไฟล์ e-book', 'official', null, now() - interval '60 days');
+
 insert into public.notifications (recipient_id, type, title, body, read) values
   (null, 'approval', 'โครงการ "ค่ายอาสาพัฒนาชุมชน" ได้รับการอนุมัติแล้ว', null, false),
   (null, 'deadline', 'ส่งร่างเอกสารกิจกรรมภายในวันที่ 5 สิงหาคม', null, false),

@@ -29,7 +29,12 @@
     "mainNav": "เมนูหลัก",
     "comingSoon": "อยู่ระหว่างพัฒนา",
     "comingSoonDescription": "ฟีเจอร์นี้จะเปิดให้ใช้งานในเฟสถัดไป",
-    "devRole": "บทบาท (โหมดพัฒนา)"
+    "devRole": "บทบาท (โหมดพัฒนา)",
+    "pagination": {
+      "summary": "แสดง {start}–{end} จาก {total} รายการ",
+      "previousPage": "หน้าก่อนหน้า",
+      "nextPage": "หน้าถัดไป"
+    }
   },
   "roles": {
     "guest": "ผู้เยี่ยมชม",
@@ -163,10 +168,54 @@
     "columnYear": "ปี",
     "columnDepartment": "แผนก",
     "columnClub": "ชมรม",
-    "empty": "ไม่พบสมาชิกที่ตรงกับตัวกรอง",
-    "paginationSummary": "แสดง {start}–{end} จาก {total} รายการ",
-    "previousPage": "หน้าก่อนหน้า",
-    "nextPage": "หน้าถัดไป"
+    "empty": "ไม่พบสมาชิกที่ตรงกับตัวกรอง"
+  },
+  "activities": {
+    "description": "ค้นหาและกรองกิจกรรมที่กำลังจะมาถึงและที่ผ่านมา",
+    "searchPlaceholder": "ค้นหาด้วยชื่อกิจกรรม",
+    "filterDepartment": "แผนก",
+    "allDepartments": "ทุกแผนก",
+    "filterClub": "ชมรม",
+    "allClubs": "ทุกชมรม",
+    "filterYear": "ปีการศึกษา",
+    "allYears": "ทุกปี",
+    "clearFilters": "ล้างตัวกรอง",
+    "columnTitle": "กิจกรรม",
+    "columnDate": "วันที่",
+    "columnLocation": "สถานที่",
+    "columnDepartment": "แผนก",
+    "columnStatus": "สถานะ",
+    "empty": "ไม่พบกิจกรรมที่ตรงกับตัวกรอง",
+    "status": {
+      "pending": "รอดำเนินการ",
+      "completed": "เสร็จสิ้น",
+      "cancelled": "ยกเลิก"
+    },
+    "stats": {
+      "attendance": "เข้าร่วม",
+      "attendanceNote": "แสดงเฉพาะกิจกรรมของคุณหรือสำหรับผู้ตรวจสอบ",
+      "completed": "เสร็จสิ้น",
+      "pending": "รอดำเนินการ"
+    }
+  },
+  "calendar": {
+    "title": "ปฏิทินกิจกรรม",
+    "description": "ดูกิจกรรมทั้งหมดรายเดือน",
+    "today": "วันนี้",
+    "previousMonth": "เดือนก่อนหน้า",
+    "nextMonth": "เดือนถัดไป",
+    "eventListTitle": "กิจกรรมในเดือนนี้",
+    "noEvents": "ไม่มีกิจกรรมในเดือนนี้",
+    "moreEvents": "อีก {count} รายการ"
+  },
+  "documents": {
+    "description": "หนังสือและเอกสารอิเล็กทรอนิกส์แบบพลิกหน้า",
+    "empty": "ยังไม่มีเอกสารเผยแพร่",
+    "readBook": "อ่านหนังสือ",
+    "notAttached": "ยังไม่แนบไฟล์หนังสือ",
+    "notAttachedDescription": "เอกสารนี้ยังไม่มีลิงก์หนังสืออิเล็กทรอนิกส์แนบไว้",
+    "backToShelf": "กลับไปที่ชั้นหนังสือ",
+    "publishedAt": "เผยแพร่เมื่อ"
   },
   "approvals": {
     "title": "อนุมัติบัญชี",

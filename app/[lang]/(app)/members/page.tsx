@@ -6,7 +6,7 @@ import { parseMembersSearchParams, PER_PAGE_SIZE } from "@/schemas/members";
 import { getClubs, getDepartments, getFilterOptions, getMembers } from "@/services/members";
 import { MembersFilters } from "@/components/members/members-filters";
 import { MembersTable } from "@/components/members/members-table";
-import { MembersPagination } from "@/components/members/members-pagination";
+import { Pagination } from "@/components/table/pagination";
 import { MembersTableSkeleton } from "@/components/members/members-table-skeleton";
 
 async function MembersResults({
@@ -34,7 +34,7 @@ async function MembersResults({
         lang={lang}
         dict={dict}
       />
-      <MembersPagination
+      <Pagination
         page={filters.page}
         perPage={PER_PAGE_SIZE}
         total={total}

@@ -506,6 +506,117 @@ widget now shows "Success!" with no console errors. This was a pure
 Cloudflare-dashboard fix — no code or env var changed, `.env.local`'s
 sitekey was already correct since both domains share the one widget.
 
+**`/calendar`, `/activities`, `/documents` — real pages, no longer "coming soon"
+placeholders.** All three were 23-line `PageShell` stubs linked from the top
+nav for every role including guest; now each is a real, RLS-backed page.
+
+`supabase/migrations/0013_documents_ebook.sql` adds `description`,
+`flipbook_url`, `cover_url`, `published_at` to `public.documents`, plus a
+`CHECK` constraint restricting `flipbook_url` to the AnyFlip host pattern —
+the third of the three validation layers §19 asks for (Zod in
+`schemas/documents.ts` / `lib/anyflip.ts` on the app side, this constraint as
+the database backstop). Verified live, not just written: attempted
+`update documents set flipbook_url = 'https://evil.example.com/x'` directly
+via SQL and got `23514 violates check constraint` — the guard actually
+refuses, not merely exists. No RLS change needed; `documents_select_official`
+(`0008_dashboard_rls.sql`) already scopes anon/authenticated correctly, and
+the new columns are public book metadata, not sensitive.
+
+**Documents e-books come from AnyFlip embed links**, confirmed by the user
+during planning rather than self-hosted PDFs. `lib/anyflip.ts` is the single
+source of truth for what counts as a valid embed URL
+(`isAnyFlipEmbedUrl`/`toAnyFlipEmbedUrl`), imported by both the write-time
+Zod schema and the reader's iframe component — a URL that fails the check
+renders the "book not attached" empty state, never reaches an iframe `src`.
+Three demo `documents` rows were seeded as `official` (`supabase/seed.sql`
+and applied live): one carries a **real AnyFlip book URL, verified reachable
+via `WebFetch` at authoring time** (`https://anyflip.com/aasdd/luel/`, a
+public "calendar 2026-example" flipbook) so the reader is provably rendering
+a real, live third-party embed end-to-end, not a placeholder; the other two
+have no `flipbook_url`, deliberately exercising the "book not attached" empty
+state. Cover images are schema-ready (`cover_url` column exists) but **not
+rendered this pass** — no real thumbnail URL scheme for AnyFlip covers is
+documented, so every book on the shelf shows a designed placeholder cover
+instead (gradient card, book icon, title — gradient angle deterministic per
+title so a shelf of several books doesn't look like one card repeated, colors
+drawn only from existing `--primary`/`--brand-ink` tokens, no new hues per
+§3). `docs/add-ebook.md` documents how to attach a real book via the Table
+Editor, since there is no admin upload form this pass — not asked for.
+
+**`/activities` got the full §10 treatment**: search (300ms debounced, reusing
+`hooks/use-debounced-value.ts`), Department/Club/Academic-Year filters,
+sortable columns, 10-rows/page pagination, and an
+Attendance/Completed/Pending statistics strip — built as a near-exact mirror
+of the already-proven Members module (`schemas/activities.ts`,
+`services/activities.ts`, `components/activities/`), reusing
+`getDepartments()`/`getClubs()` from `services/members.ts` rather than
+redefining them. Each filter `Select`'s `SelectValue` was given the
+`children` render function from the start — the exact Base UI defect
+(`__all__` displayed literally) that bit the Members filters earlier in this
+project was checked for directly in a screenshot and confirmed absent
+("ทุกแผนก"/"ทุกชมรม"/"ทุกปี" render correctly). Completed/Pending stat tiles
+double as filters (`<Link>`s setting `?status=`), so no fourth dropdown was
+needed and it still works with JS disabled.
+
+**Guest vs. signed-in visibility verified live via REST, not assumed from
+reading the RLS policy.** Anon `activities?select=id` returns exactly the 3
+`is_public = true` rows (of 6 total); anon `documents?select=id,status`
+returns exactly the 3 seeded `official` rows. The `/activities` page itself
+was checked the same way with `curl` (no cookies = genuine guest): the stats
+strip reads `0 / 1 / 2` (attendance / completed / pending) and the table
+shows exactly those 3 public activities — `attendance` reading 0 is correct
+and by design (empty table, see existing ❌ item below), not a bug, and the
+UI copy says so. `?status=completed` correctly narrows to the 1 public
+completed row; `?sort=title&dir=desc` correctly reverses table order; an
+invalid `dept=` UUID falls back to "no filter applied" (200, all 3 rows) via
+the same `.catch(null)` pattern as Members, rather than erroring — the exact
+`z.uuid()` trap recorded earlier in this file was checked for directly this
+time. `/en/activities` renders "Activities" correctly.
+
+**`/calendar`** is a real, URL-driven (`?month=YYYY-MM`) month view —
+`MonthNav`'s prev/today/next are plain `<Link>`s, so navigation works with JS
+disabled, verified with `curl`: `?month=2026-09` renders "กันยายน 2026", and a
+garbage `?month=` value falls back to the current month ("สิงหาคม 2026")
+rather than erroring. `MonthGrid` extends the existing dashboard
+`calendar-card.tsx` pattern into a full 7-column grid with per-day event
+chips, hidden below `md` in favor of `MonthEventList` — a linear date/time/
+title/location list — since a 7-column grid has no usable room at 375px.
+
+**`components/table/pagination.tsx`** — `members-pagination.tsx` was moved
+here (not copied) since Activities needed the identical control; its three
+dictionary keys moved from `members.*` to `common.pagination.*` in both
+`th.json`/`en.json`. Members' own pagination behavior is unchanged, verified
+by the responsive-check pass below still covering `/th/members` cleanly.
+
+**A real, previously-undetected production bug was found and fixed while
+verifying this work: the app has never had a `<meta name="viewport">` tag.**
+Discovered because `scripts/responsive-check.mjs`'s 375px mobile-emulation
+pass, which had been recorded as 84/84 passing in an earlier pass of this
+file, suddenly failed on every single page in both themes with
+`window.innerWidth` reporting `981` instead of `375`. Isolated with a minimal
+standalone CDP script: `screen.width`/`outerWidth` correctly reported the
+overridden `375`, but `innerWidth` stayed at `981` — the classic ~980px
+"desktop site on mobile" fallback layout viewport that real mobile browsers
+apply to any page lacking a viewport meta tag. `curl`-ing the live dev server
+confirmed it: zero `<meta ... viewport ...>` tags in the rendered `<head>`.
+This is not a Chrome DevTools artifact — it means every real phone visiting
+this site has been rendering the whole page at a fixed 980px width and
+scaling it down, the entire time, on every route. Fixed by adding
+`export const viewport: Viewport = { width: "device-width", initialScale: 1
+}` to `app/[lang]/layout.tsx` (Next.js does not inject this automatically —
+a common assumption checked and found false here). Re-verified: `curl`
+against the dev server now shows the tag; the full responsive-check matrix —
+**3 breakpoints × 2 themes × 15 pages (90 combinations, including the four
+new/changed pages and the new `/th/documents/<id>` reader route) — passed
+clean**, and 375px screenshots for all three new pages were visually
+inspected in both themes (Thai tone marks/vowels render without clipping,
+matching §30.9 item 7's existing bar).
+
+`npx tsc --noEmit && npm run lint && npm run build` all pass clean, including
+the new dynamic `/[lang]/documents/[id]` route. `types/database.ts`
+regenerated live from the schema after `0013` (was previously stale by one
+migration).
+
 ### ❌ Remaining
 
 * **Full magic-link round trip on the live Vercel deployment not verified
@@ -530,11 +641,19 @@ sitekey was already correct since both domains share the one widget.
   most security-sensitive: GPS/device fingerprint), `audit_logs`. Plus
   Documents digital-signature, Reports & global search, Notifications/web
   push — none of those phases started; each is its own approved phase, in
-  that order.
+  that order. **§30.10's Activities phase is now partially consumed** — the
+  full §10 UI (search/filters/sort/pagination/statistics) landed above, built
+  directly against the existing `activities` table; only **realtime** (the
+  other half of that phase) remains outstanding.
 * **`attendance` has zero rows** — by design (see Done above), but it means
   the §10 activity-statistics chart's "attendance" series will show 0 for
   every month until either real QR check-ins land or a future pass seeds it
   against real test-user accounts created and torn down for that purpose.
+  This now also applies to `/activities`' own Attendance stat tile, for the
+  same reason.
+* **`documents.cover_url` is schema-ready but not rendered** — every book on
+  the `/documents` shelf shows a designed placeholder cover instead of a real
+  thumbnail; wiring a real cover image is a follow-up, not started.
 
 ## 1. Mission
 

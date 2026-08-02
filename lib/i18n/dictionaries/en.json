@@ -29,7 +29,12 @@
     "mainNav": "Main navigation",
     "comingSoon": "Coming soon",
     "comingSoonDescription": "This feature will be available in a later phase.",
-    "devRole": "Role (dev mode)"
+    "devRole": "Role (dev mode)",
+    "pagination": {
+      "summary": "Showing {start}–{end} of {total}",
+      "previousPage": "Previous page",
+      "nextPage": "Next page"
+    }
   },
   "roles": {
     "guest": "Guest",
@@ -163,10 +168,54 @@
     "columnYear": "Year",
     "columnDepartment": "Department",
     "columnClub": "Club",
-    "empty": "No members match these filters",
-    "paginationSummary": "Showing {start}–{end} of {total}",
-    "previousPage": "Previous page",
-    "nextPage": "Next page"
+    "empty": "No members match these filters"
+  },
+  "activities": {
+    "description": "Search and filter upcoming and past activities",
+    "searchPlaceholder": "Search by activity title",
+    "filterDepartment": "Department",
+    "allDepartments": "All departments",
+    "filterClub": "Club",
+    "allClubs": "All clubs",
+    "filterYear": "Academic year",
+    "allYears": "All years",
+    "clearFilters": "Clear filters",
+    "columnTitle": "Activity",
+    "columnDate": "Date",
+    "columnLocation": "Location",
+    "columnDepartment": "Department",
+    "columnStatus": "Status",
+    "empty": "No activities match these filters",
+    "status": {
+      "pending": "Pending",
+      "completed": "Completed",
+      "cancelled": "Cancelled"
+    },
+    "stats": {
+      "attendance": "Attendance",
+      "attendanceNote": "Shows only your own records or reviewer access",
+      "completed": "Completed",
+      "pending": "Pending"
+    }
+  },
+  "calendar": {
+    "title": "Activity Calendar",
+    "description": "Browse all activities by month",
+    "today": "Today",
+    "previousMonth": "Previous month",
+    "nextMonth": "Next month",
+    "eventListTitle": "This month's events",
+    "noEvents": "No events this month",
+    "moreEvents": "+{count} more"
+  },
+  "documents": {
+    "description": "Official e-books and flipbook documents",
+    "empty": "No published documents yet",
+    "readBook": "Read book",
+    "notAttached": "No book attached yet",
+    "notAttachedDescription": "This document doesn't have an e-book link attached yet.",
+    "backToShelf": "Back to the shelf",
+    "publishedAt": "Published"
   },
   "approvals": {
     "title": "Account Approvals",

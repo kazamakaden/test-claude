@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { can } from "@/lib/auth/permissions";
 import { getRole } from "@/lib/auth/get-role";
+import { getMonthActivities } from "@/services/activities";
 import type { Locale } from "@/lib/i18n/config";
 import type { Role } from "@/types/auth";
 import type {
@@ -57,25 +58,12 @@ export async function getUpcomingMeetings(): Promise<Meeting[]> {
   }));
 }
 
+// Delegates to services/activities.ts so the month query exists once — this
+// just narrows MonthActivity (adds `location`, needed by /calendar's event
+// list) down to the dashboard card's smaller CalendarEvent shape.
 export async function getCalendarEvents(month: Date): Promise<CalendarEvent[]> {
-  const supabase = await createClient();
-  const start = new Date(month.getFullYear(), month.getMonth(), 1).toISOString();
-  const end = new Date(month.getFullYear(), month.getMonth() + 1, 1).toISOString();
-
-  const { data, error } = await supabase
-    .from("activities")
-    .select("id, title, starts_at")
-    .gte("starts_at", start)
-    .lt("starts_at", end)
-    .order("starts_at", { ascending: true });
-
-  if (error || !data) return [];
-
-  return data.map((a) => ({
-    id: a.id,
-    date: a.starts_at,
-    title: a.title,
-  }));
+  const events = await getMonthActivities(month);
+  return events.map((e) => ({ id: e.id, date: e.startsAt, title: e.title }));
 }
 
 // §10 activity statistics, aggregated in SQL — see get_activity_stats() (0009).

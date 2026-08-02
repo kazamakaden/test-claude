@@ -3,7 +3,7 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { Dictionary } from "@/types/i18n";
 
-export function MembersPagination({
+export function Pagination({
   page,
   perPage,
   total,
@@ -18,7 +18,7 @@ export function MembersPagination({
   searchParams: URLSearchParams;
   dict: Dictionary;
 }) {
-  const d = dict.members;
+  const d = dict.common.pagination;
   const totalPages = Math.max(1, Math.ceil(total / perPage));
 
   const hrefForPage = (p: number) => {
@@ -32,7 +32,7 @@ export function MembersPagination({
   return (
     <div className="flex items-center justify-between gap-4 pt-2">
       <p className="text-sm text-muted-foreground">
-        {d.paginationSummary
+        {d.summary
           .replace("{start}", String((page - 1) * perPage + 1))
           .replace("{end}", String(Math.min(page * perPage, total)))
           .replace("{total}", String(total))}

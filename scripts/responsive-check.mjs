@@ -66,6 +66,9 @@ const PUBLIC_PAGES = [
   "/th/announcements",
   "/th/activities",
   "/th/documents",
+  // Seeded demo e-book (supabase/seed.sql) — the flipbook iframe is a real
+  // overflow candidate that /th/documents alone (the shelf) doesn't exercise.
+  "/th/documents/a2722df0-af24-47b3-84d1-bb5f731bc70b",
   "/th/calendar",
 ];
 
