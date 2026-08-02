@@ -166,6 +166,45 @@ enters this repo:
    paste the SMTP host/port/user/password into Supabase → **Authentication →
    SMTP Settings**, set a sender name/address on your domain.
 
+## Deploying to Vercel
+
+The Vercel project is created from a GitHub import, which does **not** copy
+`.env.local`. A deploy with none of the variables below set will build and
+serve every public page fine, then 500 the moment someone submits the login
+form — `assertTurnstileSafeForProduction()` (`lib/turnstile.ts`) throws
+because it can't find a sitekey, and even without that guard,
+`createServerClient` would throw on a missing Supabase URL.
+
+Required in Vercel → Settings → Environment Variables (Production scope):
+
+| Variable | Value |
+|---|---|
+| `NEXT_PUBLIC_SUPABASE_URL` | your Supabase project URL |
+| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | your Supabase publishable key |
+| `NEXT_PUBLIC_TURNSTILE_SITE_KEY` | a **real** Cloudflare Turnstile sitekey scoped to the deployment's hostname |
+
+**Never put a Cloudflare testing sitekey (e.g. `1x00000000000000000000AA`) in
+a production environment.** It is a documented always-pass key;
+`assertTurnstileSafeForProduction()` detects it and throws deliberately,
+producing the same 500 as a missing key.
+
+Two more things, or the deploy still fails at the same step:
+
+1. **Redeploy after saving env vars, without the build cache.**
+   `NEXT_PUBLIC_*` values are inlined into the client bundle at build time
+   (see above) — saving them in the dashboard changes nothing until the next
+   build actually runs.
+2. **Add the production URL to Supabase → Authentication → URL
+   Configuration** (Site URL + a `https://<your-domain>/**` redirect entry).
+   `signIn` builds `emailRedirectTo` from the request's `origin` header
+   (`actions/auth.ts`), so an un-allow-listed production origin makes
+   Supabase reject the magic link at send time.
+
+The `SUPABASE_SECRET_KEY` / `SUPABASE_URL` / `SUPABASE_PUBLISHABLE_KEY` /
+`SUPABASE_JWKS_URL` variables are for the future `@supabase/server` Edge
+Functions phase — nothing in the deployed app reads them yet, so there's no
+need to set them on Vercel until that phase starts.
+
 ## Auth setup (magic link)
 
 Login is email-only, restricted to `@udontech.ac.th`, via Supabase's magic

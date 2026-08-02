@@ -316,8 +316,34 @@ present. The trade-off: misconfiguration surfaces at the first production
 login attempt, not at deploy time — a CI env-var check is the correct
 deploy-time guard and is out of scope here.
 
+**Live Vercel deployment exists but production login is broken (root-caused,
+not yet fixed)** — project `test-claude` (Vercel team `ka-600a`) auto-deployed
+from GitHub `kazamakaden/test-claude` at commit `cf2540a`. Every public route
+returns 200, but the Vercel project has **zero environment variables set**
+(GitHub import doesn't copy `.env.local`), confirmed by grepping the
+production JS chunks: `NEXT_PUBLIC_SUPABASE_URL` survives as a runtime
+`process.env` lookup instead of being inlined as a literal, and no
+`supabase.co` host or Turnstile sitekey appears anywhere in the bundle. Two
+concrete consequences: `getRole()` can never return anything but `"guest"` in
+production (the dev-cookie fallback also fails closed outside
+`NODE_ENV=development`, so there's no fallback role either), and submitting
+the login form 500s — `assertTurnstileSafeForProduction()` throws because
+`NEXT_PUBLIC_TURNSTILE_SITE_KEY` is unset (confirmed via
+`get_runtime_errors`: 4 occurrences on `/en/login`, digest `3705566263`).
+Fix requires action in three external dashboards (a real Cloudflare Turnstile
+widget, Supabase CAPTCHA + URL Configuration, Vercel env vars) plus a
+cache-free redeploy — see README "Deploying to Vercel" for the exact steps
+and the test-sitekey trap to avoid.
+
 ### ❌ Remaining
 
+* **Production login on the live Vercel deployment 500s** — see "Live Vercel
+  deployment" above and README "Deploying to Vercel". Needs a real Cloudflare
+  Turnstile widget + sitekey, Supabase CAPTCHA enabled with its secret, the
+  production URL added to Supabase's redirect allow-list, and the
+  `NEXT_PUBLIC_*` variables set in Vercel followed by a cache-free redeploy —
+  all browser-only dashboard work no tool here can perform; not fixable by a
+  code change alone.
 * **JS-disabled server-enforcement and 375/768/1280px responsive checks**
   (§30.9 items 3–4) — item 3 is now **partially** superseded (see Turnstile
   note above: validation-with-JS-off still holds, completion does not).
@@ -334,11 +360,11 @@ deploy-time guard and is out of scope here.
   the §10 activity-statistics chart's "attendance" series will show 0 for
   every month until either real QR check-ins land or a future pass seeds it
   against real test-user accounts created and torn down for that purpose.
-* **Turnstile shows a real (test) widget locally now, but real credentials
-  and custom SMTP are still not configured** — both need browser-only setup
-  (Cloudflare dashboard, an email provider, two Supabase dashboard settings)
-  that no tool here has access to; see README "CAPTCHA + SMTP setup". Email
-  still goes through the rate-limited default sender until SMTP is wired.
+* **Custom SMTP is still not configured** — not login-blocking (the default
+  Supabase sender works), but real traffic on a public URL will quickly hit
+  `429 over_email_send_rate_limit`, meant for dev volume only. Needs an email
+  provider account and Supabase → Authentication → SMTP Settings — browser-only
+  setup no tool here has access to; see README "CAPTCHA + SMTP setup".
 
 ## 1. Mission
 
