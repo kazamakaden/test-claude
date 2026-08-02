@@ -670,8 +670,97 @@ which Resend's broken config did not. Re-entering the Resend credentials and
 re-enabling custom SMTP is a manual step for whenever the user is ready — see
 ❌ Remaining.
 
+**Security/performance/bug-hunt pass over the whole app** — a systematic
+check, not a single fix. What was checked and found clean, so it isn't
+re-litigated next time someone asks "is this secure": no `dangerouslySetInnerHTML`/
+`eval`/`new Function` anywhere in `app`/`components`/`lib`/`services`; no
+`select("*")` anywhere (grep-verified, not just convention-by-comment); every
+file in `services/` carries `server-only`; no Client Component in the new
+`components/activities|calendar|documents/` trees except the one that
+genuinely needs interactivity (`activities-filters.tsx`) — `calendar/` and
+`documents/` are 100% Server Components, matching §21/§23; the AnyFlip
+`<iframe sandbox>` flags (`allow-scripts allow-same-origin allow-popups`,
+deliberately no `allow-top-navigation`/`allow-forms`/`allow-modals`/
+`allow-downloads`) were checked against the actual threat model rather than
+pattern-matched against "scripts+same-origin is always bad" — that combo is
+a real escape risk only when the sandboxed content shares an origin with the
+host page, which AnyFlip does not, so it was left as-is rather than
+weakened on a false alarm; the `search` inputs on both Members and Activities
+already escape `%`/`_` before `.ilike()`, so no wildcard-injection path
+exists. Two real, small issues were found and fixed: `schemas/documents.ts`
+exported an unused `flipbookUrlSchema` (dead code — no admin write form
+exists yet to call it) — removed. `public.activities.club_id` had no index
+despite `department_id` (the same kind of FK, same table, same filter
+pattern) having one since `0007` — added
+(`0014_activities_club_index.sql`).
+
+Ran Supabase's own advisors (`get_advisors`, both `security` and
+`performance`) rather than relying on manual review alone. Most SECURITY
+DEFINER-function warnings (`prevent_role_self_escalation`, `set_updated_at`,
+`prevent_citizen_id_change` flagged as anon/authenticated-executable) turned
+out to be a **stale advisor cache, not a live regression** — verified
+directly against `information_schema.role_routine_grants`, which returned
+zero rows for `anon`/`authenticated`/`public` on those three functions,
+confirming `0012`'s revoke is still correctly in effect. Worth knowing: the
+advisor output can lag behind reality, so a finding from it should be
+confirmed against the actual grant/policy state before acting on it, exactly
+as done here. Four more `unindexed_foreign_keys` findings were real and cheap
+to fix, so they were (`activities.created_by`, `approved_accounts.approved_by`,
+`approved_accounts.department_id`, `document_drafts.created_by` —
+`0015_missing_fk_indexes.sql`). "Leaked password protection" (checks new
+passwords against HaveIBeenPwned) is flagged and genuinely disabled, but is
+**Pro-plan-gated on this project's Free tier** — confirmed in the dashboard,
+not assumed; not fixable without a paid-plan upgrade, which is a billing
+decision for the user, not something to change unilaterally.
+
+Two categories of finding were deliberately **not** acted on this pass,
+documented below rather than either silently skipped or rushed: rewriting
+~10 RLS policies for the `auth_rls_initplan`/`multiple_permissive_policies`
+advisories, and adding CSP headers. Both are real, but both are the kind of
+change where a rushed, unverified attempt is worse than the problem it
+fixes — see ❌ Remaining for why and what a correct fix would need.
+
 ### ❌ Remaining
 
+* **RLS policy performance (`auth_rls_initplan`, `multiple_permissive_policies`)**
+  — ~10 policies across `profiles`/`attendance`/`projects`/`documents`/
+  `document_drafts`/`notifications` call `auth.uid()`/`current_role()`
+  directly instead of `(select auth.uid())`, causing Postgres to
+  re-evaluate the function per row instead of once per query; several
+  tables also stack multiple permissive policies for the same role+action
+  (an inherent side effect of this project's additive "role gets its own
+  policy on top of the base ones" RLS design). Both are real at scale, both
+  are currently harmless (every table here has single-digit-to-low-hundreds
+  rows). Not fixed this pass because both require rewriting the
+  security-critical access-control layer itself — the risk of introducing an
+  actual RLS gap while chasing a query-planner optimization outweighs the
+  current benefit. A correct fix needs its own pass: rewrite each policy,
+  then re-run the full guest/student/teacher/aft_teacher/admin × table
+  verification matrix this project has already established the pattern for
+  (see the `0005`/`0008` citizen_id and attendance column-grant proofs
+  above) before trusting it.
+* **No Content-Security-Policy headers** — §19 asks for XSS protection,
+  achieved today via React's default escaping and the absence of any
+  `dangerouslySetInnerHTML` (verified this pass, see Done above), but a CSP
+  would add defense-in-depth against any future regression. Not added this
+  pass because a naive CSP would likely break the app: `book-cover.tsx`'s
+  gradient uses an inline `style` attribute (React's `style` prop always
+  renders as `style="..."`, which a strict `style-src` without
+  `'unsafe-inline'` blocks), Turnstile needs `challenges.cloudflare.com` in
+  both `script-src` and `frame-src`, and the new AnyFlip viewer needs
+  `anyflip.com` in `frame-src`. A correct policy needs to be built with all
+  three allowances and then verified live on every page/theme (login
+  especially, since a misconfigured CSP silently breaking Turnstile would be
+  worse than having no CSP at all) — not assembled from a generic template
+  and shipped unverified.
+* **Leaked password protection is off, Pro-plan-gated** — Supabase
+  Authentication → Attack Protection confirms it, greyed out under "Only
+  available on Pro plan and above." Low real-world exposure today since the
+  app is magic-link-only and password sign-in is never exposed in the UI,
+  but the password grant type remains live at the Supabase API level
+  regardless (the demo accounts' passwords are real, "for API testing
+  only" per their own note above) — worth revisiting if the project ever
+  upgrades off the Free tier.
 * **Custom SMTP (Resend) needs to be manually reconfigured** — cleared as a
   side effect of the round-trip proof above (Authentication → Emails → SMTP
   Settings → toggle "Enable custom SMTP" → re-enter host `smtp.resend.com`,
