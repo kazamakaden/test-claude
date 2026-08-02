@@ -47,7 +47,7 @@ export function MobileNav({
             <Logo lang={lang} />
           </SheetTitle>
         </SheetHeader>
-        <nav aria-label={dict.nav.home} className="flex-1 overflow-y-auto p-4">
+        <nav aria-label={dict.common.mainNav} className="flex-1 overflow-y-auto p-4">
           <NavLinks
             items={items}
             lang={lang}

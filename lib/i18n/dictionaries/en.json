@@ -15,7 +15,8 @@
     "login": "Login",
     "dashboard": "Dashboard",
     "profile": "Profile",
-    "notifications": "Notifications"
+    "notifications": "Notifications",
+    "approvals": "Account Approvals"
   },
   "common": {
     "skipToContent": "Skip to main content",
@@ -25,19 +26,173 @@
     "closeMenu": "Close menu",
     "signOut": "Sign out",
     "settings": "Settings",
+    "mainNav": "Main navigation",
     "comingSoon": "Coming soon",
     "comingSoonDescription": "This feature will be available in a later phase.",
     "devRole": "Role (dev mode)"
   },
   "roles": {
     "guest": "Guest",
-    "student": "Student / Member",
+    "student": "AFT Student/Member",
     "teacher": "Teacher",
+    "aft_teacher": "AFT Advisor Teacher",
     "admin": "Administrator"
+  },
+  "auth": {
+    "emailLabel": "Email",
+    "emailPlaceholder": "your.name@udontech.ac.th",
+    "submit": "Send sign-in link",
+    "submitting": "Sending...",
+    "checkEmailTitle": "Check your email",
+    "checkEmailDescription": "We've sent a sign-in link to your email address.",
+    "captchaLabel": "Verification",
+    "errors": {
+      "invalidEmail": "Please enter a valid email address",
+      "personalDomain": "Please use your college email (@udontech.ac.th) instead of a personal address",
+      "wrongDomain": "Only @udontech.ac.th email addresses are allowed",
+      "sendFailed": "Couldn't send the sign-in link. Please try again.",
+      "captchaFailed": "Please complete the verification check and try again.",
+      "notApproved": "This student ID hasn't been approved yet. Please contact an administrator."
+    }
   },
   "footer": {
     "orgName": "Association of Future Thai Professionals",
     "collegeName": "Udon Thani Technical College",
     "copyright": "All rights reserved"
+  },
+  "dashboard": {
+    "welcomeTitle": "Welcome",
+    "welcomeMorning": "Good morning",
+    "welcomeAfternoon": "Good afternoon",
+    "welcomeEvening": "Good evening",
+    "notifications": {
+      "title": "Notifications",
+      "description": "Recent news and alerts",
+      "empty": "No new notifications",
+      "emptyCta": "View all notifications",
+      "types": {
+        "meeting": "Meeting",
+        "activity": "Activity",
+        "deadline": "Deadline",
+        "approval": "Approval",
+        "announcement": "Announcement"
+      }
+    },
+    "meetings": {
+      "title": "Upcoming Meetings",
+      "description": "Scheduled meetings and appointments",
+      "empty": "No meetings scheduled",
+      "emptyCta": "View full calendar"
+    },
+    "calendar": {
+      "title": "Calendar",
+      "description": "This month's events",
+      "today": "Today"
+    },
+    "activityStats": {
+      "title": "Activity Statistics",
+      "description": "Monthly attendance, completed, and pending",
+      "attendance": "Attendance",
+      "completed": "Completed",
+      "pending": "Pending",
+      "empty": "No statistics yet"
+    },
+    "draftDocuments": {
+      "titleStudent": "My Draft Documents",
+      "titleTeacher": "Documents Pending Review",
+      "description": "Track the status of recent documents",
+      "empty": "No draft documents",
+      "emptyCta": "Create a new document",
+      "status": {
+        "draft": "Draft",
+        "signed": "Signed",
+        "pending_approval": "Pending approval",
+        "official": "Approved"
+      }
+    },
+    "recentProjects": {
+      "title": "Recent Projects",
+      "description": "Progress on active projects",
+      "empty": "No projects yet",
+      "emptyCta": "Create a new project",
+      "status": {
+        "draft": "Draft",
+        "teacher_review": "Teacher review",
+        "admin_approval": "Pending admin approval",
+        "official": "Official project"
+      }
+    },
+    "recentActivities": {
+      "title": "Recent Activities",
+      "description": "Recently held activities",
+      "empty": "No activities yet",
+      "emptyCta": "View all activities"
+    },
+    "memberStats": {
+      "title": "Member Statistics",
+      "description": "Member count by department",
+      "empty": "No member data yet"
+    },
+    "quickActions": {
+      "title": "Quick Actions",
+      "description": "Shortcuts for common tasks",
+      "submitDraft": "Submit project draft",
+      "scanAttendance": "Scan attendance QR",
+      "signDocument": "Sign document",
+      "reviewDrafts": "Review draft documents",
+      "manageMembers": "Manage members"
+    },
+    "errorTitle": "Couldn't load this data",
+    "errorRetry": "Try again"
+  },
+  "members": {
+    "description": "Search and filter the full member directory",
+    "searchPlaceholder": "Search by name or student ID",
+    "filterDepartment": "Department",
+    "allDepartments": "All departments",
+    "filterYear": "Academic year",
+    "allYears": "All years",
+    "filterClass": "Class",
+    "allClasses": "All classes",
+    "filterClub": "Club",
+    "allClubs": "All clubs",
+    "clearFilters": "Clear filters",
+    "columnName": "Name",
+    "columnStudentId": "Student ID",
+    "columnClass": "Class",
+    "columnYear": "Year",
+    "columnDepartment": "Department",
+    "columnClub": "Club",
+    "empty": "No members match these filters",
+    "paginationSummary": "Showing {start}–{end} of {total}",
+    "previousPage": "Previous page",
+    "nextPage": "Next page"
+  },
+  "approvals": {
+    "title": "Account Approvals",
+    "description": "Numeric student-ID email addresses must be approved by an administrator before they can sign in. Named staff email addresses can sign in immediately.",
+    "addTitle": "Add an approved account",
+    "emailLabel": "Email",
+    "emailPlaceholder": "69319010099@udontech.ac.th",
+    "roleLabel": "Role",
+    "departmentLabel": "Department (optional)",
+    "noDepartment": "No department",
+    "noteLabel": "Note (optional)",
+    "submit": "Add account",
+    "submitting": "Adding...",
+    "columnEmail": "Email",
+    "columnRole": "Role",
+    "columnDepartment": "Department",
+    "columnApprovedBy": "Approved by",
+    "columnDate": "Date",
+    "revoke": "Revoke",
+    "empty": "No approved accounts yet",
+    "errors": {
+      "invalidEmail": "Please enter a valid email address",
+      "wrongDomain": "Only @udontech.ac.th email addresses are allowed",
+      "invalidRole": "Please choose a role",
+      "duplicate": "This email has already been approved",
+      "unknown": "Something went wrong. Please try again."
+    }
   }
 }

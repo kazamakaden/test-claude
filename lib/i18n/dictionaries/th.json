@@ -15,7 +15,8 @@
     "login": "เข้าสู่ระบบ",
     "dashboard": "แดชบอร์ด",
     "profile": "โปรไฟล์",
-    "notifications": "การแจ้งเตือน"
+    "notifications": "การแจ้งเตือน",
+    "approvals": "อนุมัติบัญชี"
   },
   "common": {
     "skipToContent": "ข้ามไปยังเนื้อหาหลัก",
@@ -25,19 +26,173 @@
     "closeMenu": "ปิดเมนู",
     "signOut": "ออกจากระบบ",
     "settings": "ตั้งค่า",
+    "mainNav": "เมนูหลัก",
     "comingSoon": "อยู่ระหว่างพัฒนา",
     "comingSoonDescription": "ฟีเจอร์นี้จะเปิดให้ใช้งานในเฟสถัดไป",
     "devRole": "บทบาท (โหมดพัฒนา)"
   },
   "roles": {
     "guest": "ผู้เยี่ยมชม",
-    "student": "นักเรียน/สมาชิก",
-    "teacher": "ครู",
+    "student": "นักเรียน/นักศึกษา อวท.",
+    "teacher": "อาจารย์",
+    "aft_teacher": "อาจารย์ อวท.",
     "admin": "ผู้ดูแลระบบ"
+  },
+  "auth": {
+    "emailLabel": "อีเมล",
+    "emailPlaceholder": "your.name@udontech.ac.th",
+    "submit": "ส่งลิงก์เข้าสู่ระบบ",
+    "submitting": "กำลังส่ง...",
+    "checkEmailTitle": "ตรวจสอบอีเมลของคุณ",
+    "checkEmailDescription": "เราได้ส่งลิงก์สำหรับเข้าสู่ระบบไปยังอีเมลของคุณแล้ว",
+    "captchaLabel": "การยืนยันตัวตน",
+    "errors": {
+      "invalidEmail": "กรุณากรอกอีเมลที่ถูกต้อง",
+      "personalDomain": "กรุณาใช้อีเมลของวิทยาลัย (@udontech.ac.th) แทนอีเมลส่วนตัว",
+      "wrongDomain": "อนุญาตเฉพาะอีเมล @udontech.ac.th เท่านั้น",
+      "sendFailed": "ไม่สามารถส่งลิงก์เข้าสู่ระบบได้ กรุณาลองใหม่อีกครั้ง",
+      "captchaFailed": "กรุณายืนยันตัวตนแล้วลองใหม่อีกครั้ง",
+      "notApproved": "รหัสนักเรียน/นักศึกษานี้ยังไม่ได้รับการอนุมัติ กรุณาติดต่อผู้ดูแลระบบ"
+    }
   },
   "footer": {
     "orgName": "องค์การนักวิชาชีพในอนาคตแห่งประเทศไทย",
     "collegeName": "วิทยาลัยเทคนิคอุดรธานี",
     "copyright": "สงวนลิขสิทธิ์"
+  },
+  "dashboard": {
+    "welcomeTitle": "ยินดีต้อนรับ",
+    "welcomeMorning": "สวัสดีตอนเช้า",
+    "welcomeAfternoon": "สวัสดีตอนบ่าย",
+    "welcomeEvening": "สวัสดีตอนเย็น",
+    "notifications": {
+      "title": "การแจ้งเตือน",
+      "description": "ข่าวสารและการแจ้งเตือนล่าสุด",
+      "empty": "ไม่มีการแจ้งเตือนใหม่",
+      "emptyCta": "ดูการแจ้งเตือนทั้งหมด",
+      "types": {
+        "meeting": "การประชุม",
+        "activity": "กิจกรรม",
+        "deadline": "กำหนดส่ง",
+        "approval": "การอนุมัติ",
+        "announcement": "ประกาศ"
+      }
+    },
+    "meetings": {
+      "title": "การประชุมที่จะถึง",
+      "description": "นัดหมายและการประชุมล่วงหน้า",
+      "empty": "ไม่มีการประชุมที่กำหนดไว้",
+      "emptyCta": "ดูปฏิทินทั้งหมด"
+    },
+    "calendar": {
+      "title": "ปฏิทิน",
+      "description": "กิจกรรมประจำเดือนนี้",
+      "today": "วันนี้"
+    },
+    "activityStats": {
+      "title": "สถิติกิจกรรม",
+      "description": "การเข้าร่วม เสร็จสิ้น และรอดำเนินการรายเดือน",
+      "attendance": "เข้าร่วม",
+      "completed": "เสร็จสิ้น",
+      "pending": "รอดำเนินการ",
+      "empty": "ยังไม่มีข้อมูลสถิติ"
+    },
+    "draftDocuments": {
+      "titleStudent": "เอกสารร่างของฉัน",
+      "titleTeacher": "เอกสารรอตรวจสอบ",
+      "description": "ติดตามสถานะเอกสารล่าสุด",
+      "empty": "ไม่มีเอกสารร่าง",
+      "emptyCta": "สร้างเอกสารใหม่",
+      "status": {
+        "draft": "ร่าง",
+        "signed": "ลงนามแล้ว",
+        "pending_approval": "รออนุมัติ",
+        "official": "อนุมัติแล้ว"
+      }
+    },
+    "recentProjects": {
+      "title": "โครงการล่าสุด",
+      "description": "ความคืบหน้าของโครงการที่ดำเนินการอยู่",
+      "empty": "ยังไม่มีโครงการ",
+      "emptyCta": "สร้างโครงการใหม่",
+      "status": {
+        "draft": "ร่าง",
+        "teacher_review": "ครูกำลังตรวจสอบ",
+        "admin_approval": "รอผู้บริหารอนุมัติ",
+        "official": "โครงการทางการ"
+      }
+    },
+    "recentActivities": {
+      "title": "กิจกรรมล่าสุด",
+      "description": "กิจกรรมที่จัดขึ้นเมื่อเร็ว ๆ นี้",
+      "empty": "ยังไม่มีกิจกรรม",
+      "emptyCta": "ดูกิจกรรมทั้งหมด"
+    },
+    "memberStats": {
+      "title": "สถิติสมาชิก",
+      "description": "จำนวนสมาชิกแยกตามแผนก",
+      "empty": "ยังไม่มีข้อมูลสมาชิก"
+    },
+    "quickActions": {
+      "title": "การดำเนินการด่วน",
+      "description": "ทางลัดสำหรับงานที่ใช้บ่อย",
+      "submitDraft": "ส่งร่างโครงการ",
+      "scanAttendance": "สแกน QR เข้าร่วมกิจกรรม",
+      "signDocument": "ลงนามเอกสาร",
+      "reviewDrafts": "ตรวจสอบร่างเอกสาร",
+      "manageMembers": "จัดการสมาชิก"
+    },
+    "errorTitle": "ไม่สามารถโหลดข้อมูลได้",
+    "errorRetry": "ลองใหม่อีกครั้ง"
+  },
+  "members": {
+    "description": "ค้นหาและกรองรายชื่อสมาชิกทั้งหมด",
+    "searchPlaceholder": "ค้นหาด้วยชื่อหรือรหัสนักเรียน",
+    "filterDepartment": "แผนก",
+    "allDepartments": "ทุกแผนก",
+    "filterYear": "ปีการศึกษา",
+    "allYears": "ทุกปี",
+    "filterClass": "ระดับชั้น",
+    "allClasses": "ทุกระดับชั้น",
+    "filterClub": "ชมรม",
+    "allClubs": "ทุกชมรม",
+    "clearFilters": "ล้างตัวกรอง",
+    "columnName": "ชื่อ-นามสกุล",
+    "columnStudentId": "รหัสนักเรียน",
+    "columnClass": "ระดับชั้น",
+    "columnYear": "ปี",
+    "columnDepartment": "แผนก",
+    "columnClub": "ชมรม",
+    "empty": "ไม่พบสมาชิกที่ตรงกับตัวกรอง",
+    "paginationSummary": "แสดง {start}–{end} จาก {total} รายการ",
+    "previousPage": "หน้าก่อนหน้า",
+    "nextPage": "หน้าถัดไป"
+  },
+  "approvals": {
+    "title": "อนุมัติบัญชี",
+    "description": "อีเมลรหัสนักเรียน/นักศึกษา (ตัวเลขล้วน) ต้องได้รับการอนุมัติจากผู้ดูแลระบบก่อนจึงจะเข้าสู่ระบบได้ อีเมลของอาจารย์เข้าสู่ระบบได้ทันที",
+    "addTitle": "เพิ่มบัญชีที่อนุมัติ",
+    "emailLabel": "อีเมล",
+    "emailPlaceholder": "69319010099@udontech.ac.th",
+    "roleLabel": "บทบาท",
+    "departmentLabel": "แผนก (ถ้ามี)",
+    "noDepartment": "ไม่ระบุแผนก",
+    "noteLabel": "หมายเหตุ (ถ้ามี)",
+    "submit": "เพิ่มบัญชี",
+    "submitting": "กำลังเพิ่ม...",
+    "columnEmail": "อีเมล",
+    "columnRole": "บทบาท",
+    "columnDepartment": "แผนก",
+    "columnApprovedBy": "อนุมัติโดย",
+    "columnDate": "วันที่",
+    "revoke": "ยกเลิก",
+    "empty": "ยังไม่มีบัญชีที่ได้รับการอนุมัติ",
+    "errors": {
+      "invalidEmail": "กรุณากรอกอีเมลที่ถูกต้อง",
+      "wrongDomain": "อนุญาตเฉพาะอีเมล @udontech.ac.th เท่านั้น",
+      "invalidRole": "กรุณาเลือกบทบาท",
+      "duplicate": "อีเมลนี้ได้รับการอนุมัติไว้แล้ว",
+      "unknown": "เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง"
+    }
   }
 }

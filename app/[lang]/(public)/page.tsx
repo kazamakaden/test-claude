@@ -14,18 +14,17 @@ export default async function HomePage({
   const dict = await getDictionary(lang);
 
   return (
-    <div className="mx-auto flex max-w-7xl flex-col items-center gap-8 px-4 py-20 text-center sm:px-6 lg:px-8">
+    <div className="bg-hero mx-auto flex min-h-[calc(100dvh-5rem)] max-w-7xl flex-col items-center justify-center gap-8 rounded-b-3xl px-4 py-20 text-center sm:px-6 lg:px-8">
       <Image
         src="/brand/logo.png"
         alt="AFT UDONTECH"
         width={96}
         height={96}
-        sizes="96px"
         priority
         className="size-24"
       />
       <div className="flex flex-col gap-3">
-        <h1 className="font-heading text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
+        <h1 className="text-gradient-brand font-heading text-3xl font-semibold tracking-tight sm:text-4xl">
           {dict.meta.title}
         </h1>
         <p className="max-w-xl text-base text-muted-foreground">

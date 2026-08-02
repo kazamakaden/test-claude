@@ -1,5 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { defaultLocale, isLocale, locales } from "@/lib/i18n/config";
+import { updateSession } from "@/lib/supabase/middleware";
+import { isSupabaseConfigured } from "@/lib/supabase/env";
 
 function getLocale(request: NextRequest) {
   const cookieLocale = request.cookies.get("NEXT_LOCALE")?.value;
@@ -7,22 +9,31 @@ function getLocale(request: NextRequest) {
   return defaultLocale;
 }
 
-export function middleware(request: NextRequest) {
+export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   const pathnameHasLocale = locales.some(
     (locale) => pathname === `/${locale}` || pathname.startsWith(`/${locale}/`)
   );
 
+  let response: NextResponse;
+
   if (pathnameHasLocale) {
-    return NextResponse.next();
+    response = NextResponse.next();
+  } else {
+    const locale = getLocale(request);
+    const url = request.nextUrl.clone();
+    url.pathname = `/${locale}${pathname === "/" ? "" : pathname}`;
+    response = NextResponse.redirect(url);
   }
 
-  const locale = getLocale(request);
-  const url = request.nextUrl.clone();
-  url.pathname = `/${locale}${pathname === "/" ? "" : pathname}`;
+  // Session refresh only — authorization stays server-side in the page via
+  // requirePermission() (§30.5).
+  if (isSupabaseConfigured) {
+    return updateSession(request, response);
+  }
 
-  return NextResponse.redirect(url);
+  return response;
 }
 
 export const config = {

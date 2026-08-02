@@ -83,7 +83,7 @@ export function NavLinks({
             {active && orientation === "horizontal" ? (
               <motion.div
                 layoutId="nav-underline"
-                className="absolute inset-x-2 -bottom-[1px] h-0.5 rounded-full bg-gold"
+                className="absolute inset-x-2 -bottom-[1px] h-0.5 rounded-full bg-accent-glow"
                 transition={{ duration: 0.22, ease: "easeOut" }}
               />
             ) : null}

@@ -5,6 +5,7 @@ import { useTransition } from "react";
 import type { Role } from "@/types/auth";
 import { roles } from "@/types/auth";
 import type { Dictionary } from "@/types/i18n";
+import { isSupabaseConfigured } from "@/lib/supabase/env";
 
 function setDevRoleCookie(role: Role) {
   document.cookie = `dev_role=${role}; path=/; max-age=31536000; samesite=lax`;
@@ -20,7 +21,7 @@ export function DevRoleSwitcher({
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
 
-  if (process.env.NODE_ENV !== "development") return null;
+  if (process.env.NODE_ENV !== "development" || isSupabaseConfigured) return null;
 
   return (
     <div className="fixed bottom-4 right-4 z-40 flex items-center gap-2 rounded-xl border border-border bg-card px-3 py-2 text-xs shadow-lg">

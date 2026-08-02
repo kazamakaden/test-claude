@@ -24,7 +24,7 @@ export default async function PublicLayout({
       <main id="main" className="flex-1">
         {children}
       </main>
-      <Footer dict={dict} />
+      <Footer dict={dict} lang={lang} />
       <DevRoleSwitcher role={role} dict={dict} />
     </>
   );

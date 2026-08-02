@@ -1,14 +1,11 @@
 import "server-only";
 import { cookies } from "next/headers";
+import { createClient } from "@/lib/supabase/server";
+import { isSupabaseConfigured } from "@/lib/supabase/env";
 import type { Role } from "@/types/auth";
 import { roles } from "@/types/auth";
 
-/**
- * Dev-only role source until Supabase auth lands (§30.5). Reads a `dev_role`
- * cookie written by the dev role switcher. Production always resolves to
- * "guest" here since the cookie is never set outside development.
- */
-export async function getRole(): Promise<Role> {
+async function getDevCookieRole(): Promise<Role> {
   if (process.env.NODE_ENV !== "development") return "guest";
 
   const cookieStore = await cookies();
@@ -19,4 +16,31 @@ export async function getRole(): Promise<Role> {
   }
 
   return "guest";
+}
+
+/**
+ * Real role source once a Supabase project is configured; falls back to the
+ * dev-cookie stub (development only, never in production) until then.
+ * Fails closed to "guest" on any missing session or lookup error — never
+ * escalates.
+ */
+export async function getRole(): Promise<Role> {
+  if (!isSupabaseConfigured) return getDevCookieRole();
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) return "guest";
+
+  const { data, error } = await supabase
+    .from("profiles")
+    .select("role")
+    .eq("id", user.id)
+    .single();
+
+  if (error || !data) return "guest";
+
+  return data.role;
 }

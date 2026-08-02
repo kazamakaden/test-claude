@@ -3,13 +3,14 @@ import { TopNav } from "@/components/layout/top-nav";
 import { Footer } from "@/components/layout/footer";
 import { DevRoleSwitcher } from "@/components/layout/dev-role-switcher";
 import { getDictionary } from "@/lib/i18n/get-dictionary";
-import { getRole } from "@/lib/auth/get-role";
+import { requirePermission } from "@/lib/auth/require-role";
 import type { Locale } from "@/lib/i18n/config";
 
 /**
- * Server-side auth guard lands here in §30.5 (Supabase session read +
- * redirect to /login when signed out). The role-based nav filtering already
- * happens via getRole()/TopNav, independent of the guard.
+ * Every route in this group requires workspace membership (§6): guests get
+ * redirected to login. The guard returns the role, so no separate getRole()
+ * call is needed for the nav. Session-backed role resolution replaces the
+ * dev-cookie stub in §30.5.
  */
 export default async function AppLayout({
   children,
@@ -20,7 +21,10 @@ export default async function AppLayout({
 }) {
   const { lang: rawLang } = await params;
   const lang = rawLang as Locale;
-  const [dict, role] = await Promise.all([getDictionary(lang), getRole()]);
+  const [dict, role] = await Promise.all([
+    getDictionary(lang),
+    requirePermission("workspace:access", lang),
+  ]);
 
   return (
     <>
@@ -29,7 +33,7 @@ export default async function AppLayout({
       <main id="main" className="flex-1">
         {children}
       </main>
-      <Footer dict={dict} />
+      <Footer dict={dict} lang={lang} />
       <DevRoleSwitcher role={role} dict={dict} />
     </>
   );

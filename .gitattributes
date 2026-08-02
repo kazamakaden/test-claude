@@ -1,0 +1,10 @@
+# Normalize line endings to LF in the repo regardless of this checkout's OS
+# (Windows), so a Linux deploy never inherits CRLF.
+* text=auto eol=lf
+
+*.png -text
+*.jpg -text
+*.jpeg -text
+*.ico -text
+*.woff -text
+*.woff2 -text

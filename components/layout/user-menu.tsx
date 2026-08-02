@@ -1,5 +1,8 @@
+"use client";
+
 import Link from "next/link";
 import { LogOut, Settings, User } from "lucide-react";
+import { toast } from "sonner";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -11,6 +14,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { LanguageToggle } from "@/components/layout/language-toggle";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
+import { signOut } from "@/actions/auth";
 import type { Locale } from "@/lib/i18n/config";
 import type { Role } from "@/types/auth";
 import type { Dictionary } from "@/types/i18n";
@@ -66,12 +70,17 @@ export function UserMenu({
             <User />
             {dict.nav.profile}
           </DropdownMenuItem>
-          <DropdownMenuItem>
+          <DropdownMenuItem onClick={() => toast.info(dict.common.comingSoon)}>
             <Settings />
             {dict.common.settings}
           </DropdownMenuItem>
           <DropdownMenuSeparator />
-          <DropdownMenuItem variant="destructive">
+          <DropdownMenuItem
+            variant="destructive"
+            onClick={() => {
+              void signOut(lang);
+            }}
+          >
             <LogOut />
             {dict.common.signOut}
           </DropdownMenuItem>

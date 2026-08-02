@@ -13,7 +13,7 @@ export function NotificationsButton({
       <Bell />
       {unreadCount > 0 ? (
         <span
-          className="absolute right-1.5 top-1.5 size-2 rounded-full bg-gold ring-2 ring-card"
+          className="absolute right-1.5 top-1.5 size-2 rounded-full bg-accent-glow ring-2 ring-card"
           aria-hidden
         />
       ) : null}

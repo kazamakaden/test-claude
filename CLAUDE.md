@@ -1,5 +1,345 @@
 # CLAUDE.md — AFT UDONTECH Dashboard
 
+## 0. Phase 1 Status (as of 2026-08-01)
+
+Tracked against the §30 build plan. Grouped by done vs. remaining so status is
+scannable at a glance — each item still tags its §30.x subsection for detail.
+
+### ✔ Done
+
+**Scaffold (§30.1)** — Next.js 15 App Router, React 19, TS strict, Tailwind v4,
+ESLint, git init, shadcn/ui (on `@base-ui/react`, not Radix), Phase-1 deps
+installed (`@supabase/ssr`, RHF, Zod, next-themes, framer-motion, lucide-react,
+recharts, date-fns). Deferred deps (TanStack Table/Query, Zustand, QR Scanner,
+Signature Canvas) correctly not installed yet.
+
+**Design system (§30.2, §30.7)** — Palette retoned to a monochrome desaturated
+steel navy + platinum silver, matched to `Picture/tone color dark.jpg`
+(`#0C121C` / `#3E6D9C` / `#CFD8E3`); mustard `#FFB800` and blue `#002583` fully
+removed from the UI palette (logo crest excepted — see §3). Typography (IBM
+Plex Sans Thai + Inter). Logo assets wired for light/dark. Recharts confined
+to 2 Client Components, monochrome-safe by bar length not hue.
+
+**Internationalization (§30.3)** — `app/[lang]/...` (`th`/`en`, `th` default),
+key-aligned dictionaries with `types/i18n.ts` deriving the type from `th.json`
+so a missing English key is a compile error, cookie-based locale
+detection/redirect, language toggle, invalid locale 404s.
+
+**Supabase auth layer (§30.4, §30.5)** — `lib/supabase/{client,server,middleware,env}.ts`,
+`types/database.ts`, migrations for the auth-critical subset (`profiles`,
+`user_role` enum, `handle_new_user`/`updated_at` triggers, `current_role()`
+helper, RLS with role-escalation guard). `getRole()` reads the real session
+and fails closed to `"guest"`; falls back to a dev-cookie stub only when
+Supabase isn't configured **and** `NODE_ENV=development`. Magic-link sign-in
+(`schemas/auth.ts` + `actions/auth.ts`) enforces `@udontech.ac.th` with a
+friendlier message for personal domains (§7), re-validated server-side.
+Login form posts via native `<form action>` + `useActionState` (works with JS
+disabled). `auth/callback` route exchanges the code, hard-codes the redirect
+target (no open-redirect). Sign-out wired to a real Server Action.
+
+**Layout (§30.6)** — Top nav only (no sidebar), sticky, role-filtered nav,
+mobile `Sheet`, footer, theme/language toggles, keyboard support (skip-link,
+focus rings, Escape closes sheet), correctly labeled landmarks.
+
+**Dashboard (§30.7)** — All 10 §8 sections built (Welcome, Notifications,
+Upcoming Meetings, Calendar, Activity Statistics, Draft Documents, Recent
+Projects, Recent Activities, Member Statistics, Quick Actions) in
+`components/dashboard/`. `services/dashboard.ts` — one typed fetcher per
+section, returning fixture data **unconditionally** (not gated on Supabase
+config — the §20 dashboard tables don't exist yet, so gating on env presence
+would break the dashboard the moment credentials land; each function carries
+a `// → §20 <table>` note for its later swap). `lib/dev-fixtures.ts` includes
+one deliberately empty array so every empty state is exercisable. Role-aware
+via the existing `can()` matrix (no second source of truth). Every card wraps
+in `<Suspense>` + a matching skeleton + its own `CardBoundary` so one failing
+card can't take down the grid; route-level `error.tsx` is the last resort.
+
+**Folder structure (§30.8)** — `app/`, `components/{ui,layout,dashboard}/`,
+`lib/`, `types/`, `actions/`, `schemas/`, `supabase/`, `services/` all exist.
+
+**Automated verification (§30.9)** — `npx tsc --noEmit`, `npm run lint`,
+`npm run build` all pass clean.
+
+**Other fixes** — orphaned `/announcements` linked from the footer; nav logo
+blur/dark-mode/aspect-ratio fixed (regenerated crop, correct dimensions,
+dark-mode variant); homepage hero vertically centered below the sticky nav.
+
+**Members (§9, §30.10 — 1st of 7 post-Phase-1 phases)** — Real member
+directory at `/members`: search (300ms debounced), sort, 10-rows/page
+pagination, and Department/Year/Class/Club filters, all driven by URL search
+params (`schemas/members.ts` whitelists the sort column and clamps page size —
+server-side + URL state, deferring TanStack Query per the §30.10 deviation
+recorded below) rather than a client-side table. `supabase/migrations/0003_members.sql`
+adds `departments`/`clubs` and extends `profiles` with `student_id` (§14
+format), `department_id`, `class_name`, `club_id`, and a **generated**
+`academic_year` column so it can never drift from `student_id`.
+`0004_members_rls.sql` adds a directory read policy plus a **column-level**
+revoke on `citizen_id` — RLS is row-level and can't hide one column, and since
+Supabase admins share the `authenticated` Postgres role with everyone else, a
+plain revoke would lock them out too; admin reads go through the
+`get_citizen_id()` `SECURITY DEFINER` accessor instead. `supabase/seed.sql`
+(§30.4, previously unstarted) now seeds real departments/clubs.
+`services/members.ts` never `select("*")` and gates the live query on an
+explicit `MEMBERS_TABLES_READY` constant — not `isSupabaseConfigured`, same
+lesson as the dashboard. `components/ui/{table,select}.tsx` added via shadcn
+and verified to resolve against `@base-ui/react`, not Radix.
+
+**`components/ui/form.tsx` (§30.2)** — built on `@base-ui/react/field`
+(`Field.Root/Label/Description/Error`), not the stock Radix + react-hook-form
+recipe (Radix isn't installed; RHF/`@hookform/resolvers` stay installed but
+unused). `Field.Root`'s `invalid` prop and `Field.Error`'s `match={true}` let
+external state (a `useActionState` result) drive validity display, so
+`login-form.tsx` now gets `id`/`htmlFor`/`aria-invalid`/`aria-describedby`
+wired automatically instead of by hand — verified in-browser via the DOM
+(matching `id`/`for`, `aria-describedby` pointing at the rendered error's
+`id`). The `<form action={formAction}>` + `useActionState` binding, hidden
+`lang` field, and `useFormStatus` submit button are unchanged — the
+JS-disabled guarantee (§30.9) still holds. `components/forms/` stays
+uncreated: nothing composed exists to put there (the login form is correctly
+colocated with its route; `MembersFilters` lives in `components/members/`).
+
+**`components/charts/`, `hooks/` (§30.8)** — `chart-frame.tsx` extracts the
+`ResponsiveContainer` wrapper, tooltip style, and axis/grid props duplicated
+between the two dashboard charts; `activity-bar-chart.tsx` and
+`department-bar-chart.tsx` hold the recharts bodies. Both dashboard card
+shells (`activity-stats-card.tsx`, `member-stats-card.tsx`) dropped
+`"use client"` as a result — they use no hooks, so they're Server Components
+again, with only the chart leaf crossing the client boundary.
+`hooks/use-debounced-value.ts` extracts the debounce timer out of
+`members-filters.tsx` (same guard against redundant `router.replace`
+preserved); §18 global search is its next consumer.
+
+**Manual browser checklist (§30.9 + Members-specific)** — run against
+`npm run dev` with no `.env.local` (fixtures, `dev_role` cookie). Routing/i18n,
+theme toggle (light/dark, no clipped Thai tone marks), language toggle
+(path-preserving, `/th`↔`/en`), dashboard (all 10 sections, both extracted
+charts render), Members (25 fixtures / 3 pages, search debounce, all 4
+filters, sort toggle + persistence across pages, URL round-trip, zero-result
+empty state), and role gating (guest redirected from `/members`, nav filtered)
+all passed. Auth: `gmail.com` correctly rejected with the friendly Thai
+message; `@udontech.ac.th` correctly passes validation and reaches the
+Supabase call (which then fails — expected, no live project, see Remaining).
+JS-disabled server-enforcement (§30.9 item 3) and the 375/768/1280px
+responsive pass were **not verified this pass** — the browser tool used
+can't toggle JS or resize the actual rendering viewport in this environment;
+the code-level guarantee (Zod re-validated in `signIn`, Tailwind responsive
+classes already in `page-shell.tsx`/dashboard grid) stands but is unproven
+in-browser. Two real defects found and fixed:
+1. `schemas/members.ts`'s `z.uuid()` on `dept`/`club` was correct (matches
+   the `uuid` PK in `0003_members.sql`) but `lib/dev-fixtures.ts` used
+   non-UUID ids (`"dept-1"`), so `.catch(null)` silently dropped both
+   filters. Fixed by giving the fixtures stable UUIDs.
+2. `components/ui/select.tsx`'s `SelectValue` had no `children` render
+   function, so Base UI displayed the raw stored value (`"__all__"`) instead
+   of the matched option's label — every "all" filter showed literal
+   `__all__` text. Fixed by adding a `children` function to each
+   `MembersFilters` `SelectValue` that maps the value to its label.
+`fixtureEmptyMeetings` was also removed: it was unused (dead code) and its
+"exercises the empty state" comment was false — no dashboard fixture array
+was actually wired empty.
+
+**Live Supabase database (§30.4/§30.5/Members, `citizen_id` guard proven)** —
+project `hmkciwgzbdszsgnbeakc` created; migrations `0001`–`0004` applied via
+the Supabase MCP plugin, followed by two migrations this pass added and
+applied:
+1. `0005_citizen_id_column_grants.sql` — **a real defect, confirmed live and
+   fixed.** `0004`'s `revoke select (citizen_id) on public.profiles from
+   authenticated` was a no-op: PostgreSQL does not let a column-level revoke
+   narrow a table-level grant, and Supabase grants table-level `SELECT` to
+   `authenticated` on every new table by default. Verified by creating a real
+   student user, signing in for a genuine JWT, and calling
+   `profiles?select=*` — `citizen_id` came back in plain text. `0005` revokes
+   the table-level grant and re-grants an explicit column allow-list
+   (`citizen_id` excluded). Re-ran the same call after — `42501 permission
+   denied for table profiles`, confirmed fixed. Full 8-case matrix (student
+   `select=citizen_id`/`select=*`/`select=id,full_name`, student and admin
+   `rpc/get_citizen_id`, anon `select=id`, student `PATCH role='admin'`,
+   student `PATCH citizen_id`) passed after the fix; a legitimate own-row
+   `full_name` update was re-verified unaffected. Both a temporary student and
+   admin test user were deleted afterward; `profiles` confirmed back to 0 rows.
+2. `0006_lock_trigger_only_functions.sql` — Supabase's security advisor
+   flagged `handle_new_user`, `set_updated_at`, `prevent_role_self_escalation`,
+   and `prevent_citizen_id_change` as directly callable via
+   `/rest/v1/rpc/<name>` by `anon`/`authenticated`, despite existing only to
+   run as triggers. Revoked `EXECUTE` from both roles on all four; re-verified
+   the signup trigger still fires correctly (a fresh test user still got its
+   `profiles` row auto-created). `current_role()` and `get_citizen_id()` were
+   left callable — the former is a harmless self-lookup, the latter already
+   fails closed to non-admins.
+
+`types/database.ts` regenerated from the live schema (was hand-written
+before). `NEXT_PUBLIC_SUPABASE_ANON_KEY` renamed to
+`NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` across `lib/supabase/*.ts` to match
+Supabase's current key format; `.env.local` holds the real project
+credentials (git-ignored). `@supabase/server` (v1.4.1) installed for the
+future Edge Functions phase, plus its agent skill — not wired into any
+handler yet, so it is a temporarily-unused dependency by design (§21
+trade-off, noted here rather than left unexplained).
+
+**Real dashboard data (§30.7, corrected count)** — the ❌ item previously said
+"12 remaining §20 tables"; the real count is **10** (`roles` was folded into
+the `user_role` enum, and `departments`/`clubs` already existed). Of those 10,
+the dashboard reads exactly 6 — `activities`, `attendance`, `projects`,
+`documents`, `document_drafts`, `notifications` — created in
+`0007_dashboard_tables.sql`, RLS'd in `0008_dashboard_rls.sql` (transcribing
+the contract already stated in `lib/auth/permissions.ts:108-127`), with two
+`SECURITY INVOKER` aggregate RPCs (`get_activity_stats()`,
+`get_member_stats()`) in `0009_dashboard_stat_rpcs.sql`. `project_drafts`,
+`qr_sessions`, `signature_records`, `audit_logs` are the other 4 — deferred to
+their own §30.10 phases, not created here.
+
+`attendance` carries §15 sensitive columns (GPS, IP, device fingerprint) and
+got the same column-allow-list treatment `0005` gave `citizen_id` — verified
+live: a real student JWT hitting `attendance?select=*` gets `42501 permission
+denied`, `select=id,status` succeeds. `notifications.recipient_id` is
+nullable for broadcast/announcement rows (§16); verified a student session
+sees the 3 seeded broadcast notifications via `select=*`. Anon visibility
+verified too: `activities?select=*` returns only `is_public = true` rows,
+`projects?select=*` returns only `status = 'official'` rows. Both RPCs
+verified callable over REST by an authenticated student.
+
+`services/dashboard.ts` and `services/members.ts` rewritten to real Supabase
+queries — no fixture path remains, `lib/dev-fixtures.ts` deleted entirely.
+`services/members.ts` lost its `MEMBERS_TABLES_READY` flag and `throw` stubs.
+`getMemberStats` gates reviewers via `can(role, "project:draft:review")`
+(updated again in the role-split phase below — was a direct
+`role === "teacher" || role === "admin"` comparison until then, which the
+role split would have silently broken) and lets `requirePermission`'s
+`redirect()` propagate uncaught, since it is a Next.js control-flow signal
+that must not be swallowed by a `.catch()` — an early draft of this got that
+wrong and was caught before shipping.
+
+`supabase/seed.sql` extended with demo activities/projects/documents/
+notifications. `attendance` was **deliberately left unseeded** — every row
+has a `NOT NULL` FK to `profiles`, and no real student accounts exist outside
+transient test users created and torn down during verification; attendance
+rows arrive naturally once §13 QR attendance is live. `document_drafts` was
+also deliberately left empty, to exercise a genuine empty state — the old
+`lib/dev-fixtures.ts` comment claiming this had never actually been true (see
+the Members section above).
+
+**End-to-end magic-link sign-in, proven in the browser** — confirmed via the
+Supabase auth logs (`get_logs(service: "auth")`), not just asserted:
+`mail.send` (magic_link) → `/verify` `303` → `"action":"login",
+"login_method":"pkce","provider":"magiclink"` for a real `@udontech.ac.th`
+address, landing through `/th/auth/callback`. The redirect URL
+(`http://localhost:59500/**`) is confirmed added to Auth → URL Configuration
+since this succeeded.
+
+Also surfaced by the same logs: Supabase's default built-in email sender
+(`noreply@mail.app.supabase.io`) has a very low rate limit — repeated
+`/otp` calls in a short window return `429 over_email_send_rate_limit`. This
+is expected dev-mode behavior, not a bug; it resets roughly hourly. Before
+any real user traffic, configure a custom SMTP provider (Authentication →
+Email → SMTP Settings) — the shared mailer is not meant to serve production
+volume.
+
+**Login hardening: Turnstile, SMTP, the §14 allow-list, the อวท. role split
+(migrations `0010`–`0012`)** — `user_role` gained `aft_teacher` (อาจารย์
+อวท.), added as its own migration (`0010`) since PostgreSQL forbids using a
+new enum value in the same transaction it was added in. `0011` adds
+`approved_accounts` (admin-only RLS — a signup roster, not app data) and
+rewrites `handle_new_user()` to enforce the rule directly, not just in the
+Server Action (§19): a numeric-local-part `@udontech.ac.th` address (§14
+student ID) must have a matching `approved_accounts` row or the trigger
+raises and the whole `auth.users` insert rolls back; a named staff address
+signs up freely as `teacher`. Verified live: an unapproved numeric address
+(`69319010001@…`) got `500 P0001 "account not approved: …"` from
+`signInWithOtp` itself (the OTP request creates `auth.users` immediately,
+firing the trigger — rejection is not deferred to magic-link verification),
+and confirmed **zero** `profiles` row resulted. The pre-approved demo
+student (`69319010099@…`) succeeded and its `profiles` row got the correct
+role, `student_id`, and generated `academic_year` automatically.
+
+Every `0008` reviewer policy (`attendance`/`projects`/`documents`/
+`document_drafts` SELECT) extended to include `aft_teacher`; new UPDATE
+policies added for `aft_teacher` on `projects`/`documents` (approval
+authority) and INSERT/UPDATE on `activities`. All verified live with a real
+`aft_teacher` JWT: reviewer SELECT works, an actual project approval
+(`teacher_review` → `official`) succeeded and was reverted after, role
+self-escalation still blocked, and `approved_accounts` correctly returns
+empty (RLS has no policy granting it anything — not even a permission
+error, just zero rows, which is correct RLS behavior for "no applicable
+policy" vs. an outright SQL-level deny).
+
+**A second self-caused regression, caught the same way as the first:**
+`0011`'s `create or replace function handle_new_user()` silently reset the
+function's grants to the PostgreSQL default (`PUBLIC EXECUTE`), undoing
+`0006`'s revoke — confirmed via `information_schema.role_routine_grants`
+immediately after applying `0011`, and independently by the security
+advisor re-flagging `handle_new_user` the moment it ran. `CREATE OR REPLACE`
+does not preserve prior `REVOKE`/`GRANT` state the way one might assume.
+Fixed in `0012`; re-verified the advisor no longer flags it and a fresh
+signup still fires the trigger correctly.
+
+`lib/auth/permissions.ts` gained `aftTeacherPermissions` (teacher's list +
+`project:approve` + `document:approve` + `activity:manage`) between teacher
+and admin. The three hard-coded `role === "teacher" || role === "admin"`
+reviewer checks (`services/dashboard.ts`, `draft-documents-card.tsx`,
+`dashboard/page.tsx`) — which the new role would have silently broken, since
+an `aft_teacher` is not literally `"teacher"` — replaced with
+`can(role, "project:draft:review")`, the existing predicate every role above
+student already holds.
+
+New admin-only `/approvals` page (`app/[lang]/(app)/approvals/`) to manage
+`approved_accounts` — add/revoke, gated on `member:manage` both in the nav
+filter and re-checked server-side in the page and every Server Action (§19).
+Four demo accounts (one per role, `student` via the allow-list to exercise
+the full §14 path) created via the Admin API; credentials in
+`.demo-accounts.local.md` (git-ignored) with a documented teardown snippet —
+those passwords work for API testing only, since the app is magic-link-only
+and the demo addresses have no real inbox.
+
+Turnstile wired into the login form (`@marsidev/react-turnstile`), gated on
+`NEXT_PUBLIC_TURNSTILE_SITE_KEY` being set — renders no widget at all
+locally until Cloudflare is configured, same dev-fallback pattern as
+`isSupabaseConfigured`. **Accepted regression, not fixed:** a CAPTCHA token
+cannot be produced without JavaScript, so §30.9 item 3 ("submit with JS
+disabled, still rejected") now only holds for the *validation* half — a
+`gmail.com` address is still rejected server-side via `signIn`'s Zod
+re-validation with JS off, but the submission can no longer *complete* with
+JS off once Turnstile is live, because the token itself requires it. This is
+inherent to CAPTCHA and was not engineered around.
+
+**Local dev now shows the real widget**, via `lib/turnstile.ts` and
+Cloudflare's documented always-pass testing sitekey in `.env.local`
+(`1x00000000000000000000AA`) — no Cloudflare account needed to see or test
+the login form's CAPTCHA step. This introduced a new risk that didn't exist
+when the sitekey was simply unset: a test key reaching production would
+defeat the CAPTCHA more convincingly than a missing one. Closed with
+`assertTurnstileSafeForProduction()`, called at the top of `signIn`, which
+throws when `NODE_ENV === "production"` and the sitekey is either unset or a
+known Cloudflare test key — deliberately placed in the Server Action rather
+than at render time, since `next build` runs with `NODE_ENV=production` and
+would otherwise fail local production builds the moment the test key is
+present. The trade-off: misconfiguration surfaces at the first production
+login attempt, not at deploy time — a CI env-var check is the correct
+deploy-time guard and is out of scope here.
+
+### ❌ Remaining
+
+* **JS-disabled server-enforcement and 375/768/1280px responsive checks**
+  (§30.9 items 3–4) — item 3 is now **partially** superseded (see Turnstile
+  note above: validation-with-JS-off still holds, completion does not).
+  Neither has been verified in-browser this pass (tooling limitation, see
+  Done); re-run with a tool that can toggle JS and resize the real viewport
+  before reporting these as proven.
+* **The remaining four §20 tables / four §30.10 phases** — `project_drafts`
+  (Projects workflow), `qr_sessions` + `signature_records` (QR attendance,
+  most security-sensitive: GPS/device fingerprint), `audit_logs`. Plus
+  Documents digital-signature, Reports & global search, Notifications/web
+  push — none of those phases started; each is its own approved phase, in
+  that order.
+* **`attendance` has zero rows** — by design (see Done above), but it means
+  the §10 activity-statistics chart's "attendance" series will show 0 for
+  every month until either real QR check-ins land or a future pass seeds it
+  against real test-user accounts created and torn down for that purpose.
+* **Turnstile shows a real (test) widget locally now, but real credentials
+  and custom SMTP are still not configured** — both need browser-only setup
+  (Cloudflare dashboard, an email provider, two Supabase dashboard settings)
+  that no tool here has access to; see README "CAPTCHA + SMTP setup". Email
+  still goes through the rate-limited default sender until SMTP is wired.
+
 ## 1. Mission
 
 Build a **production-ready, premium SaaS dashboard** for
@@ -59,29 +399,42 @@ Supabase:
 
 ## 3. DESIGN — MUST FOLLOW
 
-### Colors
+### Colors — desaturated steel navy + platinum silver (rebrand, see §0)
 
-Primary blue 30%:
-`#002583`
+Monochrome luxury palette, matched to `Picture/tone color dark.jpg`
+(sampled: hue ≈ 213°, saturation ≈ 30%). **No blue `#002583` and no mustard
+`#FFB800` anywhere in the UI palette** — both are fully removed, including
+the `--gold` token and every `bg-gold`/`text-gold-*` class. The organization
+crest in the logo PNGs keeps its own red/gold, since it is the institution's
+official identity, not a theme color — it is the one deliberate exception.
 
-Mustard accent 10%:
-`#FFB800`
+Light (cool steel white):
 
-Neutral 60%.
-
-Light:
-
-* Background `#F8FAFC`
+* Background `#F6F8FA`
 * Card `#FFFFFF`
-* Border `#E5E8EF`
-* Text `#111827`
+* Border / silver `#DDE3EA`
+* Text `#0C121C`
+* Muted text `#5A6B80`
+* Primary / brand ink / accent-glow `#1F4A75`
+* Ring `#3E6D9C`
 
 Dark:
 
-* Background `#0F172A`
-* Card `#1E293B`
-* Border `#334155`
-* Text `#F8FAFC`
+* Background `#0C121C`
+* Card `#192330`
+* Border `#2A3A4D`
+* Text / silver `#CFD8E3`
+* Muted text `#8A9BB0`
+* Primary `#3E6D9C`
+* Ring / brand ink `#7FA8D4`
+* Accent-glow (platinum highlight, status/attention) `#DDE5EE`
+
+Contrast guard: silver/platinum (`#8A9BB0`, `#CFD8E3`, `#DDE5EE`) is never
+*text* or an indicator in light mode — `#8A9BB0` on white is ~2.6:1. Light
+mode uses `#5A6B80` for muted text and `#1F4A75` for the accent-glow instead.
+The `.text-gradient-brand` platinum-gradient heading treatment is dark-mode
+only — its light-mode counterpart is a steel-blue gradient
+(`#1F4A75 → #0C121C`), which stays AA-safe.
 
 ### UI
 
@@ -104,6 +457,11 @@ Avoid:
 * excessive gradients
 * excessive animation
 * clutter
+
+Gradients are restrained and decorative only: hero background, `h1` headings
+(`.text-gradient-brand`), hairline dividers (`.divider-metal`), and a subtle
+silver card top-edge. Nav, buttons, and card bodies stay flat — no gradient
+ever sits behind body copy.
 
 Use **shadcn/ui components** whenever applicable.
 
