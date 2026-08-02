@@ -46,3 +46,4 @@ next-env.d.ts
 
 # dev/testing account credentials — never commit real passwords
 .demo-accounts.local.md
+REVIEW_TEST.md
