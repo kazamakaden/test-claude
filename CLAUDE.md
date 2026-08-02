@@ -358,60 +358,65 @@ closed this pass using Chrome automation:
    because the actual gate is the app's own trigger (§19), which already
    enforces the §14 numeric-local-part → `approved_accounts` rule.
 
-Re-tested after both fixes: submitting the login form for
+**Send path proven once, cleanly, immediately after both fixes.**
 `69319010099@udontech.ac.th` (previously deleted per the demo-accounts
-teardown script, so this exercised a genuine new-signup path) returned the
-"check your email" success panel, and `get_logs` confirmed `POST /otp`
-returned `200` with a `mail.send` (`confirmation` — this address needed
-re-confirmation as a fresh signup) fired from the production referer. Full
-completion (clicking the email link, landing authenticated on
-`/th/dashboard`) was not verified in-browser this pass, since none of the
-`.demo-accounts.local.md` addresses have a real inbox and Supabase's admin
-"generate link" flow isn't exposed in the current dashboard UI in a way this
-session could reach — the `/verify` → `/auth/callback` → authenticated
-`/dashboard` path was previously proven working (see "End-to-end magic-link
-sign-in" above) and nothing in this pass's changes touches that code, but
-report it as inferred-from-code, not re-observed.
+teardown script, so this exercised a genuine new-signup path): `POST /otp`
+returned `200`, `mail.send` (`confirmation` — a fresh signup needs
+re-confirmation) fired from the production referer, and the login form showed
+its "check your email" success panel. This is the evidence that both fixes
+above actually work, not just that the build stopped 500ing.
 
-**A second pass attempted the full click-through and got partway, via a
-technique worth recording:** `auth.one_time_tokens` is readable through the
-Supabase MCP, and the pending token from a genuine production form submission
-carries the real PKCE hash Supabase would have emailed — rebuilding
-`https://hmkciwgzbdszsgnbeakc.supabase.co/auth/v1/verify?token=<hash>&type=...
+**A later pass pushed a separate build-guard commit and tried to close the
+last gap — the full click-through — against the resulting new deployment
+(`bc21a28`), but did not complete it.** `auth.one_time_tokens` is readable
+via the Supabase MCP, and the pending row after a genuine production
+submission carries the real PKCE hash Supabase would have emailed —
+rebuilding `.../auth/v1/verify?token=<hash>&type=...
 &redirect_to=.../th/auth/callback` and opening it in the *same browser* that
-submitted the form (the `code_verifier` cookie must match) exercises the real
-deployed code path, unlike an admin-generated link (implicit flow, no
-`?code=`, which `route.ts` doesn't accept). It also surfaced a real
-deploy-guard success: the new commit's Vercel build (`bc21a28`) passed
-`assertDeployEnvConfigured()` against live production env vars for the first
-time. But the click-through itself hit three compounding obstacles in one
-session, none of them code bugs:
+submitted the form (the `code_verifier` cookie must match) exercises the
+actual deployed code path, unlike an admin-generated link (implicit flow, no
+`?code=`, which `route.ts` rejects) — a workable technique, but three things
+went wrong in the same session, none of them a deployment bug:
 
-1. `demo.admin@udontech.ac.th` now gets `400 email_address_invalid` from
-   Supabase's own send path — the address has accumulated enough failed
+1. A fresh send to `demo.admin@udontech.ac.th` failed outright with
+   `400 email_address_invalid` — the address has accumulated enough failed
    deliveries (no real inbox, reused across sessions) to be flagged
-   undeliverable.
-2. A token generated ~44 minutes earlier in the session and reused later
-   failed the code exchange with `422 flow_state_expired` — Supabase's
-   server-side PKCE flow state has a short TTL; the technique only works if
-   the token is consumed within a minute or so of creation, not saved for
-   later.
-3. Retrying immediately with a fresh address hit
+   undeliverable by Supabase. No token was created to replay.
+2. Replaying the one available token — the `69319010099` one from the
+   send-path proof above, by then ~44 minutes old — got partway: `/verify`
+   itself succeeded (`303`, `user_signedup`), but the callback's
+   `exchangeCodeForSession` failed with `422 flow_state_expired`. Supabase's
+   server-side PKCE flow state has a much shorter TTL than the emailed token
+   itself; the technique only works within roughly a minute of the token's
+   creation, not saved for later.
+3. A fresh attempt with `demo.teacher@udontech.ac.th`, meant to get a
+   same-session token to replay immediately, instead hit
    `429 over_email_send_rate_limit` — the documented default-mailer ceiling
-   (see Remaining below), now confirmed exhausted by this session's own
-   testing on top of the prior session's.
+   (see ❌ Remaining), exhausted by this session's own testing on top of the
+   proof above.
+
+Net effect: the send path has **not** been re-confirmed on this specific
+`bc21a28` build — only on the immediately preceding one — though nothing in
+the guard commit touches runtime auth logic, so there's no specific reason to
+expect it behaves differently.
+
+**The build guard itself did get a live production test in the process** —
+`bc21a28`'s Vercel build passed `assertDeployEnvConfigured()` against the
+real production env vars, its first real run outside the two simulated local
+ones.
 
 ### ❌ Remaining
 
-* **Full magic-link round trip on the live Vercel deployment not re-verified
-  in-browser** — the send half is proven twice now (`200` on `/otp`,
-  `mail.send` fired, no 500, no `signup_disabled`, correct `pkce` grant type
-  in the logs). Landing authenticated on `/th/dashboard` was not observed in
-  this session, blocked by the three obstacles above rather than by the
-  original bug. The one technique that can close this (rebuild the verify URL
-  from a fresh `auth.one_time_tokens` row and consume it within roughly a
-  minute, before Supabase's default email rate limit resets — see CAPTCHA +
-  SMTP setup for the ~hourly reset) is documented above for the next attempt.
+* **Full magic-link round trip on the live Vercel deployment not verified
+  in-browser** — the send path is proven once (`200` on `/otp`, `mail.send`
+  fired, no 500, no `signup_disabled`) but on a now-superseded build, and
+  landing authenticated on `/th/dashboard` has never been observed. The
+  original bug is not what's blocking this — see the three obstacles above.
+  To finish: pick an address other than `demo.admin@` (flagged undeliverable),
+  wait for the default email rate limit to reset (~hourly), submit the login
+  form once, then immediately (within about a minute) read the new row from
+  `auth.one_time_tokens` and open the reconstructed verify URL in the same
+  browser.
 * **JS-disabled server-enforcement and 375/768/1280px responsive checks**
   (§30.9 items 3–4) — item 3 is now **partially** superseded (see Turnstile
   note above: validation-with-JS-off still holds, completion does not).
