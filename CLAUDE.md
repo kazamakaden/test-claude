@@ -484,6 +484,28 @@ to exclude that directory too — its first run pulled in Chrome's own
 throwaway-profile extension internals as 5000+ false lint warnings before
 the ignore was added.
 
+**Login was completely broken on a second live production URL — found and
+fixed.** The Vercel project has two working production domains:
+`test-claude-swart-delta.vercel.app` (the one every previous pass tested)
+and `test-claude-ka-600a.vercel.app` (Vercel's automatic team-scoped alias —
+not something explicitly added in Vercel → Domains, but a fully public,
+always-live URL for the same deployment). Checked the second domain in the
+browser: the homepage renders fine, but `/th/login` failed outright —
+Cloudflare Turnstile logged `[Cloudflare Turnstile] Error: 110200` (domain
+not allowed for this sitekey) and rendered "Unable to connect to website"
+instead of the widget, so `isTurnstileConfigured` was true but no token
+could ever be produced — every submission hit `captchaFailed`
+unconditionally, on every address, with no way around it. Root cause:
+Cloudflare Turnstile → the `claude` widget's Hostname Management had only
+`test-claude-swart-delta.vercel.app` registered — 1 of the 10 hostname
+slots available. Fixed by adding `test-claude-ka-600a.vercel.app` and
+`localhost` (also previously missing, needed for local dev testing)
+directly in the Cloudflare dashboard. Verified live: reloaded `/th/login` on
+`test-claude-ka-600a.vercel.app` after the change propagated (~10s) and the
+widget now shows "Success!" with no console errors. This was a pure
+Cloudflare-dashboard fix — no code or env var changed, `.env.local`'s
+sitekey was already correct since both domains share the one widget.
+
 ### ❌ Remaining
 
 * **Full magic-link round trip on the live Vercel deployment not verified
