@@ -405,24 +405,72 @@ expect it behaves differently.
 real production env vars, its first real run outside the two simulated local
 ones.
 
+**§30.9 item 3 (JS-disabled server enforcement) proven by exact HTTP replay** —
+production's login form genuinely server-renders a no-JS-compatible form
+(`curl` on `/th/login` returns `<form action="" encType="multipart/form-data"
+method="POST">` with hidden `$ACTION_REF_1`/`$ACTION_1:0`/`$ACTION_1:1`/
+`$ACTION_KEY`/`lang` fields — exactly what a JS-disabled browser posts, no
+Turnstile token possible since the widget never renders without JS). Replayed
+that exact multipart POST twice against the live deployment: `email=
+student@gmail.com` returned `{"ok":false,"messageKey":"personalDomain"}` (the
+Thai "use your college email" message); `email=someone@udontech.ac.th` with no
+captcha token returned `{"ok":false,"messageKey":"captchaFailed"}` — confirming
+`actions/auth.ts` validates the domain (L57-62) before the captcha check
+(L64-70), so the domain rule survives Turnstile with JS off. Corroborated via
+`get_logs(service: "auth")`: zero auth events in the 5 minutes spanning both
+POSTs, proving neither request reached Supabase's `/otp` — the rejection
+happened entirely in the Server Action. The accepted regression from the
+Turnstile section above still holds precisely: validation-with-JS-off works,
+*completion* (an approved address, past the captcha gate) does not, since a
+token cannot be produced without JavaScript.
+
+**Custom SMTP configured (Resend), pending domain verification** — Supabase →
+Authentication → Emails → SMTP Settings now points at
+`smtp.resend.com:465`, sender `noreply@udontech.ac.th` ("AFT UDONTECH"),
+username `resend`; the API key was pasted directly into the dashboard by the
+user, never handled by this session or written to any file. Saved and
+confirmed persisted. `udontech.ac.th` was added as a domain in Resend
+(DNS host detected as Cloudflare) but is **not yet verified** — a live send
+attempt through it failed with `550 "The udontech.ac.th domain is not
+verified. Please, add and verify your domain on
+https://resend.com/domains"`, confirmed via `get_logs(service: "auth")`. The
+required DKIM/SPF/MX DNS records were generated and the domain is in
+Resend's "Pending" / "Looking for DNS records" state, which per Resend's own
+UI can take minutes to hours depending on Cloudflare propagation. Until it
+verifies, custom SMTP is misconfigured from Supabase's perspective — every
+send attempt through it fails outright with a 500, it does **not** silently
+fall back to the default mailer.
+
 ### ❌ Remaining
 
 * **Full magic-link round trip on the live Vercel deployment not verified
-  in-browser** — the send path is proven once (`200` on `/otp`, `mail.send`
-  fired, no 500, no `signup_disabled`) but on a now-superseded build, and
-  landing authenticated on `/th/dashboard` has never been observed. The
-  original bug is not what's blocking this — see the three obstacles above.
-  To finish: pick an address other than `demo.admin@` (flagged undeliverable),
-  wait for the default email rate limit to reset (~hourly), submit the login
-  form once, then immediately (within about a minute) read the new row from
-  `auth.one_time_tokens` and open the reconstructed verify URL in the same
-  browser.
-* **JS-disabled server-enforcement and 375/768/1280px responsive checks**
-  (§30.9 items 3–4) — item 3 is now **partially** superseded (see Turnstile
-  note above: validation-with-JS-off still holds, completion does not).
-  Neither has been verified in-browser this pass (tooling limitation, see
-  Done); re-run with a tool that can toggle JS and resize the real viewport
-  before reporting these as proven.
+  in-browser** — still true, now blocked on a different, more concrete cause
+  than last pass: custom SMTP is enabled in Supabase but the sending domain
+  (`udontech.ac.th`) has not finished Resend's DNS verification (see Done
+  above), so every send attempt fails with a 500 before a token is ever
+  created — confirmed via `auth.one_time_tokens` staying empty after a
+  `demo.teacher@udontech.ac.th` submission. The send-path proof from the
+  previous pass (`200` on `/otp`, `mail.send` fired) is now further stale —
+  two deployments old — and landing authenticated on `/th/dashboard` has
+  still never been observed. To finish once the Resend domain shows
+  "Verified": submit the login form for `demo.teacher@udontech.ac.th` (not
+  `demo.admin@`, bounce-flagged; not `69319010099@`, its confirmation token
+  was already consumed by an earlier pass), then immediately (within about a
+  minute) read the new row from `auth.one_time_tokens` and open the
+  reconstructed verify URL in the same browser. `demo.teacher`'s
+  `last_sign_in_at` is still `NULL`, so a successful round trip is provable
+  independent of anything the browser renders.
+* **375/768/1280px responsive check (§30.9 item 4) still not verified
+  in-browser** — this pass specifically tried to close this using
+  `resize_window`, believing it fixed the prior "tooling limitation" —
+  confirmed it does not: `window.innerWidth` stayed 1920 (then read 2400 on a
+  fresh tab) regardless of the requested size, on both an existing tab and a
+  freshly created one. The window-resize request is accepted by the tool but
+  has no effect on the actual rendered viewport in this environment. The
+  correction is recorded here so a future pass doesn't repeat the same
+  assumption; re-run with a tool that can genuinely emulate a mobile/tablet
+  viewport (real device emulation, not window resize) before reporting this
+  as proven.
 * **The remaining four §20 tables / four §30.10 phases** — `project_drafts`
   (Projects workflow), `qr_sessions` + `signature_records` (QR attendance,
   most security-sensitive: GPS/device fingerprint), `audit_logs`. Plus
@@ -433,11 +481,6 @@ ones.
   the §10 activity-statistics chart's "attendance" series will show 0 for
   every month until either real QR check-ins land or a future pass seeds it
   against real test-user accounts created and torn down for that purpose.
-* **Custom SMTP is still not configured** — not login-blocking (the default
-  Supabase sender works), but real traffic on a public URL will quickly hit
-  `429 over_email_send_rate_limit`, meant for dev volume only. Needs an email
-  provider account and Supabase → Authentication → SMTP Settings — browser-only
-  setup no tool here has access to; see README "CAPTCHA + SMTP setup".
 
 ## 1. Mission
 

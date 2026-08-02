@@ -164,10 +164,19 @@ enters this repo:
 
 2. **Custom SMTP** — the default Supabase sender (`noreply@mail.app.supabase.io`)
    has a very low rate limit meant for dev, not real traffic (`429
-   over_email_send_rate_limit` after a handful of sends per hour). Create an
-   account with an email provider (Resend's free tier is the simplest),
-   paste the SMTP host/port/user/password into Supabase → **Authentication →
-   SMTP Settings**, set a sender name/address on your domain.
+   over_email_send_rate_limit` after a handful of sends per hour). Configured
+   via Resend in Supabase → **Authentication → Emails → SMTP Settings**:
+   host `smtp.resend.com`, port `465`, username `resend`, password the
+   Resend API key (pasted directly into the dashboard — never stored in this
+   repo or `.env.local`), sender `noreply@udontech.ac.th` ("AFT UDONTECH").
+   Enabling custom SMTP raises Supabase's rate limit from the default to 30
+   emails/hour automatically (adjustable further under **Rate Limits**).
+   **The sending domain must show "Verified" in Resend → Domains before this
+   works** — Resend rejects sends through an unverified domain with a `550`
+   error, and Supabase does not fall back to the default mailer when that
+   happens. Verification requires adding the DKIM/SPF/MX records Resend
+   generates to the domain's DNS (Cloudflare, in this project's case) and can
+   take minutes to hours to propagate.
 
 ## Deploying to Vercel
 
