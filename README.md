@@ -136,28 +136,31 @@ enters this repo:
    runs regardless (a `gmail.com` address is still rejected server-side with
    JS off) — only the final submit now requires JS. See `CLAUDE.md` §0.
 
-   **Local development without a Cloudflare account:** `.env.local` ships
-   with `NEXT_PUBLIC_TURNSTILE_SITE_KEY=1x00000000000000000000AA` — one of
-   [Cloudflare's documented testing sitekeys](https://developers.cloudflare.com/turnstile/troubleshooting/testing/)
-   that always passes. The real widget renders and self-completes with no
+   **Local development without a Cloudflare account:** for a fresh clone with
+   no widget yet, `NEXT_PUBLIC_TURNSTILE_SITE_KEY=1x00000000000000000000AA` —
+   one of [Cloudflare's documented testing sitekeys](https://developers.cloudflare.com/turnstile/troubleshooting/testing/)
+   that always passes — renders the real widget and self-completes with no
    external calls. **Never let a test key reach production** —
    `lib/turnstile.ts`'s `assertTurnstileSafeForProduction()` throws at the
    top of `signIn` if `NODE_ENV === "production"` and the sitekey is either
-   unset or a known test key, so misconfiguration fails the first login
-   attempt loudly instead of silently shipping no protection (or worse, an
-   always-pass one).
+   unset or a known test key, and `lib/env-guard.ts`'s
+   `assertDeployEnvConfigured()` fails the Vercel Production build outright
+   for the same condition (see "Deploying to Vercel" below) — so
+   misconfiguration is caught at deploy time, not just at the first login
+   attempt.
 
    Supabase Auth has exactly one CAPTCHA setting per project — there is no
-   per-environment split on a single project:
+   per-environment split on a single project. **This project's CAPTCHA
+   protection is enabled with a real Turnstile secret**, so the test sitekey
+   no longer validates:
 
    | Supabase CAPTCHA protection | Result with the test sitekey |
    |---|---|
    | Disabled | Token ignored, login works |
-   | Enabled with a real Turnstile secret | Test token fails validation, local login breaks |
+   | Enabled with a real Turnstile secret (current state) | Test token fails validation, local login breaks |
 
-   If CAPTCHA protection is enabled with a real secret, switch local dev to
-   the real Turnstile widget with `localhost` in its allowed hostnames
-   instead of the test key — that is what the first paragraph above sets up.
+   `.env.local` accordingly holds the real sitekey, scoped to both
+   `localhost` and the production Vercel hostname.
 
 2. **Custom SMTP** — the default Supabase sender (`noreply@mail.app.supabase.io`)
    has a very low rate limit meant for dev, not real traffic (`429
@@ -169,13 +172,18 @@ enters this repo:
 ## Deploying to Vercel
 
 The Vercel project is created from a GitHub import, which does **not** copy
-`.env.local`. A deploy with none of the variables below set will build and
-serve every public page fine, then 500 the moment someone submits the login
-form — `assertTurnstileSafeForProduction()` (`lib/turnstile.ts`) throws
-because it can't find a sitekey, and even without that guard,
-`createServerClient` would throw on a missing Supabase URL.
+`.env.local`. A deploy with none of the variables below set will fail the
+build outright — `lib/env-guard.ts`'s `assertDeployEnvConfigured()`, called
+from `next.config.ts`, throws when `VERCEL_ENV === "production"` and any of
+them are missing or the Turnstile key is a test key, listing every problem in
+one combined error rather than failing once per missing var. This is a
+deploy-time backstop for the same condition
+`assertTurnstileSafeForProduction()` (`lib/turnstile.ts`) already catches at
+runtime in `signIn` — the build guard means that runtime throw should never
+actually be reached.
 
-Required in Vercel → Settings → Environment Variables (Production scope):
+Required in Vercel → Settings → Environment Variables (Production **and**
+Preview scope):
 
 | Variable | Value |
 |---|---|
@@ -184,9 +192,8 @@ Required in Vercel → Settings → Environment Variables (Production scope):
 | `NEXT_PUBLIC_TURNSTILE_SITE_KEY` | a **real** Cloudflare Turnstile sitekey scoped to the deployment's hostname |
 
 **Never put a Cloudflare testing sitekey (e.g. `1x00000000000000000000AA`) in
-a production environment.** It is a documented always-pass key;
-`assertTurnstileSafeForProduction()` detects it and throws deliberately,
-producing the same 500 as a missing key.
+a production environment.** It is a documented always-pass key; both the
+build guard and `assertTurnstileSafeForProduction()` detect and reject it.
 
 Two more things, or the deploy still fails at the same step:
 
@@ -195,10 +202,19 @@ Two more things, or the deploy still fails at the same step:
    (see above) — saving them in the dashboard changes nothing until the next
    build actually runs.
 2. **Add the production URL to Supabase → Authentication → URL
-   Configuration** (Site URL + a `https://<your-domain>/**` redirect entry).
-   `signIn` builds `emailRedirectTo` from the request's `origin` header
-   (`actions/auth.ts`), so an un-allow-listed production origin makes
-   Supabase reject the magic link at send time.
+   Configuration** (a `https://<your-domain>/**` redirect entry, alongside
+   the existing `http://localhost:59500/**`). `signIn` builds
+   `emailRedirectTo` from the request's `origin` header (`actions/auth.ts`),
+   so an un-allow-listed production origin makes Supabase reject the magic
+   link at send time.
+
+A third setting is easy to miss because it isn't in this repo at all:
+**Supabase → Authentication → Sign In / Providers → "Allow new users to sign
+up"** must be on. If it's off, every first-time magic-link sign-in — not just
+a broken demo account — is rejected with `422 signup_disabled` at the
+`/otp` step, before `handle_new_user()`'s own `approved_accounts` gate (§19)
+ever runs. This project relies on that trigger, not the blunt project-level
+toggle, to control who can actually get a `profiles` row.
 
 The `SUPABASE_SECRET_KEY` / `SUPABASE_URL` / `SUPABASE_PUBLISHABLE_KEY` /
 `SUPABASE_JWKS_URL` variables are for the future `@supabase/server` Edge

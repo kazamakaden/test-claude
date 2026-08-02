@@ -23,7 +23,11 @@ const TURNSTILE_TEST_SITE_KEYS = new Set([
   "3x00000000000000000000FF", // forces an interactive challenge
 ]);
 
-export const isTurnstileTestKey = TURNSTILE_TEST_SITE_KEYS.has(turnstileSiteKey);
+export function isTurnstileTestKeyValue(key: string): boolean {
+  return TURNSTILE_TEST_SITE_KEYS.has(key);
+}
+
+export const isTurnstileTestKey = isTurnstileTestKeyValue(turnstileSiteKey);
 
 /**
  * Called at the top of signIn(). A missing sitekey would otherwise fail

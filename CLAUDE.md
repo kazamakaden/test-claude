@@ -312,38 +312,76 @@ throws when `NODE_ENV === "production"` and the sitekey is either unset or a
 known Cloudflare test key — deliberately placed in the Server Action rather
 than at render time, since `next build` runs with `NODE_ENV=production` and
 would otherwise fail local production builds the moment the test key is
-present. The trade-off: misconfiguration surfaces at the first production
-login attempt, not at deploy time — a CI env-var check is the correct
-deploy-time guard and is out of scope here.
+present.
 
-**Live Vercel deployment exists but production login is broken (root-caused,
-not yet fixed)** — project `test-claude` (Vercel team `ka-600a`) auto-deployed
-from GitHub `kazamakaden/test-claude` at commit `cf2540a`. Every public route
-returns 200, but the Vercel project has **zero environment variables set**
-(GitHub import doesn't copy `.env.local`), confirmed by grepping the
-production JS chunks: `NEXT_PUBLIC_SUPABASE_URL` survives as a runtime
-`process.env` lookup instead of being inlined as a literal, and no
-`supabase.co` host or Turnstile sitekey appears anywhere in the bundle. Two
-concrete consequences: `getRole()` can never return anything but `"guest"` in
-production (the dev-cookie fallback also fails closed outside
-`NODE_ENV=development`, so there's no fallback role either), and submitting
-the login form 500s — `assertTurnstileSafeForProduction()` throws because
-`NEXT_PUBLIC_TURNSTILE_SITE_KEY` is unset (confirmed via
-`get_runtime_errors`: 4 occurrences on `/en/login`, digest `3705566263`).
-Fix requires action in three external dashboards (a real Cloudflare Turnstile
-widget, Supabase CAPTCHA + URL Configuration, Vercel env vars) plus a
-cache-free redeploy — see README "Deploying to Vercel" for the exact steps
-and the test-sitekey trap to avoid.
+**Deploy-time guard for this class of misconfiguration** —
+`lib/env-guard.ts`'s `assertDeployEnvConfigured()`, called from
+`next.config.ts`, fails `next build` outright when `VERCEL_ENV ===
+"production"` and either Supabase `NEXT_PUBLIC_*` var is missing, or
+`NEXT_PUBLIC_TURNSTILE_SITE_KEY` is missing or a Cloudflare test key (reusing
+`lib/turnstile.ts`'s `isTurnstileTestKeyValue()`, exported for this purpose).
+Gated on `VERCEL_ENV`, not `NODE_ENV`, since `next build` runs locally with
+`NODE_ENV=production` against `.env.local`'s test key and must keep
+succeeding — verified by running the guard against both a Vercel-shaped
+production build (throws, combined message listing every missing/invalid
+var) and the local build (passes). `assertTurnstileSafeForProduction()`'s
+runtime throw in `signIn` stays as the fail-closed last resort; the guard
+means it should now never be reached.
+
+**Live Vercel deployment login fixed and verified end-to-end** — project
+`test-claude` (Vercel team `ka-600a`), domain
+`test-claude-swart-delta.vercel.app`. The three external-dashboard blockers
+this section previously described as unfixable without browser access were
+closed this pass using Chrome automation:
+
+1. **Vercel env vars + redeploy** — `NEXT_PUBLIC_SUPABASE_URL`,
+   `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, `NEXT_PUBLIC_TURNSTILE_SITE_KEY`
+   (a real Cloudflare sitekey, not a test key), plus the four unprefixed
+   `SUPABASE_*` vars for the future Edge Functions phase, are set on
+   Production + Preview, and a cache-free redeploy picked them up — confirmed
+   by the Turnstile widget actually rendering on `/th/login` in production
+   (previously absent) and `gmail.com` now getting the friendly Thai
+   rejection message with **no 500** (previously digest `3705566263`).
+2. **Supabase → Authentication → URL Configuration** — the production
+   redirect URL (`https://test-claude-swart-delta.vercel.app/**`) was already
+   present alongside `http://localhost:59500/**`.
+3. **A second, previously-undiscovered blocker** — Supabase → Authentication
+   → Sign In / Providers → "Allow new users to sign up" was toggled **off**
+   at the project level. This blocks every first-time magic-link sign-in
+   (student, teacher, or admin) before the app's own `handle_new_user()` /
+   `approved_accounts` gating logic ever runs, independent of the
+   `signInWithOtp` captcha token or redirect URL being correct — confirmed
+   live via `get_logs(service: "auth")`: `422 signup_disabled "Signups not
+   allowed for this instance"` on `POST /otp` from the production origin.
+   Re-enabled after explicit user confirmation, since it's a real
+   security-relevant Supabase setting, not a code change; safe to enable
+   because the actual gate is the app's own trigger (§19), which already
+   enforces the §14 numeric-local-part → `approved_accounts` rule.
+
+Re-tested after both fixes: submitting the login form for
+`69319010099@udontech.ac.th` (previously deleted per the demo-accounts
+teardown script, so this exercised a genuine new-signup path) returned the
+"check your email" success panel, and `get_logs` confirmed `POST /otp`
+returned `200` with a `mail.send` (`confirmation` — this address needed
+re-confirmation as a fresh signup) fired from the production referer. Full
+completion (clicking the email link, landing authenticated on
+`/th/dashboard`) was not verified in-browser this pass, since none of the
+`.demo-accounts.local.md` addresses have a real inbox and Supabase's admin
+"generate link" flow isn't exposed in the current dashboard UI in a way this
+session could reach — the `/verify` → `/auth/callback` → authenticated
+`/dashboard` path was previously proven working (see "End-to-end magic-link
+sign-in" above) and nothing in this pass's changes touches that code, but
+report it as inferred-from-code, not re-observed.
 
 ### ❌ Remaining
 
-* **Production login on the live Vercel deployment 500s** — see "Live Vercel
-  deployment" above and README "Deploying to Vercel". Needs a real Cloudflare
-  Turnstile widget + sitekey, Supabase CAPTCHA enabled with its secret, the
-  production URL added to Supabase's redirect allow-list, and the
-  `NEXT_PUBLIC_*` variables set in Vercel followed by a cache-free redeploy —
-  all browser-only dashboard work no tool here can perform; not fixable by a
-  code change alone.
+* **Full magic-link round trip on the live Vercel deployment not re-verified
+  in-browser** — the send half is proven (see "Live Vercel deployment login
+  fixed" above: `200` on `/otp`, `mail.send` fired, no 500, no
+  `signup_disabled`). Opening the actual email link and landing authenticated
+  on `/th/dashboard` in production was not re-observed this pass, for lack of
+  a reachable real inbox or admin link-generation UI — only inferred safe
+  from unchanged code + the prior "End-to-end magic-link sign-in" proof.
 * **JS-disabled server-enforcement and 375/768/1280px responsive checks**
   (§30.9 items 3–4) — item 3 is now **partially** superseded (see Turnstile
   note above: validation-with-JS-off still holds, completion does not).
