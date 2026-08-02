@@ -12,7 +12,15 @@ const compat = new FlatCompat({
 const eslintConfig = [
   ...compat.extends("next/core-web-vitals", "next/typescript"),
   {
-    ignores: [".next/**", "out/**", "build/**", "next-env.d.ts"],
+    ignores: [
+      ".next/**",
+      "out/**",
+      "build/**",
+      "next-env.d.ts",
+      // scripts/responsive-check.mjs's throwaway headless Chrome profile —
+      // contains Chrome's own extension internals, not project source.
+      ".responsive-check-out/**",
+    ],
   },
 ];
 

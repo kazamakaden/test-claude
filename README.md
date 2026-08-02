@@ -114,6 +114,25 @@ immediately, which is when the trigger fires) as a Postgres exception
 containing `"account not approved"`; `actions/auth.ts` matches on that string
 to show a friendlier message than the generic send-failure one.
 
+## Responsive check
+
+`npm run check:responsive` drives the machine's own installed Chrome over the
+raw DevTools Protocol (no Playwright/Puppeteer dependency — `WebSocket` is a
+Node 22+ global) to verify §30.9 items 4 & 7: real viewport emulation at
+375/768/1280px, both themes, with a self-test that proves the checker can
+actually detect overflow before trusting any pass result.
+
+* `BASE_URL` — target to check, defaults to `http://localhost:59500` (run
+  `npm run dev` first). Also works against a deployed URL.
+* Authenticated pages (`/th/dashboard`, `/th/members`, etc.) are reached via
+  the Supabase Admin API using `SUPABASE_SECRET_KEY` (already in
+  `.env.local`) against the admin row in the gitignored
+  `.demo-accounts.local.md`, or `RESPONSIVE_CHECK_EMAIL` to target a
+  different address. Without a resolvable service key, authenticated pages
+  are skipped with an explicit warning — never silently reported as covered.
+* Output (screenshots + `report.json`) goes to the gitignored
+  `.responsive-check-out/`, excluded from both git and ESLint.
+
 ## CAPTCHA + SMTP setup
 
 Two things you must configure in external dashboards — neither credential

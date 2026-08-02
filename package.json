@@ -6,7 +6,8 @@
     "dev": "next dev --turbopack -p 59500",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "check:responsive": "node scripts/responsive-check.mjs"
   },
   "dependencies": {
     "@animateicons/react": "^0.4.1",

@@ -35,7 +35,7 @@ export function MobileNav({
             variant="ghost"
             size="icon"
             aria-label={dict.common.openMenu}
-            className="md:hidden"
+            className="lg:hidden"
           />
         }
       >

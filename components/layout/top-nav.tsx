@@ -24,7 +24,7 @@ export function TopNav({
       <div className="mx-auto flex h-full max-w-7xl items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
         <div className="flex items-center gap-6">
           <Logo lang={lang} />
-          <nav aria-label={dict.common.mainNav} className="hidden md:block">
+          <nav aria-label={dict.common.mainNav} className="hidden lg:block">
             <NavLinks items={items} lang={lang} dict={dict} />
           </nav>
         </div>
@@ -33,7 +33,7 @@ export function TopNav({
           {role !== "guest" ? (
             <NotificationsButton label={dict.nav.notifications} />
           ) : null}
-          <div className="hidden md:block">
+          <div className="hidden lg:block">
             <UserMenu lang={lang} role={role} dict={dict} />
           </div>
           <MobileNav items={items} lang={lang} dict={dict} />

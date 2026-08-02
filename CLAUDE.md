@@ -441,6 +441,49 @@ verifies, custom SMTP is misconfigured from Supabase's perspective — every
 send attempt through it fails outright with a 500, it does **not** silently
 fall back to the default mailer.
 
+**§30.9 items 4 & 7 (375/768/1280px responsive, Thai heading check) proven —
+`resize_window` replaced with real viewport emulation.** The prior pass's
+plan to close this with `resize_window` was itself wrong: confirmed
+`window.innerWidth` ignored every resize request (stayed 1920, then read
+2400 on a fresh tab), so this pass built `scripts/responsive-check.mjs`
+instead — zero new dependencies, driving the machine's already-installed
+Chrome directly over the raw DevTools Protocol (`WebSocket` is a Node 22+
+global). `Emulation.setDeviceMetricsOverride` performs genuine viewport
+emulation, unlike the extension-based resize: `window.innerWidth` is
+asserted against the requested width on every single measurement, so a
+future silent-no-op is a hard failure, not a false pass. A self-test proves
+the checker can actually detect a defect — it injects a deliberate
+3000px-wide element before the real run and fails loudly if that isn't
+caught. Authenticated pages (`/th/dashboard`, `/th/members`, `/th/projects`,
+`/th/reports`, `/th/notifications`, `/th/profile`, `/th/approvals`) are
+reached via the Supabase Admin API (`auth.admin.generateLink` +
+`verifyOtp`, using `SUPABASE_SECRET_KEY`) rather than a password —
+`signInWithPassword` was tried first and rejected with `captcha protection:
+request disallowed`, since the project-level Turnstile requirement applies
+to every public auth endpoint, not just the ones the app sends a token on;
+the Admin API is exempt by design, which is what a service-role key is for.
+
+Full matrix run: 3 widths (375/768/1280) × 2 themes (light/dark, via
+`Emulation.setEmulatedMedia`) × 14 pages (7 public + 7 authenticated) = 84
+combinations. **Found and fixed one real defect on the first run**: `/en`
+(English locale) overflowed horizontally at 768px in both themes
+(`scrollWidth=900 > clientWidth=768`) — `/th` passed at the same width,
+since Thai nav labels are narrower than their English equivalents. Root
+cause: `components/layout/top-nav.tsx` and `mobile-nav.tsx` switched
+between the desktop nav and the mobile hamburger at Tailwind's `md`
+breakpoint (768px) — the exact width where English labels no longer fit.
+Fixed by moving both switch points to `lg` (1024px), so the compact
+hamburger nav covers the tight 768–1023px range in either language. Re-ran
+after the fix: all 84 combinations pass. Screenshots captured at 375px both
+themes for every page confirm Thai tone marks and vowels render without
+clipping at heading sizes (§30.9 item 7) — verified visually, e.g. the
+dashboard's "สวัสดีตอนเย็น" / "ปฏิทิน" headings. `npm run check:responsive`
+re-runs this against `BASE_URL` (defaults to the dev server); output is
+gitignored (`.responsive-check-out/`), and `eslint.config.mjs` was extended
+to exclude that directory too — its first run pulled in Chrome's own
+throwaway-profile extension internals as 5000+ false lint warnings before
+the ignore was added.
+
 ### ❌ Remaining
 
 * **Full magic-link round trip on the live Vercel deployment not verified
@@ -460,17 +503,6 @@ fall back to the default mailer.
   reconstructed verify URL in the same browser. `demo.teacher`'s
   `last_sign_in_at` is still `NULL`, so a successful round trip is provable
   independent of anything the browser renders.
-* **375/768/1280px responsive check (§30.9 item 4) still not verified
-  in-browser** — this pass specifically tried to close this using
-  `resize_window`, believing it fixed the prior "tooling limitation" —
-  confirmed it does not: `window.innerWidth` stayed 1920 (then read 2400 on a
-  fresh tab) regardless of the requested size, on both an existing tab and a
-  freshly created one. The window-resize request is accepted by the tool but
-  has no effect on the actual rendered viewport in this environment. The
-  correction is recorded here so a future pass doesn't repeat the same
-  assumption; re-run with a tool that can genuinely emulate a mobile/tablet
-  viewport (real device emulation, not window resize) before reporting this
-  as proven.
 * **The remaining four §20 tables / four §30.10 phases** — `project_drafts`
   (Projects workflow), `qr_sessions` + `signature_records` (QR attendance,
   most security-sensitive: GPS/device fingerprint), `audit_logs`. Plus
