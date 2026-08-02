@@ -617,25 +617,69 @@ the new dynamic `/[lang]/documents/[id]` route. `types/database.ts`
 regenerated live from the schema after `0013` (was previously stale by one
 migration).
 
+**Full magic-link round trip on the live Vercel deployment — finally
+observed, end to end, after four prior passes fell short.** Resend's DNS
+verification is still not finished (`resend._domainkey.udontech.ac.th`
+returns no record at all, confirmed via direct DNS lookup this pass — not
+inferred from a dashboard screenshot), so custom SMTP would still fail exactly
+as before. Two things were tried first and ruled out on the record, not
+assumed: (1) `auth.admin.generateLink()` (bypasses email entirely) — opening
+the resulting `action_link` in a real browser landed on `/th/login?error=auth`
+with tokens stuck in the URL fragment, because Admin-API links use Supabase's
+**implicit** flow while `/th/auth/callback` only handles **PKCE** (`?code=`),
+which requires a `code_verifier` cookie only a genuine form submission can
+set — this is the same limitation the previous pass already suspected, now
+directly reproduced rather than assumed true. With user confirmation, (2)
+custom SMTP was temporarily disabled (Authentication → Emails → SMTP
+Settings), falling back to Supabase's built-in mailer — the Magic Link
+template was confirmed to be Supabase's unmodified default before doing this,
+so nothing custom was at risk of being lost by the switch.
+
+With that in place, the real login form was submitted on
+`test-claude-swart-delta.vercel.app/th/login` for `demo.teacher@udontech.ac.th`
+— real Turnstile pass, real "check your email" panel. `auth.one_time_tokens`
+was read immediately after (`token_hash` carries a `pkce_`-prefixed value;
+the full prefixed string, not the hash alone, is what `/auth/v1/verify`'s
+`token=` param expects — a first attempt stripping the prefix got
+`403 otp_expired`, corrected on the second attempt) and the reconstructed
+`.../auth/v1/verify?token=pkce_...&type=magiclink&redirect_to=.../th/auth/callback`
+URL was opened in the *same* browser tab that submitted the form, so its
+`code_verifier` cookie matched. Landed on `/th/dashboard`, authenticated,
+correct role rendering ("อาจารย์" / Teacher) in the welcome card and nav.
+Corroborated three independent ways, not just the page render: `auth.users`/
+`profiles` show `last_sign_in_at = 2026-08-02T16:52:54Z` for `demo.teacher`
+(previously `NULL`); `get_logs(service: "auth")` shows the full sequence —
+`mail.send` (`mail_from: noreply@mail.app.supabase.io`, `mail_type:
+magic_link`) at `16:51:42`, a `403 Email link is invalid or has expired` on
+the first (wrong-token) `/verify` attempt at `16:52:22`, then a successful
+`login` auth_event and `200` on `/user` at `16:52:54`; and a subsequent
+`logout` event once signed out in-browser to leave no lingering session.
+
+**Known side effect, current state, not yet reversed:** disabling custom
+SMTP in the Supabase dashboard did not just pause it — it **cleared the
+saved Resend host/sender/port and password from the form entirely**.
+Re-enabling the toggle now shows blank placeholders, not the prior values.
+The Resend SMTP password was originally typed directly into the dashboard by
+the user and was never available to this session (per the standing
+credential-handling rule), so it cannot be restored here. **Production is
+currently sending through Supabase's default built-in mailer** (rate-limited
+to ~2 emails/hour) rather than Resend — functionally this is a wash, not a
+regression, since Resend still can't send until its domain verifies anyway;
+the default mailer at least lets a real user complete a real sign-in today,
+which Resend's broken config did not. Re-entering the Resend credentials and
+re-enabling custom SMTP is a manual step for whenever the user is ready — see
+❌ Remaining.
+
 ### ❌ Remaining
 
-* **Full magic-link round trip on the live Vercel deployment not verified
-  in-browser** — still true, now blocked on a different, more concrete cause
-  than last pass: custom SMTP is enabled in Supabase but the sending domain
-  (`udontech.ac.th`) has not finished Resend's DNS verification (see Done
-  above), so every send attempt fails with a 500 before a token is ever
-  created — confirmed via `auth.one_time_tokens` staying empty after a
-  `demo.teacher@udontech.ac.th` submission. The send-path proof from the
-  previous pass (`200` on `/otp`, `mail.send` fired) is now further stale —
-  two deployments old — and landing authenticated on `/th/dashboard` has
-  still never been observed. To finish once the Resend domain shows
-  "Verified": submit the login form for `demo.teacher@udontech.ac.th` (not
-  `demo.admin@`, bounce-flagged; not `69319010099@`, its confirmation token
-  was already consumed by an earlier pass), then immediately (within about a
-  minute) read the new row from `auth.one_time_tokens` and open the
-  reconstructed verify URL in the same browser. `demo.teacher`'s
-  `last_sign_in_at` is still `NULL`, so a successful round trip is provable
-  independent of anything the browser renders.
+* **Custom SMTP (Resend) needs to be manually reconfigured** — cleared as a
+  side effect of the round-trip proof above (Authentication → Emails → SMTP
+  Settings → toggle "Enable custom SMTP" → re-enter host `smtp.resend.com`,
+  port `465`, sender `noreply@udontech.ac.th` / "AFT UDONTECH", username
+  `resend`, and the Resend API key as the password → Save). Not urgent: it
+  won't actually send until `udontech.ac.th` also finishes Resend's DNS
+  verification, which is still pending — check `resend._domainkey.udontech.ac.th`
+  resolves before expecting it to work.
 * **The remaining four §20 tables / four §30.10 phases** — `project_drafts`
   (Projects workflow), `qr_sessions` + `signature_records` (QR attendance,
   most security-sensitive: GPS/device fingerprint), `audit_logs`. Plus
