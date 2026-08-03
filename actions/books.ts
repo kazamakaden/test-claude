@@ -25,6 +25,7 @@ type BookErrorKey =
   | "yearInvalid"
   | "seasonInvalid"
   | "flipbookUrlInvalid"
+  | "descriptionTooLong"
   | "notFoundOrForbidden"
   | "needsContent"
   | "unknown";
@@ -36,7 +37,8 @@ function isBookErrorKey(value: string | undefined): value is BookErrorKey {
     value === "titleRequired" ||
     value === "yearInvalid" ||
     value === "seasonInvalid" ||
-    value === "flipbookUrlInvalid"
+    value === "flipbookUrlInvalid" ||
+    value === "descriptionTooLong"
   );
 }
 

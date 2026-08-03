@@ -11,6 +11,8 @@ type UpdateMemberErrorKey =
   | "forbiddenRole"
   | "invalidStudentId"
   | "studentIdTaken"
+  | "fullNameTooLong"
+  | "classNameTooLong"
   | "unknown";
 
 export type UpdateMemberResult = { ok: true } | { ok: false; messageKey: UpdateMemberErrorKey };
@@ -20,7 +22,9 @@ function isUpdateMemberErrorKey(value: string | undefined): value is UpdateMembe
     value === "invalidRole" ||
     value === "forbiddenRole" ||
     value === "invalidStudentId" ||
-    value === "studentIdTaken"
+    value === "studentIdTaken" ||
+    value === "fullNameTooLong" ||
+    value === "classNameTooLong"
   );
 }
 

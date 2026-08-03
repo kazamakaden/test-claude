@@ -72,8 +72,12 @@ export const updateMemberSchema = z.object({
     .trim()
     .regex(/^[0-9]{11,}$/, { message: "invalidStudentId" })
     .nullable(),
-  className: z.string().trim().max(50).nullable().catch(null),
-  fullName: z.string().trim().max(100).nullable().catch(null),
+  // No .catch() on either of these either — same reasoning as studentId
+  // above. A .catch(null) here would silently blank a member's name or
+  // class on save instead of rejecting an over-length edit, discarding the
+  // caller's input with no visible error.
+  className: z.string().trim().max(50, { message: "classNameTooLong" }).nullable(),
+  fullName: z.string().trim().max(100, { message: "fullNameTooLong" }).nullable(),
 });
 
 export type UpdateMemberInput = z.infer<typeof updateMemberSchema>;

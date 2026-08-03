@@ -231,6 +231,8 @@
         "forbiddenRole": "An AFT teacher cannot assign this role. Please contact an administrator.",
         "invalidStudentId": "Student ID format is invalid",
         "studentIdTaken": "This student ID is already in use",
+        "fullNameTooLong": "Full name is too long (100 characters max)",
+        "classNameTooLong": "Class is too long (50 characters max)",
         "unknown": "Something went wrong. Please try again."
       }
     }
@@ -398,6 +400,7 @@
           "titleRequired": "Please enter a document title",
           "yearInvalid": "Please enter a valid academic year",
           "seasonInvalid": "Please choose a semester",
+          "descriptionTooLong": "Description is too long (2000 characters max)",
           "unknown": "Something went wrong — please try again",
           "flipbookUrlInvalid": "The link must be a valid FlipHTML5 link (fliphtml5.com)",
           "notFoundOrForbidden": "This book doesn't exist, or you don't have permission to edit it",

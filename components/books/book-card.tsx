@@ -5,11 +5,12 @@ import { X } from "lucide-react";
 import { BookCover } from "@/components/documents/book-cover";
 import { DeleteBookButton } from "@/components/books/delete-book-button";
 import { SEASON_LABELS_TH, SEASON_LABELS_EN } from "@/lib/books";
+import { getSignedCoverUrl } from "@/services/books";
 import type { BookSummary } from "@/types/books";
 import type { Locale } from "@/lib/i18n/config";
 import type { Dictionary } from "@/types/i18n";
 
-export function BookCard({
+export async function BookCard({
   book,
   canDelete,
   lang,
@@ -23,6 +24,7 @@ export function BookCard({
   const d = dict.documents;
   const locale = lang === "th" ? th : enUS;
   const seasonLabels = lang === "th" ? SEASON_LABELS_TH : SEASON_LABELS_EN;
+  const coverUrl = book.coverPath ? await getSignedCoverUrl(book.coverPath) : null;
 
   return (
     <div className="group relative flex flex-col gap-2">
@@ -30,7 +32,11 @@ export function BookCard({
         href={`/${lang}/documents/${book.id}`}
         className="flex flex-col gap-2 rounded-lg outline-none after:absolute after:inset-0 after:rounded-lg focus-visible:after:ring-3 focus-visible:after:ring-ring/50"
       >
-        <BookCover title={book.title} className="transition-transform group-hover:-translate-y-1" />
+        <BookCover
+          title={book.title}
+          coverUrl={coverUrl}
+          className="transition-transform group-hover:-translate-y-1"
+        />
         <p className="line-clamp-2 text-sm font-medium text-foreground">{book.title}</p>
         <p className="text-xs text-muted-foreground">
           {seasonLabels[book.season]} {book.academicYear}

@@ -123,14 +123,22 @@ export function MembersTable({
             <TableCell className="text-muted-foreground">{m.clubName ?? "—"}</TableCell>
             {canEdit ? (
               <TableCell>
-                <MemberEditSheet
-                  member={m}
-                  departments={departments}
-                  clubs={clubs}
-                  actorRole={actorRole}
-                  lang={lang}
-                  dict={dict}
-                />
+                {/* "admin" is deliberately never an assignable role (same
+                    reasoning as approve-user-card.tsx) — the role Select
+                    has no matching option for it, so an admin row can't be
+                    edited through this sheet at all. Hide the trigger
+                    rather than open a sheet with a role field that can
+                    never validate. */}
+                {m.role !== "admin" ? (
+                  <MemberEditSheet
+                    member={m}
+                    departments={departments}
+                    clubs={clubs}
+                    actorRole={actorRole}
+                    lang={lang}
+                    dict={dict}
+                  />
+                ) : null}
               </TableCell>
             ) : null}
           </TableRow>

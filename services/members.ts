@@ -154,7 +154,7 @@ export async function updateMember(input: {
   fullName: string | null;
 }): Promise<{ ok: true } | { ok: false; error: string }> {
   const supabase = await createClient();
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from("profiles")
     .update({
       role: input.role,
@@ -164,7 +164,9 @@ export async function updateMember(input: {
       student_id: input.studentId,
       full_name: input.fullName,
     })
-    .eq("id", input.id);
+    .eq("id", input.id)
+    .select("id")
+    .maybeSingle();
 
   if (error) {
     if (error.code === "23505" && error.message.includes("profiles_student_id_key")) {
@@ -175,6 +177,12 @@ export async function updateMember(input: {
     }
     return { ok: false, error: error.message };
   }
+  // PostgREST reports success with no error when an UPDATE with no
+  // .select() matches zero rows — chaining .select().maybeSingle() above
+  // is what turns a stale/nonexistent id into a real failure instead of a
+  // false "member updated" toast, matching the pattern services/books.ts
+  // already uses for updateBook/deleteBook/publishBook/unpublishBook.
+  if (!data) return { ok: false, error: "not found or not allowed" };
   return { ok: true };
 }
 

@@ -108,6 +108,11 @@ export async function createBook(
 export async function updateBook(input: UpdateBookInput): Promise<{ ok: true } | { ok: false; error: string }> {
   const supabase = await createClient();
 
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: "not authenticated" };
+
   // Defense-in-depth (§19): pdfPath/coverPath arrive as plain hidden-field
   // strings from the two-phase upload flow (browser -> Storage directly,
   // then this Server Action). RLS on storage.objects already requires the
@@ -115,17 +120,26 @@ export async function updateBook(input: UpdateBookInput): Promise<{ ok: true } |
   // hidden field could otherwise reference any path this same caller is
   // later allowed to read (their own drafts, or anything published — see
   // 0029's storage SELECT policy) rather than a path they actually
-  // uploaded. Not exploitable for confidentiality (RLS already limits what
-  // this caller can ever see), but refusing anything outside the caller's
-  // own folder keeps this write path narrow anyway.
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { ok: false, error: "not authenticated" };
-  if (input.pdfPath && !input.pdfPath.startsWith(`${user.id}/`)) {
+  // uploaded.
+  //
+  // Only check ownership when the path is actually CHANGING. The edit
+  // form always round-trips the book's existing pdfPath/coverPath as a
+  // hidden field (components/books/file-uploader.tsx's initialPath) even
+  // when the viewer never touches the file input — for staff editing a
+  // student's already-uploaded book, that hidden field still carries the
+  // *original owner's* path, not the staff member's own. Rejecting an
+  // unchanged path here would block every staff metadata-only edit on any
+  // book that already has content attached.
+  const { data: existing } = await supabase
+    .from("books")
+    .select("pdf_path, cover_path")
+    .eq("id", input.id)
+    .maybeSingle();
+
+  if (input.pdfPath && input.pdfPath !== existing?.pdf_path && !input.pdfPath.startsWith(`${user.id}/`)) {
     return { ok: false, error: "invalid pdf path" };
   }
-  if (input.coverPath && !input.coverPath.startsWith(`${user.id}/`)) {
+  if (input.coverPath && input.coverPath !== existing?.cover_path && !input.coverPath.startsWith(`${user.id}/`)) {
     return { ok: false, error: "invalid cover path" };
   }
 

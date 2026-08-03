@@ -60,7 +60,11 @@ export type CreateBookInput = z.infer<typeof createBookSchema>;
 export const updateBookSchema = z.object({
   id: z.uuid(),
   title: z.string().trim().min(1, { message: "titleRequired" }).max(200),
-  description: z.string().trim().max(2000).nullable().catch(null),
+  // No .catch() — an over-length description must surface
+  // descriptionTooLong to the caller, not be silently discarded on save
+  // (the same class of bug already fixed once for schemas/members.ts's
+  // studentId field).
+  description: z.string().trim().max(2000, { message: "descriptionTooLong" }).nullable(),
   academicYear: yearField,
   season: seasonField,
   // "" (an empty form field) means "no link attached", not a validation
