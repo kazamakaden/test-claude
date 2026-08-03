@@ -198,6 +198,64 @@
       "pending": "Pending"
     }
   },
+  "projects": {
+    "description": "Manage your projects, from draft through to public release.",
+    "newProjectCta": "New project",
+    "empty": "No projects yet",
+    "searchPlaceholder": "Search by project title",
+    "clearFilters": "Clear filters",
+    "allStatuses": "All statuses",
+    "columnTitle": "Project",
+    "columnStatus": "Status",
+    "columnUpdated": "Last updated",
+    "columnOwner": "Owner",
+    "columnDepartment": "Department",
+    "status": {
+      "draft": "Draft",
+      "teacher_review": "Teacher review",
+      "admin_approval": "Awaiting admin approval",
+      "official": "Official"
+    },
+    "form": {
+      "titleLabel": "Project title",
+      "descriptionLabel": "Project description",
+      "departmentLabel": "Department",
+      "noDepartment": "No department",
+      "submit": "Create project",
+      "submitting": "Creating...",
+      "save": "Save changes",
+      "saving": "Saving...",
+      "errors": {
+        "titleRequired": "Please enter a project title",
+        "unknown": "Something went wrong — please try again"
+      }
+    },
+    "actions": {
+      "submit": "Submit for review",
+      "submitting": "Submitting...",
+      "recommend": "Recommend for admin approval",
+      "approve": "Approve",
+      "reject": "Send back",
+      "rejecting": "Sending back...",
+      "reasonLabel": "Reason for sending back",
+      "reasonPlaceholder": "Explain what needs to change",
+      "errors": {
+        "reasonRequired": "Please give a reason for sending this back",
+        "unknown": "Something went wrong — please try again"
+      }
+    },
+    "detail": {
+      "backToList": "Back to projects",
+      "ownerLabel": "Project owner",
+      "rejectedReasonLabel": "Sent back — reason"
+    },
+    "review": {
+      "title": "Review projects",
+      "teacherQueueTitle": "Awaiting teacher review",
+      "adminQueueTitle": "Awaiting admin approval",
+      "empty": "Nothing awaiting review"
+    }
+  },
   "calendar": {
     "title": "Activity Calendar",
     "description": "Browse all activities by month",
@@ -215,7 +273,78 @@
     "notAttached": "No book attached yet",
     "notAttachedDescription": "This document doesn't have an e-book link attached yet.",
     "backToShelf": "Back to the shelf",
-    "publishedAt": "Published"
+    "publishedAt": "Published",
+    "manage": {
+      "title": "Manage my documents",
+      "description": "Create and track your documents, from draft through to publication.",
+      "newDocumentCta": "New document",
+      "empty": "No documents yet",
+      "searchPlaceholder": "Search by document title",
+      "clearFilters": "Clear filters",
+      "allStatuses": "All statuses",
+      "columnTitle": "Document",
+      "columnStatus": "Status",
+      "columnUpdated": "Last updated",
+      "columnOwner": "Owner",
+      "status": {
+        "draft": "Draft",
+        "signed": "Signed",
+        "pending_approval": "Awaiting approval",
+        "official": "Published"
+      },
+      "form": {
+        "titleLabel": "Document title",
+        "contentLabel": "Document content",
+        "create": "Create document",
+        "creating": "Creating...",
+        "save": "Save draft",
+        "saving": "Saving...",
+        "errors": {
+          "titleRequired": "Please enter a document title",
+          "unknown": "Something went wrong — please try again"
+        }
+      },
+      "actions": {
+        "submitForApproval": "Submit for approval",
+        "approve": "Approve",
+        "reject": "Send back",
+        "rejecting": "Sending back...",
+        "reasonLabel": "Reason for sending back",
+        "reasonPlaceholder": "Explain what needs to change",
+        "errors": {
+          "reasonRequired": "Please give a reason for sending this back",
+          "unknown": "Something went wrong — please try again"
+        }
+      },
+      "sign": {
+        "title": "Sign document",
+        "drawInstructions": "Draw your signature in the box below.",
+        "clear": "Clear",
+        "back": "Back",
+        "previewTitle": "Signature preview",
+        "confirmLabel": "Confirm signature",
+        "confirmPlaceholder": "Type \"ยืนยัน\" to confirm",
+        "save": "Save signature",
+        "saving": "Saving...",
+        "errors": {
+          "signatureRequired": "Please draw a signature first",
+          "signatureInvalid": "Signature is invalid — please try again",
+          "confirmTextMismatch": "Please type \"ยืนยัน\" exactly",
+          "unknown": "Something went wrong — please try again"
+        }
+      },
+      "detail": {
+        "backToList": "Back to documents",
+        "ownerLabel": "Document owner",
+        "viewPublished": "View published document"
+      },
+      "rejectedReasonLabel": "Sent back — reason"
+    },
+    "review": {
+      "title": "Review documents",
+      "description": "Documents awaiting approval",
+      "empty": "Nothing awaiting review"
+    }
   },
   "approvals": {
     "title": "Account Approvals",

@@ -19,7 +19,9 @@ export async function DraftDocumentsCard({
 }) {
   const documents = await getDraftDocuments(role);
   const d = dict.dashboard.draftDocuments;
-  const isReviewer = can(role, "project:draft:review");
+  // document:approve, not project:draft:review — that permission gates
+  // *project* drafts, an unrelated table; this card is about documents.
+  const isReviewer = can(role, "document:approve");
 
   return (
     <Card>
@@ -33,7 +35,7 @@ export async function DraftDocumentsCard({
             icon={FileText}
             message={d.empty}
             ctaLabel={d.emptyCta}
-            ctaHref="/documents"
+            ctaHref={isReviewer ? "/documents/review" : "/documents/manage"}
             lang={lang}
           />
         ) : (

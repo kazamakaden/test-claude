@@ -198,6 +198,64 @@
       "pending": "รอดำเนินการ"
     }
   },
+  "projects": {
+    "description": "จัดการโครงการของคุณ ตั้งแต่ร่างจนถึงเผยแพร่สาธารณะ",
+    "newProjectCta": "สร้างโครงการใหม่",
+    "empty": "ยังไม่มีโครงการ",
+    "searchPlaceholder": "ค้นหาด้วยชื่อโครงการ",
+    "clearFilters": "ล้างตัวกรอง",
+    "allStatuses": "ทุกสถานะ",
+    "columnTitle": "โครงการ",
+    "columnStatus": "สถานะ",
+    "columnUpdated": "อัปเดตล่าสุด",
+    "columnOwner": "เจ้าของ",
+    "columnDepartment": "แผนก",
+    "status": {
+      "draft": "ร่าง",
+      "teacher_review": "ครูกำลังตรวจสอบ",
+      "admin_approval": "รอผู้บริหารอนุมัติ",
+      "official": "โครงการทางการ"
+    },
+    "form": {
+      "titleLabel": "ชื่อโครงการ",
+      "descriptionLabel": "รายละเอียดโครงการ",
+      "departmentLabel": "แผนก",
+      "noDepartment": "ไม่ระบุแผนก",
+      "submit": "สร้างโครงการ",
+      "submitting": "กำลังสร้าง...",
+      "save": "บันทึกการแก้ไข",
+      "saving": "กำลังบันทึก...",
+      "errors": {
+        "titleRequired": "กรุณากรอกชื่อโครงการ",
+        "unknown": "เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง"
+      }
+    },
+    "actions": {
+      "submit": "ส่งเพื่อตรวจสอบ",
+      "submitting": "กำลังส่ง...",
+      "recommend": "เสนอให้ผู้บริหารอนุมัติ",
+      "approve": "อนุมัติ",
+      "reject": "ตีกลับ",
+      "rejecting": "กำลังตีกลับ...",
+      "reasonLabel": "เหตุผลที่ตีกลับ",
+      "reasonPlaceholder": "อธิบายสิ่งที่ต้องแก้ไข",
+      "errors": {
+        "reasonRequired": "กรุณาระบุเหตุผลที่ตีกลับ",
+        "unknown": "เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง"
+      }
+    },
+    "detail": {
+      "backToList": "กลับไปที่รายการโครงการ",
+      "ownerLabel": "เจ้าของโครงการ",
+      "rejectedReasonLabel": "เหตุผลที่ตีกลับ"
+    },
+    "review": {
+      "title": "ตรวจสอบโครงการ",
+      "teacherQueueTitle": "รอครูตรวจสอบ",
+      "adminQueueTitle": "รอผู้บริหารอนุมัติ",
+      "empty": "ไม่มีโครงการรอดำเนินการ"
+    }
+  },
   "calendar": {
     "title": "ปฏิทินกิจกรรม",
     "description": "ดูกิจกรรมทั้งหมดรายเดือน",
@@ -215,7 +273,78 @@
     "notAttached": "ยังไม่แนบไฟล์หนังสือ",
     "notAttachedDescription": "เอกสารนี้ยังไม่มีลิงก์หนังสืออิเล็กทรอนิกส์แนบไว้",
     "backToShelf": "กลับไปที่ชั้นหนังสือ",
-    "publishedAt": "เผยแพร่เมื่อ"
+    "publishedAt": "เผยแพร่เมื่อ",
+    "manage": {
+      "title": "จัดการเอกสารของฉัน",
+      "description": "สร้างและติดตามสถานะเอกสารของคุณตั้งแต่ร่างจนถึงเผยแพร่",
+      "newDocumentCta": "สร้างเอกสารใหม่",
+      "empty": "ยังไม่มีเอกสาร",
+      "searchPlaceholder": "ค้นหาด้วยชื่อเอกสาร",
+      "clearFilters": "ล้างตัวกรอง",
+      "allStatuses": "ทุกสถานะ",
+      "columnTitle": "เอกสาร",
+      "columnStatus": "สถานะ",
+      "columnUpdated": "อัปเดตล่าสุด",
+      "columnOwner": "เจ้าของ",
+      "status": {
+        "draft": "ร่าง",
+        "signed": "ลงนามแล้ว",
+        "pending_approval": "รออนุมัติ",
+        "official": "อนุมัติแล้ว"
+      },
+      "form": {
+        "titleLabel": "ชื่อเอกสาร",
+        "contentLabel": "เนื้อหาเอกสาร",
+        "create": "สร้างเอกสาร",
+        "creating": "กำลังสร้าง...",
+        "save": "บันทึกร่าง",
+        "saving": "กำลังบันทึก...",
+        "errors": {
+          "titleRequired": "กรุณากรอกชื่อเอกสาร",
+          "unknown": "เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง"
+        }
+      },
+      "actions": {
+        "submitForApproval": "ส่งเพื่อขออนุมัติ",
+        "approve": "อนุมัติ",
+        "reject": "ตีกลับ",
+        "rejecting": "กำลังตีกลับ...",
+        "reasonLabel": "เหตุผลที่ตีกลับ",
+        "reasonPlaceholder": "อธิบายสิ่งที่ต้องแก้ไข",
+        "errors": {
+          "reasonRequired": "กรุณาระบุเหตุผลที่ตีกลับ",
+          "unknown": "เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง"
+        }
+      },
+      "sign": {
+        "title": "ลงนามเอกสาร",
+        "drawInstructions": "วาดลายเซ็นของคุณในกรอบด้านล่าง",
+        "clear": "ล้าง",
+        "back": "ย้อนกลับ",
+        "previewTitle": "ตัวอย่างลายเซ็น",
+        "confirmLabel": "ยืนยันการลงนาม",
+        "confirmPlaceholder": "พิมพ์ \"ยืนยัน\" เพื่อยืนยัน",
+        "save": "บันทึกลายเซ็น",
+        "saving": "กำลังบันทึก...",
+        "errors": {
+          "signatureRequired": "กรุณาวาดลายเซ็นก่อน",
+          "signatureInvalid": "ลายเซ็นไม่ถูกต้อง กรุณาลองใหม่",
+          "confirmTextMismatch": "กรุณาพิมพ์ \"ยืนยัน\" ให้ถูกต้อง",
+          "unknown": "เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง"
+        }
+      },
+      "detail": {
+        "backToList": "กลับไปที่รายการเอกสาร",
+        "ownerLabel": "เจ้าของเอกสาร",
+        "viewPublished": "ดูเอกสารที่เผยแพร่แล้ว"
+      },
+      "rejectedReasonLabel": "เหตุผลที่ตีกลับ"
+    },
+    "review": {
+      "title": "ตรวจสอบเอกสาร",
+      "description": "เอกสารที่รอการอนุมัติ",
+      "empty": "ไม่มีเอกสารรอดำเนินการ"
+    }
   },
   "approvals": {
     "title": "อนุมัติบัญชี",

@@ -84,7 +84,9 @@ export async function getActivityStats(): Promise<ActivityStat[]> {
 // §12 document workflow. Explicit column list — never select("*").
 export async function getDraftDocuments(role: Role): Promise<DraftDocument[]> {
   const supabase = await createClient();
-  const isReviewer = can(role, "project:draft:review");
+  // document:approve, not project:draft:review — that permission gates
+  // *project* drafts, an unrelated table; this card is about documents.
+  const isReviewer = can(role, "document:approve");
 
   let query = supabase
     .from("documents")
@@ -170,8 +172,8 @@ export async function getMemberStats(lang: Locale): Promise<DepartmentStat[]> {
 const allQuickActions: QuickAction[] = [
   { key: "submitDraft", href: "/projects", permission: "project:draft:submit" },
   { key: "scanAttendance", href: "/activities", permission: "attendance:submit" },
-  { key: "signDocument", href: "/documents", permission: "document:sign" },
-  { key: "reviewDrafts", href: "/documents", permission: "project:draft:review" },
+  { key: "signDocument", href: "/documents/manage", permission: "document:sign" },
+  { key: "reviewDrafts", href: "/projects/review", permission: "project:draft:review" },
   { key: "manageMembers", href: "/members", permission: "member:manage" },
 ];
 

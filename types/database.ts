@@ -4,6 +4,12 @@
  *
  *   supabase gen types typescript --linked > types/database.ts
  *
+ * Manually patched (not regenerated — no live DB access in this session) to
+ * add `signature_records`, `sign_document()`, and `rejected_reason` on
+ * `projects`/`documents` for 0016/0017_project_document_workflow_*.sql.
+ * Re-run the command above for real once those migrations are applied live,
+ * to catch any drift between this hand-edit and the actual schema.
+ *
  * `profiles.citizen_id` appears in this type because the column exists, but
  * it is NOT selectable by `authenticated`/`anon` at runtime — see
  * 0005_citizen_id_column_grants.sql. Read it only via `get_citizen_id()`.
@@ -277,6 +283,8 @@ export type Database = {
           content: string | null
           created_at: string
           created_by: string | null
+          // unique per 0016_project_document_workflow_tables.sql — one
+          // document has exactly one current draft.
           document_id: string
           id: string
           updated_at: string
@@ -323,6 +331,8 @@ export type Database = {
           id: string
           owner_id: string | null
           published_at: string | null
+          // 0016_project_document_workflow_tables.sql
+          rejected_reason: string | null
           status: Database["public"]["Enums"]["document_status"]
           title: string
           updated_at: string
@@ -335,6 +345,7 @@ export type Database = {
           id?: string
           owner_id?: string | null
           published_at?: string | null
+          rejected_reason?: string | null
           status?: Database["public"]["Enums"]["document_status"]
           title: string
           updated_at?: string
@@ -347,6 +358,7 @@ export type Database = {
           id?: string
           owner_id?: string | null
           published_at?: string | null
+          rejected_reason?: string | null
           status?: Database["public"]["Enums"]["document_status"]
           title?: string
           updated_at?: string
@@ -466,6 +478,8 @@ export type Database = {
           description: string | null
           id: string
           owner_id: string | null
+          // 0016_project_document_workflow_tables.sql
+          rejected_reason: string | null
           status: Database["public"]["Enums"]["project_status"]
           title: string
           updated_at: string
@@ -476,6 +490,7 @@ export type Database = {
           description?: string | null
           id?: string
           owner_id?: string | null
+          rejected_reason?: string | null
           status?: Database["public"]["Enums"]["project_status"]
           title: string
           updated_at?: string
@@ -486,6 +501,7 @@ export type Database = {
           description?: string | null
           id?: string
           owner_id?: string | null
+          rejected_reason?: string | null
           status?: Database["public"]["Enums"]["project_status"]
           title?: string
           updated_at?: string
@@ -501,6 +517,49 @@ export type Database = {
           {
             foreignKeyName: "projects_owner_id_fkey"
             columns: ["owner_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      // 0016_project_document_workflow_tables.sql
+      signature_records: {
+        Row: {
+          created_at: string
+          document_id: string
+          id: string
+          signature_data: string
+          signed_at: string
+          signer_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          document_id: string
+          id?: string
+          signature_data: string
+          signed_at?: string
+          signer_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          document_id?: string
+          id?: string
+          signature_data?: string
+          signed_at?: string
+          signer_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "signature_records_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "documents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "signature_records_signer_id_fkey"
+            columns: ["signer_id"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
@@ -532,6 +591,11 @@ export type Database = {
           department: string
           member_count: number
         }[]
+      }
+      // 0016_project_document_workflow_tables.sql
+      sign_document: {
+        Args: { p_document_id: string; p_signature_data: string }
+        Returns: undefined
       }
     }
     Enums: {

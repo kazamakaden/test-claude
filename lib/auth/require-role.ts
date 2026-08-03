@@ -23,3 +23,22 @@ export async function requirePermission(
 
   return role;
 }
+
+/**
+ * Same fail-closed contract as requirePermission, for actions two disjoint
+ * roles can legally reach at different workflow stages (e.g. rejecting a
+ * project: plain teacher at teacher_review, aft_teacher/admin at
+ * admin_approval) — not a new permission, just an OR over existing ones.
+ */
+export async function requireAnyPermission(
+  permissions: readonly Permission[],
+  lang: Locale
+): Promise<Role> {
+  const role = await getRole();
+
+  if (!permissions.some((permission) => can(role, permission))) {
+    redirect(`/${lang}/login`);
+  }
+
+  return role;
+}
