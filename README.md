@@ -286,7 +286,9 @@ npx tsc --noEmit  # type-check
 
 Nothing in the codebase is Windows-specific (no backslash paths, no
 `path.win32`, all asset filenames lowercase). Deploying to Linux is just
-environment setup:
+environment setup. This section covers the **app** — for connecting to and
+applying migrations against the hosted Supabase **database** from a Linux
+machine, see [`docs/linux-database.md`](docs/linux-database.md).
 
 1. **Env file location is identical to Windows** — `.env.local` at the project
    root, e.g. `/srv/aft-dashboard/.env.local`:
