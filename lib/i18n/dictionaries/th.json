@@ -38,6 +38,7 @@
   },
   "roles": {
     "guest": "ผู้เยี่ยมชม",
+    "pending": "รอการอนุมัติ",
     "student": "นักเรียน/นักศึกษา อวท.",
     "teacher": "อาจารย์",
     "aft_teacher": "อาจารย์ อวท.",
@@ -46,24 +47,54 @@
   "auth": {
     "emailLabel": "อีเมล",
     "emailPlaceholder": "your.name@udontech.ac.th",
-    "submit": "ส่งลิงก์เข้าสู่ระบบ",
+    "passwordLabel": "รหัสผ่าน",
+    "confirmPasswordLabel": "ยืนยันรหัสผ่าน",
+    "newPasswordLabel": "รหัสผ่านใหม่",
+    "signIn": "เข้าสู่ระบบ",
+    "signingIn": "กำลังเข้าสู่ระบบ...",
+    "signUp": "สมัครสมาชิก",
+    "signingUp": "กำลังสมัครสมาชิก...",
+    "forgotPassword": "ลืมรหัสผ่าน?",
+    "noAccount": "ยังไม่มีบัญชี?",
+    "haveAccount": "มีบัญชีอยู่แล้ว?",
+    "resetTitle": "ตั้งรหัสผ่านใหม่",
+    "resetDescription": "กรอกอีเมลของคุณ เราจะส่งลิงก์สำหรับตั้งรหัสผ่านใหม่ไปให้",
+    "submit": "ส่งลิงก์ตั้งรหัสผ่านใหม่",
     "submitting": "กำลังส่ง...",
+    "updatePassword": "บันทึกรหัสผ่านใหม่",
+    "updatingPassword": "กำลังบันทึก...",
     "checkEmailTitle": "ตรวจสอบอีเมลของคุณ",
-    "checkEmailDescription": "เราได้ส่งลิงก์สำหรับเข้าสู่ระบบไปยังอีเมลของคุณแล้ว",
+    "checkEmailSignupDescription": "เราได้ส่งอีเมลยืนยันการสมัครสมาชิกไปยังอีเมลของคุณแล้ว กรุณาคลิกลิงก์ในอีเมลเพื่อยืนยันตัวตน",
+    "checkEmailResetDescription": "หากอีเมลนี้ลงทะเบียนไว้ในระบบ เราได้ส่งลิงก์สำหรับตั้งรหัสผ่านใหม่ไปให้แล้ว",
     "captchaLabel": "การยืนยันตัวตน",
     "errors": {
       "invalidEmail": "กรุณากรอกอีเมลที่ถูกต้อง",
       "personalDomain": "กรุณาใช้อีเมลของวิทยาลัย (@udontech.ac.th) แทนอีเมลส่วนตัว",
       "wrongDomain": "อนุญาตเฉพาะอีเมล @udontech.ac.th เท่านั้น",
-      "sendFailed": "ไม่สามารถส่งลิงก์เข้าสู่ระบบได้ กรุณาลองใหม่อีกครั้ง",
+      "passwordRequired": "กรุณากรอกรหัสผ่าน",
+      "passwordTooShort": "รหัสผ่านต้องมีอย่างน้อย 8 ตัวอักษร",
+      "passwordTooLong": "รหัสผ่านยาวเกินไป",
+      "passwordMismatch": "รหัสผ่านทั้งสองช่องไม่ตรงกัน",
+      "invalidCredentials": "อีเมลหรือรหัสผ่านไม่ถูกต้อง",
+      "signUpFailed": "ไม่สามารถสมัครสมาชิกได้ กรุณาลองใหม่อีกครั้ง",
+      "resetFailed": "ไม่สามารถส่งลิงก์ตั้งรหัสผ่านใหม่ได้ กรุณาลองใหม่อีกครั้ง",
+      "updateFailed": "ไม่สามารถบันทึกรหัสผ่านใหม่ได้ กรุณาลองใหม่อีกครั้ง",
+      "sessionExpired": "ลิงก์หมดอายุหรือใช้งานไปแล้ว กรุณาขอลิงก์ใหม่อีกครั้ง",
       "captchaFailed": "กรุณายืนยันตัวตนแล้วลองใหม่อีกครั้ง",
-      "notApproved": "รหัสนักเรียน/นักศึกษานี้ยังไม่ได้รับการอนุมัติ กรุณาติดต่อผู้ดูแลระบบ"
-    }
+      "oauthFailed": "ไม่สามารถเข้าสู่ระบบด้วย Google ได้ กรุณาลองใหม่อีกครั้ง",
+      "auth": "การเข้าสู่ระบบไม่สำเร็จ กรุณาลองใหม่อีกครั้ง"
+    },
+    "orDivider": "หรือ",
+    "googleSignIn": "เข้าสู่ระบบด้วย Google"
   },
   "footer": {
     "orgName": "องค์การนักวิชาชีพในอนาคตแห่งประเทศไทย",
     "collegeName": "วิทยาลัยเทคนิคอุดรธานี",
     "copyright": "สงวนลิขสิทธิ์"
+  },
+  "pending": {
+    "title": "บัญชีของคุณรอการอนุมัติ",
+    "description": "คุณเข้าสู่ระบบสำเร็จแล้ว แต่ยังต้องรอผู้ดูแลระบบอนุมัติและกำหนดบทบาทก่อนจึงจะใช้งานส่วนต่าง ๆ ของระบบได้ กรุณาติดต่อผู้ดูแลระบบหากรอนานเกินไป"
   },
   "dashboard": {
     "welcomeTitle": "ยินดีต้อนรับ",
@@ -108,6 +139,8 @@
       "description": "ติดตามสถานะเอกสารล่าสุด",
       "empty": "ไม่มีเอกสารร่าง",
       "emptyCta": "สร้างเอกสารใหม่",
+      "viewAllManage": "ดูเอกสารทั้งหมดของฉัน",
+      "viewAllReview": "ไปที่หน้าตรวจสอบเอกสาร",
       "status": {
         "draft": "ร่าง",
         "signed": "ลงนามแล้ว",
@@ -198,6 +231,64 @@
       "pending": "รอดำเนินการ"
     }
   },
+  "projects": {
+    "description": "จัดการโครงการของคุณ ตั้งแต่ร่างจนถึงเผยแพร่สาธารณะ",
+    "newProjectCta": "สร้างโครงการใหม่",
+    "empty": "ยังไม่มีโครงการ",
+    "searchPlaceholder": "ค้นหาด้วยชื่อโครงการ",
+    "clearFilters": "ล้างตัวกรอง",
+    "allStatuses": "ทุกสถานะ",
+    "columnTitle": "โครงการ",
+    "columnStatus": "สถานะ",
+    "columnUpdated": "อัปเดตล่าสุด",
+    "columnOwner": "เจ้าของ",
+    "columnDepartment": "แผนก",
+    "status": {
+      "draft": "ร่าง",
+      "teacher_review": "ครูกำลังตรวจสอบ",
+      "admin_approval": "รอผู้บริหารอนุมัติ",
+      "official": "โครงการทางการ"
+    },
+    "form": {
+      "titleLabel": "ชื่อโครงการ",
+      "descriptionLabel": "รายละเอียดโครงการ",
+      "departmentLabel": "แผนก",
+      "noDepartment": "ไม่ระบุแผนก",
+      "submit": "สร้างโครงการ",
+      "submitting": "กำลังสร้าง...",
+      "save": "บันทึกการแก้ไข",
+      "saving": "กำลังบันทึก...",
+      "errors": {
+        "titleRequired": "กรุณากรอกชื่อโครงการ",
+        "unknown": "เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง"
+      }
+    },
+    "actions": {
+      "submit": "ส่งเพื่อตรวจสอบ",
+      "submitting": "กำลังส่ง...",
+      "recommend": "เสนอให้ผู้บริหารอนุมัติ",
+      "approve": "อนุมัติ",
+      "reject": "ตีกลับ",
+      "rejecting": "กำลังตีกลับ...",
+      "reasonLabel": "เหตุผลที่ตีกลับ",
+      "reasonPlaceholder": "อธิบายสิ่งที่ต้องแก้ไข",
+      "errors": {
+        "reasonRequired": "กรุณาระบุเหตุผลที่ตีกลับ",
+        "unknown": "เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง"
+      }
+    },
+    "detail": {
+      "backToList": "กลับไปที่รายการโครงการ",
+      "ownerLabel": "เจ้าของโครงการ",
+      "rejectedReasonLabel": "เหตุผลที่ตีกลับ"
+    },
+    "review": {
+      "title": "ตรวจสอบโครงการ",
+      "teacherQueueTitle": "รอครูตรวจสอบ",
+      "adminQueueTitle": "รอผู้บริหารอนุมัติ",
+      "empty": "ไม่มีโครงการรอดำเนินการ"
+    }
+  },
   "calendar": {
     "title": "ปฏิทินกิจกรรม",
     "description": "ดูกิจกรรมทั้งหมดรายเดือน",
@@ -215,32 +306,98 @@
     "notAttached": "ยังไม่แนบไฟล์หนังสือ",
     "notAttachedDescription": "เอกสารนี้ยังไม่มีลิงก์หนังสืออิเล็กทรอนิกส์แนบไว้",
     "backToShelf": "กลับไปที่ชั้นหนังสือ",
-    "publishedAt": "เผยแพร่เมื่อ"
+    "publishedAt": "เผยแพร่เมื่อ",
+    "manage": {
+      "title": "จัดการเอกสารของฉัน",
+      "description": "สร้างและติดตามสถานะเอกสารของคุณตั้งแต่ร่างจนถึงเผยแพร่",
+      "newDocumentCta": "สร้างเอกสารใหม่",
+      "empty": "ยังไม่มีเอกสาร",
+      "searchPlaceholder": "ค้นหาด้วยชื่อเอกสาร",
+      "clearFilters": "ล้างตัวกรอง",
+      "allStatuses": "ทุกสถานะ",
+      "columnTitle": "เอกสาร",
+      "columnStatus": "สถานะ",
+      "columnUpdated": "อัปเดตล่าสุด",
+      "columnOwner": "เจ้าของ",
+      "status": {
+        "draft": "ร่าง",
+        "signed": "ลงนามแล้ว",
+        "pending_approval": "รออนุมัติ",
+        "official": "อนุมัติแล้ว"
+      },
+      "form": {
+        "titleLabel": "ชื่อเอกสาร",
+        "contentLabel": "เนื้อหาเอกสาร",
+        "descriptionLabel": "คำอธิบายเอกสาร (ไม่บังคับ)",
+        "flipbookUrlLabel": "ลิงก์หนังสือ FlipHTML5 (ไม่บังคับ)",
+        "flipbookUrlHint": "วางลิงก์จาก fliphtml5.com เช่น https://fliphtml5.com/xxxx/yyyy/",
+        "create": "สร้างเอกสาร",
+        "creating": "กำลังสร้าง...",
+        "save": "บันทึกร่าง",
+        "saving": "กำลังบันทึก...",
+        "errors": {
+          "titleRequired": "กรุณากรอกชื่อเอกสาร",
+          "unknown": "เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง",
+          "flipbookUrlInvalid": "ลิงก์ต้องเป็นลิงก์ FlipHTML5 ที่ถูกต้อง (fliphtml5.com)"
+        }
+      },
+      "actions": {
+        "submitForApproval": "ส่งเพื่อขออนุมัติ",
+        "approve": "อนุมัติ",
+        "reject": "ตีกลับ",
+        "rejecting": "กำลังตีกลับ...",
+        "reasonLabel": "เหตุผลที่ตีกลับ",
+        "reasonPlaceholder": "อธิบายสิ่งที่ต้องแก้ไข",
+        "errors": {
+          "reasonRequired": "กรุณาระบุเหตุผลที่ตีกลับ",
+          "unknown": "เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง"
+        }
+      },
+      "sign": {
+        "title": "ลงนามเอกสาร",
+        "drawInstructions": "วาดลายเซ็นของคุณในกรอบด้านล่าง",
+        "clear": "ล้าง",
+        "back": "ย้อนกลับ",
+        "previewTitle": "ตัวอย่างลายเซ็น",
+        "confirmLabel": "ยืนยันการลงนาม",
+        "confirmPlaceholder": "พิมพ์ \"ยืนยัน\" เพื่อยืนยัน",
+        "save": "บันทึกลายเซ็น",
+        "saving": "กำลังบันทึก...",
+        "errors": {
+          "signatureRequired": "กรุณาวาดลายเซ็นก่อน",
+          "signatureInvalid": "ลายเซ็นไม่ถูกต้อง กรุณาลองใหม่",
+          "confirmTextMismatch": "กรุณาพิมพ์ \"ยืนยัน\" ให้ถูกต้อง",
+          "unknown": "เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง"
+        }
+      },
+      "detail": {
+        "backToList": "กลับไปที่รายการเอกสาร",
+        "ownerLabel": "เจ้าของเอกสาร",
+        "viewPublished": "ดูเอกสารที่เผยแพร่แล้ว",
+        "bookPreviewTitle": "ตัวอย่างหนังสือที่แนบไว้"
+      },
+      "rejectedReasonLabel": "เหตุผลที่ตีกลับ"
+    },
+    "review": {
+      "title": "ตรวจสอบเอกสาร",
+      "description": "เอกสารที่รอการอนุมัติ",
+      "empty": "ไม่มีเอกสารรอดำเนินการ"
+    }
   },
   "approvals": {
     "title": "อนุมัติบัญชี",
-    "description": "อีเมลรหัสนักเรียน/นักศึกษา (ตัวเลขล้วน) ต้องได้รับการอนุมัติจากผู้ดูแลระบบก่อนจึงจะเข้าสู่ระบบได้ อีเมลของอาจารย์เข้าสู่ระบบได้ทันที",
-    "addTitle": "เพิ่มบัญชีที่อนุมัติ",
-    "emailLabel": "อีเมล",
-    "emailPlaceholder": "69319010099@udontech.ac.th",
+    "description": "ทุกคนที่เข้าสู่ระบบด้วยอีเมล @udontech.ac.th จะรอการอนุมัติจนกว่าผู้ดูแลระบบจะกำหนดบทบาทให้ รายชื่อด้านล่างคือผู้ที่กำลังรออนุมัติ",
     "roleLabel": "บทบาท",
     "departmentLabel": "แผนก (ถ้ามี)",
     "noDepartment": "ไม่ระบุแผนก",
-    "noteLabel": "หมายเหตุ (ถ้ามี)",
-    "submit": "เพิ่มบัญชี",
-    "submitting": "กำลังเพิ่ม...",
-    "columnEmail": "อีเมล",
-    "columnRole": "บทบาท",
-    "columnDepartment": "แผนก",
-    "columnApprovedBy": "อนุมัติโดย",
-    "columnDate": "วันที่",
-    "revoke": "ยกเลิก",
-    "empty": "ยังไม่มีบัญชีที่ได้รับการอนุมัติ",
+    "approve": "อนุมัติ",
+    "approving": "กำลังอนุมัติ...",
+    "approved": "อนุมัติบัญชีแล้ว",
+    "columnStudentId": "รหัสนักเรียน",
+    "signedUpAt": "เข้าสู่ระบบครั้งแรกเมื่อ",
+    "empty": "ไม่มีบัญชีรอการอนุมัติ",
     "errors": {
-      "invalidEmail": "กรุณากรอกอีเมลที่ถูกต้อง",
-      "wrongDomain": "อนุญาตเฉพาะอีเมล @udontech.ac.th เท่านั้น",
       "invalidRole": "กรุณาเลือกบทบาท",
-      "duplicate": "อีเมลนี้ได้รับการอนุมัติไว้แล้ว",
       "unknown": "เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง"
     }
   }

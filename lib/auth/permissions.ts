@@ -64,6 +64,14 @@ export type Permission = (typeof permissions)[number];
  */
 const guestPermissions = ["content:read:official"] as const satisfies readonly Permission[];
 
+/**
+ * Signed in, awaiting an admin's approval. Deliberately identical to guest:
+ * public content only, and crucially NO `workspace:access`, so every
+ * authenticated route's `requirePermission` guard turns them away until an
+ * admin assigns a real role.
+ */
+const pendingPermissions = [...guestPermissions] as const satisfies readonly Permission[];
+
 const studentPermissions = [
   ...guestPermissions,
   "workspace:access",
@@ -99,6 +107,7 @@ const adminPermissions = [
 
 export const permissionsByRole: Record<Role, readonly Permission[]> = {
   guest: guestPermissions,
+  pending: pendingPermissions,
   student: studentPermissions,
   teacher: teacherPermissions,
   aft_teacher: aftTeacherPermissions,
@@ -118,12 +127,14 @@ export function can(role: Role, permission: Permission): boolean {
  * `projects`, `documents`, `document_drafts`, `notifications` are live
  * (`supabase/migrations/0008_dashboard_rls.sql`, extended for `aft_teacher`
  * in `0011_account_approvals.sql`), same for `profiles` (`0002_auth_rls.sql`).
- * `approved_accounts` (`0011`) is admin-only — no student/teacher/aft_teacher
- * policy exists for it at all, it is a roster of who is permitted to sign up,
- * not app data. `project_drafts`, `qr_sessions`, `signature_records`,
- * `audit_logs` are still deferred to their own §30.10 phases — the rows
- * below for those are still just the contract to transcribe when each phase
- * lands.
+ * `approved_accounts` (`0011`) — a pre-approval roster — was dropped by
+ * `0020_pending_signup_flow.sql`; every signup now lands `role = 'pending'`
+ * directly on `profiles` and an admin assigns a real role afterward via
+ * `/approvals`, using the ordinary `profiles_select_admin`/
+ * `profiles_update_admin` policies (`0002`) rather than a separate table.
+ * `project_drafts`, `qr_sessions`, `audit_logs` are still deferred to their
+ * own §30.10 phases — the rows below for those are still just the contract
+ * to transcribe when each phase lands.
  *
  *   content:read:official   activities, projects, documents, announcements
  *                           anon SELECT WHERE status = 'official'
@@ -143,8 +154,8 @@ export function can(role: Role, permission: Permission): boolean {
  *   document:approve        documents UPDATE status -> 'official', aft_teacher + admin
  *   activity:manage         activities INSERT/UPDATE, aft_teacher + admin
  *   content:delete          DELETE on content tables, admin only
- *   member:manage           profiles/roles INSERT/UPDATE/DELETE, approved_accounts
- *                           INSERT/UPDATE/DELETE, admin only
+ *   member:manage           profiles/roles UPDATE (including approving a
+ *                           'pending' user's role), admin only
  *   system:manage           departments, clubs, audit_logs, qr_sessions
  *
  * Role is read server-side via the SECURITY DEFINER helper

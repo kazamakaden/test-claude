@@ -1,38 +1,36 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { createClient } from "@/lib/supabase/server";
 import { requirePermission } from "@/lib/auth/require-role";
-import { approveAccountSchema } from "@/schemas/approvals";
-import { addApprovedAccount, removeApprovedAccount } from "@/services/approvals";
+import { approveUserSchema } from "@/schemas/approvals";
+import { setProfileRole } from "@/services/profiles";
 import { isLocale, defaultLocale, type Locale } from "@/lib/i18n/config";
 
-type ApproveErrorKey = "invalidEmail" | "wrongDomain" | "invalidRole" | "duplicate" | "unknown";
+type ApproveErrorKey = "invalidRole" | "unknown";
 
-export type ApproveAccountResult = { ok: true } | { ok: false; messageKey: ApproveErrorKey };
+export type ApproveUserResult = { ok: true } | { ok: false; messageKey: ApproveErrorKey };
 
 function isApproveErrorKey(value: string | undefined): value is ApproveErrorKey {
-  return value === "invalidEmail" || value === "wrongDomain" || value === "invalidRole";
+  return value === "invalidRole";
 }
 
 /**
  * Re-checks member:manage server-side (§19) — never trusts that the page
  * guard ran, same reasoning as every other Server Action in this codebase.
  */
-export async function approveAccount(
-  _prevState: ApproveAccountResult | null,
+export async function approveUser(
+  _prevState: ApproveUserResult | null,
   formData: FormData
-): Promise<ApproveAccountResult> {
+): Promise<ApproveUserResult> {
   const rawLang = formData.get("lang");
   const lang: Locale = typeof rawLang === "string" && isLocale(rawLang) ? rawLang : defaultLocale;
 
   await requirePermission("member:manage", lang);
 
-  const parsed = approveAccountSchema.safeParse({
-    email: formData.get("email"),
+  const parsed = approveUserSchema.safeParse({
+    id: formData.get("id"),
     role: formData.get("role"),
     departmentId: formData.get("departmentId") || null,
-    note: formData.get("note") || null,
   });
 
   if (!parsed.success) {
@@ -40,29 +38,12 @@ export async function approveAccount(
     return { ok: false, messageKey: isApproveErrorKey(rawKey) ? rawKey : "unknown" };
   }
 
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    return { ok: false, messageKey: "unknown" };
-  }
-
-  const result = await addApprovedAccount(parsed.data, user.id);
+  const result = await setProfileRole(parsed.data.id, parsed.data.role, parsed.data.departmentId);
 
   if (!result.ok) {
-    // Postgres unique_violation on approved_accounts.email.
-    const messageKey = result.error.includes("duplicate key") ? "duplicate" : "unknown";
-    return { ok: false, messageKey };
+    return { ok: false, messageKey: "unknown" };
   }
 
   revalidatePath(`/${lang}/approvals`);
   return { ok: true };
-}
-
-export async function revokeAccount(id: string, lang: Locale) {
-  await requirePermission("member:manage", lang);
-  await removeApprovedAccount(id);
-  revalidatePath(`/${lang}/approvals`);
 }

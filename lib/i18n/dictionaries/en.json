@@ -38,6 +38,7 @@
   },
   "roles": {
     "guest": "Guest",
+    "pending": "Pending Approval",
     "student": "AFT Student/Member",
     "teacher": "Teacher",
     "aft_teacher": "AFT Advisor Teacher",
@@ -46,24 +47,54 @@
   "auth": {
     "emailLabel": "Email",
     "emailPlaceholder": "your.name@udontech.ac.th",
-    "submit": "Send sign-in link",
+    "passwordLabel": "Password",
+    "confirmPasswordLabel": "Confirm password",
+    "newPasswordLabel": "New password",
+    "signIn": "Sign in",
+    "signingIn": "Signing in...",
+    "signUp": "Sign up",
+    "signingUp": "Signing up...",
+    "forgotPassword": "Forgot password?",
+    "noAccount": "Don't have an account?",
+    "haveAccount": "Already have an account?",
+    "resetTitle": "Set a new password",
+    "resetDescription": "Enter your email and we'll send you a link to reset your password.",
+    "submit": "Send reset link",
     "submitting": "Sending...",
+    "updatePassword": "Save new password",
+    "updatingPassword": "Saving...",
     "checkEmailTitle": "Check your email",
-    "checkEmailDescription": "We've sent a sign-in link to your email address.",
+    "checkEmailSignupDescription": "We've sent a confirmation email to your address. Click the link in it to verify your account.",
+    "checkEmailResetDescription": "If that address is registered, we've sent a link to reset your password.",
     "captchaLabel": "Verification",
     "errors": {
       "invalidEmail": "Please enter a valid email address",
       "personalDomain": "Please use your college email (@udontech.ac.th) instead of a personal address",
       "wrongDomain": "Only @udontech.ac.th email addresses are allowed",
-      "sendFailed": "Couldn't send the sign-in link. Please try again.",
+      "passwordRequired": "Please enter your password",
+      "passwordTooShort": "Password must be at least 8 characters",
+      "passwordTooLong": "Password is too long",
+      "passwordMismatch": "Passwords do not match",
+      "invalidCredentials": "Incorrect email or password",
+      "signUpFailed": "Couldn't sign up. Please try again.",
+      "resetFailed": "Couldn't send the reset link. Please try again.",
+      "updateFailed": "Couldn't save the new password. Please try again.",
+      "sessionExpired": "This link has expired or already been used. Please request a new one.",
       "captchaFailed": "Please complete the verification check and try again.",
-      "notApproved": "This student ID hasn't been approved yet. Please contact an administrator."
-    }
+      "oauthFailed": "Couldn't sign in with Google. Please try again.",
+      "auth": "Sign-in failed. Please try again."
+    },
+    "orDivider": "or",
+    "googleSignIn": "Sign in with Google"
   },
   "footer": {
     "orgName": "Association of Future Thai Professionals",
     "collegeName": "Udon Thani Technical College",
     "copyright": "All rights reserved"
+  },
+  "pending": {
+    "title": "Your account is awaiting approval",
+    "description": "You're signed in, but an administrator still needs to approve your account and assign your role before you can use the rest of the dashboard. Contact an administrator if this takes longer than expected."
   },
   "dashboard": {
     "welcomeTitle": "Welcome",
@@ -108,6 +139,8 @@
       "description": "Track the status of recent documents",
       "empty": "No draft documents",
       "emptyCta": "Create a new document",
+      "viewAllManage": "View all my documents",
+      "viewAllReview": "Go to document review",
       "status": {
         "draft": "Draft",
         "signed": "Signed",
@@ -198,6 +231,64 @@
       "pending": "Pending"
     }
   },
+  "projects": {
+    "description": "Manage your projects, from draft through to public release.",
+    "newProjectCta": "New project",
+    "empty": "No projects yet",
+    "searchPlaceholder": "Search by project title",
+    "clearFilters": "Clear filters",
+    "allStatuses": "All statuses",
+    "columnTitle": "Project",
+    "columnStatus": "Status",
+    "columnUpdated": "Last updated",
+    "columnOwner": "Owner",
+    "columnDepartment": "Department",
+    "status": {
+      "draft": "Draft",
+      "teacher_review": "Teacher review",
+      "admin_approval": "Awaiting admin approval",
+      "official": "Official"
+    },
+    "form": {
+      "titleLabel": "Project title",
+      "descriptionLabel": "Project description",
+      "departmentLabel": "Department",
+      "noDepartment": "No department",
+      "submit": "Create project",
+      "submitting": "Creating...",
+      "save": "Save changes",
+      "saving": "Saving...",
+      "errors": {
+        "titleRequired": "Please enter a project title",
+        "unknown": "Something went wrong — please try again"
+      }
+    },
+    "actions": {
+      "submit": "Submit for review",
+      "submitting": "Submitting...",
+      "recommend": "Recommend for admin approval",
+      "approve": "Approve",
+      "reject": "Send back",
+      "rejecting": "Sending back...",
+      "reasonLabel": "Reason for sending back",
+      "reasonPlaceholder": "Explain what needs to change",
+      "errors": {
+        "reasonRequired": "Please give a reason for sending this back",
+        "unknown": "Something went wrong — please try again"
+      }
+    },
+    "detail": {
+      "backToList": "Back to projects",
+      "ownerLabel": "Project owner",
+      "rejectedReasonLabel": "Sent back — reason"
+    },
+    "review": {
+      "title": "Review projects",
+      "teacherQueueTitle": "Awaiting teacher review",
+      "adminQueueTitle": "Awaiting admin approval",
+      "empty": "Nothing awaiting review"
+    }
+  },
   "calendar": {
     "title": "Activity Calendar",
     "description": "Browse all activities by month",
@@ -215,32 +306,98 @@
     "notAttached": "No book attached yet",
     "notAttachedDescription": "This document doesn't have an e-book link attached yet.",
     "backToShelf": "Back to the shelf",
-    "publishedAt": "Published"
+    "publishedAt": "Published",
+    "manage": {
+      "title": "Manage my documents",
+      "description": "Create and track your documents, from draft through to publication.",
+      "newDocumentCta": "New document",
+      "empty": "No documents yet",
+      "searchPlaceholder": "Search by document title",
+      "clearFilters": "Clear filters",
+      "allStatuses": "All statuses",
+      "columnTitle": "Document",
+      "columnStatus": "Status",
+      "columnUpdated": "Last updated",
+      "columnOwner": "Owner",
+      "status": {
+        "draft": "Draft",
+        "signed": "Signed",
+        "pending_approval": "Awaiting approval",
+        "official": "Published"
+      },
+      "form": {
+        "titleLabel": "Document title",
+        "contentLabel": "Document content",
+        "descriptionLabel": "Description (optional)",
+        "flipbookUrlLabel": "FlipHTML5 book link (optional)",
+        "flipbookUrlHint": "Paste a link from fliphtml5.com, e.g. https://fliphtml5.com/xxxx/yyyy/",
+        "create": "Create document",
+        "creating": "Creating...",
+        "save": "Save draft",
+        "saving": "Saving...",
+        "errors": {
+          "titleRequired": "Please enter a document title",
+          "unknown": "Something went wrong — please try again",
+          "flipbookUrlInvalid": "The link must be a valid FlipHTML5 link (fliphtml5.com)"
+        }
+      },
+      "actions": {
+        "submitForApproval": "Submit for approval",
+        "approve": "Approve",
+        "reject": "Send back",
+        "rejecting": "Sending back...",
+        "reasonLabel": "Reason for sending back",
+        "reasonPlaceholder": "Explain what needs to change",
+        "errors": {
+          "reasonRequired": "Please give a reason for sending this back",
+          "unknown": "Something went wrong — please try again"
+        }
+      },
+      "sign": {
+        "title": "Sign document",
+        "drawInstructions": "Draw your signature in the box below.",
+        "clear": "Clear",
+        "back": "Back",
+        "previewTitle": "Signature preview",
+        "confirmLabel": "Confirm signature",
+        "confirmPlaceholder": "Type \"ยืนยัน\" to confirm",
+        "save": "Save signature",
+        "saving": "Saving...",
+        "errors": {
+          "signatureRequired": "Please draw a signature first",
+          "signatureInvalid": "Signature is invalid — please try again",
+          "confirmTextMismatch": "Please type \"ยืนยัน\" exactly",
+          "unknown": "Something went wrong — please try again"
+        }
+      },
+      "detail": {
+        "backToList": "Back to documents",
+        "ownerLabel": "Document owner",
+        "viewPublished": "View published document",
+        "bookPreviewTitle": "Attached book preview"
+      },
+      "rejectedReasonLabel": "Sent back — reason"
+    },
+    "review": {
+      "title": "Review documents",
+      "description": "Documents awaiting approval",
+      "empty": "Nothing awaiting review"
+    }
   },
   "approvals": {
     "title": "Account Approvals",
-    "description": "Numeric student-ID email addresses must be approved by an administrator before they can sign in. Named staff email addresses can sign in immediately.",
-    "addTitle": "Add an approved account",
-    "emailLabel": "Email",
-    "emailPlaceholder": "69319010099@udontech.ac.th",
+    "description": "Everyone who signs in with an @udontech.ac.th address waits for approval until an administrator assigns them a role. The list below is everyone currently waiting.",
     "roleLabel": "Role",
     "departmentLabel": "Department (optional)",
     "noDepartment": "No department",
-    "noteLabel": "Note (optional)",
-    "submit": "Add account",
-    "submitting": "Adding...",
-    "columnEmail": "Email",
-    "columnRole": "Role",
-    "columnDepartment": "Department",
-    "columnApprovedBy": "Approved by",
-    "columnDate": "Date",
-    "revoke": "Revoke",
-    "empty": "No approved accounts yet",
+    "approve": "Approve",
+    "approving": "Approving...",
+    "approved": "Account approved",
+    "columnStudentId": "Student ID",
+    "signedUpAt": "First signed in",
+    "empty": "No accounts awaiting approval",
     "errors": {
-      "invalidEmail": "Please enter a valid email address",
-      "wrongDomain": "Only @udontech.ac.th email addresses are allowed",
       "invalidRole": "Please choose a role",
-      "duplicate": "This email has already been approved",
       "unknown": "Something went wrong. Please try again."
     }
   }

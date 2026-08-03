@@ -43,13 +43,24 @@ try {
 }
 
 const BASE_URL = process.env.BASE_URL || "http://localhost:59500";
-const DEBUG_PORT = 9333;
+const DEBUG_PORT = Number(process.env.RESPONSIVE_CHECK_DEBUG_PORT) || 9333;
 
+// Windows dev-machine paths and Linux/macOS paths both included — CLAUDE.md
+// §2 requires this project run on "Windows development, Linux production,
+// Docker compatible", and this environment's own Playwright-provisioned
+// Chromium lives at /opt/pw-browsers/chromium, so it's checked first.
 const CHROME_CANDIDATES = [
+  process.env.RESPONSIVE_CHECK_CHROME_PATH,
+  "/opt/pw-browsers/chromium",
+  "/usr/bin/google-chrome",
+  "/usr/bin/google-chrome-stable",
+  "/usr/bin/chromium",
+  "/usr/bin/chromium-browser",
+  "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
   "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
   "C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe",
   "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe",
-];
+].filter(Boolean);
 
 const BREAKPOINTS = [
   { name: "375", width: 375, height: 812, mobile: true, deviceScaleFactor: 2 },
@@ -63,11 +74,24 @@ const PUBLIC_PAGES = [
   "/th",
   "/en",
   "/th/login",
+  "/th/signup",
+  "/th/forgot-password",
+  // No session in this script's run, so this redirects straight to /login —
+  // still worth checking, since that's a genuinely reachable unauthenticated
+  // state (someone opening a stale/reused reset link after the recovery
+  // session has already expired).
+  "/th/reset-password",
+  "/th/pending",
   "/th/announcements",
   "/th/activities",
   "/th/documents",
-  // Seeded demo e-book (supabase/seed.sql) — the flipbook iframe is a real
-  // overflow candidate that /th/documents alone (the shelf) doesn't exercise.
+  // A seeded document id, kept stable across re-seeds — see supabase/seed.sql.
+  // Its flipbook_url may or may not be attached (0021_documents_fliphtml5.sql
+  // switched hosts and no verified FlipHTML5 demo URL was available to
+  // re-seed — see README's "E-books: FlipHTML5"), so this now mostly
+  // exercises the reader page's "book not attached" empty state rather than
+  // a real iframe, but it's still the one non-shelf /documents/[id] page in
+  // this list either way.
   "/th/documents/a2722df0-af24-47b3-84d1-bb5f731bc70b",
   "/th/calendar",
 ];
@@ -76,6 +100,11 @@ const AUTH_PAGES = [
   "/th/dashboard",
   "/th/members",
   "/th/projects",
+  "/th/projects/new",
+  "/th/projects/review",
+  "/th/documents/manage",
+  "/th/documents/manage/new",
+  "/th/documents/review",
   "/th/reports",
   "/th/notifications",
   "/th/profile",
@@ -141,9 +170,13 @@ class CDPSession {
   }
 }
 
-async function waitForEndpoint(port, timeoutMs = 15000) {
+async function waitForEndpoint(port, timeoutMs = 15000, getSpawnError = () => null) {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
+    const spawnError = getSpawnError();
+    if (spawnError) {
+      throw new Error(`Chrome failed to launch: ${spawnError.message}`);
+    }
     try {
       const res = await fetch(`http://127.0.0.1:${port}/json/version`);
       if (res.ok) return await res.json();
@@ -160,7 +193,8 @@ function findChrome() {
     if (existsSync(p)) return p;
   }
   throw new Error(
-    `No Chrome/Edge binary found at any of: ${CHROME_CANDIDATES.join(", ")}`
+    `No Chrome/Edge/Chromium binary found at any of: ${CHROME_CANDIDATES.join(", ")}. ` +
+      `Set RESPONSIVE_CHECK_CHROME_PATH to point at one explicitly.`
   );
 }
 
@@ -169,21 +203,36 @@ async function launchChrome() {
   const userDataDir = path.join(OUT_DIR, "chrome-profile");
   mkdirSync(userDataDir, { recursive: true });
 
-  const proc = spawn(
-    bin,
-    [
-      `--remote-debugging-port=${DEBUG_PORT}`,
-      `--user-data-dir=${userDataDir}`,
-      "--headless=new",
-      "--disable-gpu",
-      "--no-first-run",
-      "--no-default-browser-check",
-      "--hide-scrollbars",
-    ],
-    { stdio: "ignore" }
-  );
+  const args = [
+    `--remote-debugging-port=${DEBUG_PORT}`,
+    `--user-data-dir=${userDataDir}`,
+    "--headless=new",
+    "--disable-gpu",
+    "--no-first-run",
+    "--no-default-browser-check",
+    "--hide-scrollbars",
+  ];
 
-  await waitForEndpoint(DEBUG_PORT);
+  // Chromium's sandbox refuses to initialize when the calling process is
+  // root (common in Docker/CI, per CLAUDE.md's "Docker compatible"
+  // requirement) and exits immediately, which otherwise looks identical to
+  // a hang from waitForEndpoint's side. Only added when actually root —
+  // don't weaken sandboxing on a normal non-root dev machine.
+  if (process.getuid && process.getuid() === 0) {
+    args.push("--no-sandbox");
+  }
+
+  const proc = spawn(bin, args, { stdio: "ignore" });
+
+  // waitForEndpoint alone can't tell "still starting" apart from "failed to
+  // start at all" — a spawn error (bad permissions, missing shared libs)
+  // would otherwise just look like a generic 15s timeout below.
+  let spawnError = null;
+  proc.on("error", (err) => {
+    spawnError = err;
+  });
+
+  await waitForEndpoint(DEBUG_PORT, 15000, () => spawnError);
   return proc;
 }
 
@@ -346,10 +395,25 @@ async function setViewport(session, bp, theme) {
   });
 }
 
-async function navigateAndWait(session, url) {
+async function navigateAndWait(session, url, timeoutMs = 20000) {
   const loadPromise = session.once("Page.loadEventFired");
   await session.send("Page.navigate", { url });
-  await loadPromise;
+
+  // Below the 30s per-command CDP timeout so a hung page fails with a clear
+  // "load timed out" error here instead of hanging the whole run forever.
+  let timer;
+  const timeout = new Promise((_, reject) => {
+    timer = setTimeout(
+      () => reject(new Error(`Page load timed out after ${timeoutMs}ms: ${url}`)),
+      timeoutMs
+    );
+  });
+  try {
+    await Promise.race([loadPromise, timeout]);
+  } finally {
+    clearTimeout(timer);
+  }
+
   // Let hydration + any client-side effects (theme toggle icon, etc.) settle.
   await new Promise((r) => setTimeout(r, 600));
 }
@@ -406,9 +470,18 @@ async function selfTest(session) {
   await session.send("Runtime.evaluate", {
     expression: `
       (function () {
+        // Normal-flow element, not position:absolute — an absolutely
+        // positioned probe anchored to the initial containing block does
+        // NOT reliably expand document.documentElement.scrollWidth across
+        // Chrome versions (confirmed: it renders at the full width per
+        // getBoundingClientRect but some engine versions don't count it
+        // toward document overflow), which produced self-test false
+        // negatives. A normal-flow element matches how real overflow bugs
+        // actually happen (e.g. a too-wide flex row) and is what the real
+        // measure() logic is verifying against.
         const el = document.createElement("div");
         el.id = "__responsive_check_selftest__";
-        el.style.cssText = "width:3000px;height:10px;position:absolute;top:0;left:0;";
+        el.style.cssText = "width:3000px;height:10px;";
         document.body.appendChild(el);
       })()
     `,

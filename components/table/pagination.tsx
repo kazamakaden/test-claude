@@ -10,6 +10,12 @@ export function Pagination({
   pathname,
   searchParams,
   dict,
+  /**
+   * Which URL param carries the page number. Defaults to "page"; a page
+   * rendering two independent lists (e.g. /projects/review) passes a
+   * namespaced name so paging one list doesn't move the other.
+   */
+  pageParam = "page",
 }: {
   page: number;
   perPage: number;
@@ -17,13 +23,14 @@ export function Pagination({
   pathname: string;
   searchParams: URLSearchParams;
   dict: Dictionary;
+  pageParam?: string;
 }) {
   const d = dict.common.pagination;
   const totalPages = Math.max(1, Math.ceil(total / perPage));
 
   const hrefForPage = (p: number) => {
     const params = new URLSearchParams(searchParams.toString());
-    params.set("page", String(p));
+    params.set(pageParam, String(p));
     return `${pathname}?${params.toString()}`;
   };
 

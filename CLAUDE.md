@@ -720,6 +720,123 @@ advisories, and adding CSP headers. Both are real, but both are the kind of
 change where a rushed, unverified attempt is worse than the problem it
 fixes — see ❌ Remaining for why and what a correct fix would need.
 
+**Sign-up flow replaced: `pending` role + post-signup admin approval,
+superseding the `0010`–`0012` pre-approval allow-list above.** The old
+design required a numeric-local-part (§14 student-ID) address to already be
+on `approved_accounts` *before* it could sign in at all, rejected otherwise
+with `"account not approved"`. `0019_add_pending_role.sql` adds `'pending'`
+to `user_role` (its own migration — same PostgreSQL constraint that made
+`0010` add `aft_teacher` separately: a new enum value can't be used in the
+transaction that adds it). `0020_pending_signup_flow.sql` rewrites
+`handle_new_user()` so every signup — numeric student ID or named staff,
+magic link or Google — lands `role = 'pending'` unconditionally, drops the
+`approved_accounts` lookup and rejection path, re-revokes `EXECUTE` on the
+replaced function in the same migration (the exact `0011`→`0012` trap
+documented above — `create or replace` resets grants to `PUBLIC EXECUTE`,
+and skipping the re-revoke would silently reopen it), and drops the
+`approved_accounts` table itself, since nothing else read it.
+
+`pending` sits at guest-level permissions (`lib/auth/permissions.ts`) —
+public content only, no `workspace:access` — so every existing
+`requirePermission()` guard already excludes it with no new policy needed.
+What *did* need a change: `requirePermission`/`requireAnyPermission`
+(`lib/auth/require-role.ts`) previously redirected anyone lacking a
+permission to `/login`; a `pending` user hitting that would have bounced
+back to a login they just used, an obvious broken-loop. Added
+`deniedRedirectTarget()` to send `pending` to a new `/pending` page instead
+— "your account is awaiting approval" — while every other role still goes
+to `/login` as before. `app/[lang]/auth/callback/route.ts` makes the same
+distinction right after exchanging the session, so a fresh signup lands on
+`/pending` immediately rather than bouncing through `/dashboard` first.
+
+`/approvals` (still gated on `member:manage`, unchanged) is repurposed from
+"add a pre-approved email" to "here is everyone waiting, assign their
+role": `services/profiles.ts` replaces `services/approvals.ts`
+(deleted, along with `types/approvals.ts` and the two components built
+around the old add/revoke form), reading `profiles` directly rather than
+the now-dropped `approved_accounts` table. No new RLS was needed for this
+either — `profiles_select_admin`/`profiles_update_admin` (`0002`) already
+grant an admin unconditional read/update on any profile, and
+`prevent_role_self_escalation` (`0002`) already permits an admin-initiated
+role change through the same trigger that blocks everyone else's.
+Assigning `admin` through this UI is still deliberately not offered, same
+reasoning as the old form: promote to admin directly in the database, out
+of band.
+
+**Google OAuth sign-in added, alongside magic link, same domain
+restriction.** `signInWithGoogle` (`actions/auth.ts`) calls
+`signInWithOAuth` with `queryParams: { hd: "udontech.ac.th" }` — explicitly
+documented in that file as a UI hint only, not enforcement, since a user
+can pick a different Google account than the one it suggests and Google
+does not block that. The actual boundary is unchanged from magic-link
+sign-in: `profiles.email`'s `CHECK (email like '%@udontech.ac.th')`
+constraint (`0001_auth.sql`) rejects the `profiles` insert for a
+non-college address, which rolls back the whole `auth.users` row
+`handle_new_user()`'s trigger fired from — this is what actually protects
+the OAuth path, since it never touches `signIn`'s Zod checks at all. The
+callback route additionally re-checks the signed-in email directly and
+signs out + redirects with the existing `wrongDomain` message if it somehow
+gets past that, as defence in depth rather than the sole guard. Turnstile
+does not cover this path — the CAPTCHA lives inside the `signIn` Server
+Action, and OAuth redirects straight to Google and back, never through it;
+recorded as an accepted trade-off in README.md, the same shape as the
+already-documented JS-disabled trade-off.
+
+Not verified live: this session had no Supabase credentials, Postgres, or
+Docker access (same constraint noted for `0016`–`0018` above). The
+`0019`/`0020` migrations, the RLS/permission reasoning, and the OAuth
+domain-rejection path are reasoned through and internally consistent with
+the schema, but none of it has been run against a real project. Needs the
+same live proof pass this project already has a precedent for (`0005`
+citizen_id, `0008` attendance, `0011` role split) before being trusted:
+confirm a fresh signup — both magic-link and Google — actually lands
+`pending`; confirm a non-college Google account is rejected and leaves
+*no* `auth.users` row behind, not just a generic error; confirm an
+admin-approved role sticks and reaches the dashboard.
+
+**Magic link replaced with password sign-in; sign-up and reset pages
+added; e-book host switched AnyFlip → FlipHTML5, attaching a book moved
+into the §12 draft workflow.** `signInWithOtp` (`actions/auth.ts`) is gone
+— `/login` now takes email + password (`signInWithPassword`), `/signup`
+registers a new account with email confirmation required
+(`signUpWithPassword`), and `/forgot-password` → `/reset-password` recovers
+a forgotten one (`requestPasswordReset` / `updatePassword`), the latter via
+a new `app/[lang]/auth/reset/route.ts` kept deliberately separate from the
+existing `/auth/callback` so a recovery code can never land anywhere but
+`/reset-password` — preserving both routes' "redirect target is never
+caller-supplied" property. Every action collapses its failures into one
+generic message (`invalidCredentials`, or a uniform "check your email" panel
+regardless of whether the address exists) — the same account-enumeration
+guard `signInWithOtp` was already built around. `handle_new_user()` needed
+no changes: it fires on any `auth.users` insert regardless of provider, so
+password signups still land `pending` and still fail the `profiles.email`
+CHECK for a non-college address. Google sign-in is now offered on both
+`/login` and `/signup`, via a new shared `components/auth/google-sign-in.tsx`
+extracted from the login form. Not verified live, same constraint as above —
+password signup landing `pending`, the confirmation/reset email round-trip,
+and an existing account being able to set a password via the reset flow all
+still need the live proof pass.
+
+`lib/anyflip.ts` → `lib/fliphtml5.ts` (`0021_documents_fliphtml5.sql`
+replaces `0013`'s AnyFlip CHECK constraint with a FlipHTML5 one, nulling any
+existing non-matching `flipbook_url` first since there's no cross-host URL
+translation). More significant than the host rename: attaching a book is no
+longer Table-Editor-only — `flipbook_url` and `description` are now fields
+on the owner's draft (`schemas/documents.ts`'s `saveDocumentDraftSchema`,
+`components/documents/document-form.tsx`), so a book flows through the
+existing draft → sign → submit → review → approve workflow instead of being
+pasted straight onto a published row; the document detail page renders a
+live `FlipbookViewer` preview for anyone who isn't the owner mid-edit, so a
+reviewer can check the book before approving it. No new RLS was needed —
+the owner's existing draft-UPDATE policy (`0017`) already covers the two
+new columns, and only `document:approve` can reach `official`. **No
+verified demo book is seeded**: this session's outbound network policy
+blocked every request to `fliphtml5.com` (proxy returned `403` on
+`CONNECT`), so — unlike the AnyFlip-era seed, which carried one row with a
+real, checked-reachable book — all three seeded documents now have
+`flipbook_url = null`. `docs/add-ebook.md` was rewritten around the in-app
+flow, demoting the Table Editor to an admin-only fallback.
+
 ### ❌ Remaining
 
 * **RLS policy performance (`auth_rls_initplan`, `multiple_permissive_policies`)**
@@ -747,8 +864,10 @@ fixes — see ❌ Remaining for why and what a correct fix would need.
   gradient uses an inline `style` attribute (React's `style` prop always
   renders as `style="..."`, which a strict `style-src` without
   `'unsafe-inline'` blocks), Turnstile needs `challenges.cloudflare.com` in
-  both `script-src` and `frame-src`, and the new AnyFlip viewer needs
-  `anyflip.com` in `frame-src`. A correct policy needs to be built with all
+  both `script-src` and `frame-src`, and the flipbook viewer needs
+  `fliphtml5.com` (and its `online.` reader subdomain) in `frame-src` — was
+  `anyflip.com` before the §12 e-book host switch. A correct policy needs to
+  be built with all
   three allowances and then verified live on every page/theme (login
   especially, since a misconfigured CSP silently breaking Turnstile would be
   worse than having no CSP at all) — not assembled from a generic template

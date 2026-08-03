@@ -4,12 +4,26 @@ import { LoginForm } from "./login-form";
 
 export default async function LoginPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ lang: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const { lang: rawLang } = await params;
   const lang = rawLang as Locale;
   const dict = await getDictionary(lang);
+
+  // Set by app/[lang]/auth/callback/route.ts when a redirect back here
+  // carries a reason — a non-college Google account, a failed OAuth
+  // handshake, or a magic-link exchange failure. Checked against
+  // dict.auth.errors' own keys rather than a hardcoded list, so a renamed
+  // or removed error key can't silently go undetected here.
+  const rawError = (await searchParams).error;
+  const errorValue = Array.isArray(rawError) ? rawError[0] : rawError;
+  const initialErrorKey =
+    errorValue && errorValue in dict.auth.errors
+      ? (errorValue as keyof typeof dict.auth.errors)
+      : undefined;
 
   return (
     <div className="mx-auto flex max-w-sm flex-col gap-6 px-4 py-16 sm:px-6 lg:px-8">
@@ -18,7 +32,7 @@ export default async function LoginPage({
           {dict.nav.login}
         </h1>
       </div>
-      <LoginForm lang={lang} dict={dict} />
+      <LoginForm lang={lang} dict={dict} initialErrorKey={initialErrorKey} />
     </div>
   );
 }
