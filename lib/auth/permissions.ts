@@ -46,6 +46,14 @@ export const permissions = [
   "document:approve",
   "activity:manage",
 
+  /**
+   * §1: อวท. teacher can approve a pending signup and assign it a role
+   * (student/teacher/aft_teacher), and edit an already-approved member's
+   * department/class/club/student_id. Distinct from `member:manage`, which
+   * stays admin-only for account-level management (e.g. granting `admin`).
+   */
+  "member:approve",
+
   /** Administrator — §6 students "Cannot: delete". */
   "content:delete",
   /** Administrator — §6 students "Cannot: manage users". */
@@ -96,6 +104,7 @@ const aftTeacherPermissions = [
   "project:approve",
   "document:approve",
   "activity:manage",
+  "member:approve",
 ] as const satisfies readonly Permission[];
 
 const adminPermissions = [
@@ -126,12 +135,24 @@ export function can(role: Role, permission: Permission): boolean {
  * policies below are transcribed as real RLS: `activities`, `attendance`,
  * `projects`, `documents`, `document_drafts`, `notifications` are live
  * (`supabase/migrations/0008_dashboard_rls.sql`, extended for `aft_teacher`
- * in `0011_account_approvals.sql`), same for `profiles` (`0002_auth_rls.sql`).
+ * in `0011_account_approvals.sql`), same for `profiles` (`0002_auth_rls.sql`,
+ * extended for `aft_teacher` in `0024_member_approval_authority.sql`).
  * `approved_accounts` (`0011`) — a pre-approval roster — was dropped by
- * `0020_pending_signup_flow.sql`; every signup now lands `role = 'pending'`
- * directly on `profiles` and an admin assigns a real role afterward via
- * `/approvals`, using the ordinary `profiles_select_admin`/
- * `profiles_update_admin` policies (`0002`) rather than a separate table.
+ * `0020_pending_signup_flow.sql`; every signup now lands with a role decided
+ * by `handle_new_user()` (numeric local part -> `pending`, needs approval;
+ * named local part -> `teacher`, immediate access — `0023`), and an admin or
+ * aft_teacher assigns/reassigns a role afterward via `/approvals`, using
+ * `profiles_select_directory`/`profiles_update_admin`/
+ * `profiles_update_aft_teacher` (`0002`, `0004`, `0024`). The trigger
+ * `prevent_role_self_escalation` (`0002`, rewritten in `0024`) is the actual
+ * authority on *who may set what role* — no one may change their own role
+ * (admin included), only admin may mint/demote an `admin` or grant
+ * `aft_teacher`, and admin/aft_teacher may set any other role. A second
+ * trigger, `prevent_member_identity_change` (`0025`), separately locks
+ * `student_id`/`department_id`/`class_name`/`club_id` to admin/aft_teacher
+ * only — `profiles_update_own` would otherwise let any user rewrite their
+ * own membership fields (and, via the generated `academic_year`, their
+ * year) with no trigger stopping them.
  * `project_drafts`, `qr_sessions`, `audit_logs` are still deferred to their
  * own §30.10 phases — the rows below for those are still just the contract
  * to transcribe when each phase lands.
@@ -153,9 +174,14 @@ export function can(role: Role, permission: Permission): boolean {
  *   project:approve         projects UPDATE status -> 'official', aft_teacher + admin
  *   document:approve        documents UPDATE status -> 'official', aft_teacher + admin
  *   activity:manage         activities INSERT/UPDATE, aft_teacher + admin
+ *   member:approve          profiles UPDATE role/department_id/class_name/
+ *                           club_id/student_id — aft_teacher + admin, both
+ *                           subject to prevent_role_self_escalation and
+ *                           prevent_member_identity_change (0024, 0025)
  *   content:delete          DELETE on content tables, admin only
- *   member:manage           profiles/roles UPDATE (including approving a
- *                           'pending' user's role), admin only
+ *   member:manage           admin-only account-level management (granting
+ *                           'admin' itself stays out-of-band, not offered
+ *                           through any UI — see schemas/approvals.ts)
  *   system:manage           departments, clubs, audit_logs, qr_sessions
  *
  * Role is read server-side via the SECURITY DEFINER helper

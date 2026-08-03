@@ -61,12 +61,14 @@ insert into public.notifications (recipient_id, type, title, body, read) values
   (null, 'deadline', 'ส่งร่างเอกสารกิจกรรมภายในวันที่ 5 สิงหาคม', null, false),
   (null, 'meeting', 'ประชุมคณะกรรมการ อวท. ประจำเดือน', null, true);
 
--- §14 allow-list demo row — the student half of the four demo accounts
--- documented in .demo-accounts.local.md (git-ignored, not this file, since
--- it holds real generated passwords). This row alone doesn't create the
--- auth.users account; that step is the Admin API, done once per environment.
-insert into public.approved_accounts (email, role, department_id, note) values
-  ('69319010099@udontech.ac.th', 'student',
-   (select id from public.departments where code = '3190500'),
-   'Demo account seeded for phase verification — see README')
-  on conflict (email) do nothing;
+-- §14 demo student account (the student half of the four demo accounts
+-- documented in .demo-accounts.local.md, git-ignored since it holds real
+-- generated passwords) previously needed a pre-approval row in
+-- approved_accounts before it could sign in at all. That table — and the
+-- gate it enforced — was dropped by 0020_pending_signup_flow.sql: every
+-- signup now lands `pending` regardless of address shape, and an admin or
+-- aft_teacher assigns a real role afterward via /approvals
+-- (0024_member_approval_authority.sql). There is no seed-time equivalent
+-- of "pre-approve this address" left to insert — the demo account reaches
+-- `role = 'student'` the same way any real numeric-ID signup does, by
+-- being approved once through that UI after the Admin-API signup step.

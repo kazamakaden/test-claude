@@ -16,13 +16,17 @@ import {
 import { approveUser, type ApproveUserResult } from "@/actions/approvals";
 import type { Locale } from "@/lib/i18n/config";
 import type { Dictionary } from "@/types/i18n";
+import type { Role } from "@/types/auth";
 import type { Department } from "@/types/members";
 import type { PendingProfile } from "@/types/profiles";
 
 const NO_DEPARTMENT = "__none__";
 // Matches schemas/approvals.ts's assignableRoles — kept as a literal list
 // here too so the Select doesn't need to filter types/auth.ts's roles at
-// render time for what is a fixed, small set.
+// render time for what is a fixed, small set. Granting aft_teacher itself
+// stays admin-only (prevent_role_self_escalation, 0024) — an aft_teacher
+// actor never sees it as an option, matching the server-side check in
+// actions/approvals.ts rather than relying on the trigger's raw exception.
 const ASSIGNABLE_ROLES = ["student", "teacher", "aft_teacher"] as const;
 
 function SubmitButton({ label, pendingLabel }: { label: string; pendingLabel: string }) {
@@ -37,11 +41,13 @@ function SubmitButton({ label, pendingLabel }: { label: string; pendingLabel: st
 export function ApproveUserCard({
   profile,
   departments,
+  actorRole,
   lang,
   dict,
 }: {
   profile: PendingProfile;
   departments: Department[];
+  actorRole: Role;
   lang: Locale;
   dict: Dictionary;
 }) {
@@ -51,6 +57,8 @@ export function ApproveUserCard({
   );
   const d = dict.approvals;
   const roleOptions = dict.roles;
+  const assignableRoles =
+    actorRole === "admin" ? ASSIGNABLE_ROLES : ASSIGNABLE_ROLES.filter((r) => r !== "aft_teacher");
 
   const errorMessage = state && !state.ok ? d.errors[state.messageKey] : undefined;
 
@@ -92,7 +100,7 @@ export function ApproveUserCard({
               </SelectValue>
             </SelectTrigger>
             <SelectContent>
-              {ASSIGNABLE_ROLES.map((role) => (
+              {assignableRoles.map((role) => (
                 <SelectItem key={role} value={role}>
                   {roleOptions[role]}
                 </SelectItem>

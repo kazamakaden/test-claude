@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { FormField, FormLabel, FormError } from "@/components/ui/form";
 import { GoogleSignIn } from "@/components/auth/google-sign-in";
+import { PasswordStrengthField } from "@/components/auth/password-strength";
 import { signUpWithPassword, type SignUpResult } from "@/actions/auth";
 import { isTurnstileConfigured, turnstileSiteKey } from "@/lib/turnstile";
 import type { Locale } from "@/lib/i18n/config";
@@ -75,10 +76,12 @@ export function SignupForm({ lang, dict }: { lang: Locale; dict: Dictionary }) {
           />
         </FormField>
 
-        <FormField name="password" invalid={Boolean(errorMessage)}>
-          <FormLabel>{dict.auth.passwordLabel}</FormLabel>
-          <Input name="password" type="password" required autoComplete="new-password" minLength={8} />
-        </FormField>
+        <PasswordStrengthField
+          name="password"
+          label={dict.auth.passwordLabel}
+          invalid={Boolean(errorMessage)}
+          dict={dict}
+        />
 
         <FormField name="confirmPassword" invalid={Boolean(errorMessage)}>
           <FormLabel>{dict.auth.confirmPasswordLabel}</FormLabel>

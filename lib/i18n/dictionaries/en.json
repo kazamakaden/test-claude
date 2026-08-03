@@ -67,6 +67,11 @@
     "checkEmailSignupDescription": "We've sent a confirmation email to your address. Click the link in it to verify your account.",
     "checkEmailResetDescription": "If that address is registered, we've sent a link to reset your password.",
     "captchaLabel": "Verification",
+    "passwordRulesLabel": "Password must have",
+    "passwordRuleLength": "At least 8 characters",
+    "passwordRuleUppercase": "At least 1 uppercase letter (A-Z)",
+    "passwordRuleLowercase": "At least 1 lowercase letter (a-z)",
+    "passwordRuleSymbol": "At least 1 symbol (e.g. ! @ # $)",
     "errors": {
       "invalidEmail": "Please enter a valid email address",
       "personalDomain": "Please use your college email (@udontech.ac.th) instead of a personal address",
@@ -74,6 +79,9 @@
       "passwordRequired": "Please enter your password",
       "passwordTooShort": "Password must be at least 8 characters",
       "passwordTooLong": "Password is too long",
+      "passwordNeedsLowercase": "Password must include at least 1 lowercase letter",
+      "passwordNeedsUppercase": "Password must include at least 1 uppercase letter",
+      "passwordNeedsSymbol": "Password must include at least 1 symbol",
       "passwordMismatch": "Passwords do not match",
       "invalidCredentials": "Incorrect email or password",
       "signUpFailed": "Couldn't sign up. Please try again.",
@@ -398,6 +406,7 @@
     "empty": "No accounts awaiting approval",
     "errors": {
       "invalidRole": "Please choose a role",
+      "forbiddenRole": "An AFT teacher cannot assign this role. Please contact an administrator.",
       "unknown": "Something went wrong. Please try again."
     }
   }

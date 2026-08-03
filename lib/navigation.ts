@@ -17,7 +17,7 @@ export const navItems: readonly NavItem[] = [
   { key: "documents", href: "/documents" },
   { key: "members", href: "/members", permission: "workspace:access" },
   { key: "reports", href: "/reports", permission: "workspace:access" },
-  { key: "approvals", href: "/approvals", permission: "member:manage" },
+  { key: "approvals", href: "/approvals", permission: "member:approve" },
 ];
 
 /**

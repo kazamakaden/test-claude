@@ -18,6 +18,11 @@ export function assertDeployEnvConfigured(): void {
   if (!process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY) {
     problems.push("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY is not set.");
   }
+  if (!process.env.NEXT_PUBLIC_SITE_URL) {
+    problems.push(
+      "NEXT_PUBLIC_SITE_URL is not set — actions/auth.ts's emailRedirectTo falls back to it when the origin request header is absent, and without either, a signup/reset email's link goes nowhere."
+    );
+  }
 
   const turnstileSiteKey = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY ?? "";
   if (!turnstileSiteKey) {

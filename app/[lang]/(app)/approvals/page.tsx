@@ -13,9 +13,9 @@ export default async function ApprovalsPage({
   const { lang: rawLang } = await params;
   const lang = rawLang as Locale;
 
-  // §19: the nav item is gated on member:manage, but that alone is UI only —
+  // §19: the nav item is gated on member:approve, but that alone is UI only —
   // re-check server-side, same as every other protected page in this app.
-  await requirePermission("member:manage", lang);
+  const actorRole = await requirePermission("member:approve", lang);
 
   const [dict, pending, departments] = await Promise.all([
     getDictionary(lang),
@@ -44,6 +44,7 @@ export default async function ApprovalsPage({
               key={profile.id}
               profile={profile}
               departments={departments}
+              actorRole={actorRole}
               lang={lang}
               dict={dict}
             />

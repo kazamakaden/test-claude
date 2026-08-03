@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { FormField, FormLabel, FormError } from "@/components/ui/form";
+import { PasswordStrengthField } from "@/components/auth/password-strength";
 import { updatePassword, type UpdatePasswordResult } from "@/actions/auth";
 import type { Locale } from "@/lib/i18n/config";
 import type { Dictionary } from "@/types/i18n";
@@ -38,10 +39,12 @@ export function ResetPasswordForm({ lang, dict }: { lang: Locale; dict: Dictiona
     >
       <input type="hidden" name="lang" value={lang} />
 
-      <FormField name="password" invalid={Boolean(errorMessage)}>
-        <FormLabel>{dict.auth.newPasswordLabel}</FormLabel>
-        <Input name="password" type="password" required autoComplete="new-password" minLength={8} />
-      </FormField>
+      <PasswordStrengthField
+        name="password"
+        label={dict.auth.newPasswordLabel}
+        invalid={Boolean(errorMessage)}
+        dict={dict}
+      />
 
       <FormField name="confirmPassword" invalid={Boolean(errorMessage)}>
         <FormLabel>{dict.auth.confirmPasswordLabel}</FormLabel>

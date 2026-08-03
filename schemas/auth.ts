@@ -38,11 +38,17 @@ export const signInSchema = z.object({
 export type SignInInput = z.infer<typeof signInSchema>;
 
 // GoTrue hashes with bcrypt, which silently truncates past 72 bytes — the
-// max is real, not arbitrary.
+// max is real, not arbitrary. §7's strength rule (upper + lower + symbol)
+// is layered on after length: actions/auth.ts surfaces only
+// `issues[0].message`, so length has to fail first or a 3-character
+// password reports "needs a symbol" instead of "too short".
 const newPasswordField = z
   .string()
   .min(8, { message: "passwordTooShort" })
-  .max(72, { message: "passwordTooLong" });
+  .max(72, { message: "passwordTooLong" })
+  .regex(/[a-z]/, { message: "passwordNeedsLowercase" })
+  .regex(/[A-Z]/, { message: "passwordNeedsUppercase" })
+  .regex(/[^A-Za-z0-9]/, { message: "passwordNeedsSymbol" });
 
 export const signUpSchema = z
   .object({

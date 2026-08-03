@@ -19,6 +19,9 @@ type AuthErrorKey =
   | "passwordRequired"
   | "passwordTooShort"
   | "passwordTooLong"
+  | "passwordNeedsLowercase"
+  | "passwordNeedsUppercase"
+  | "passwordNeedsSymbol"
   | "passwordMismatch"
   | "invalidCredentials"
   | "signUpFailed"
@@ -40,6 +43,9 @@ const FIELD_ERROR_KEYS = new Set<AuthErrorKey>([
   "passwordRequired",
   "passwordTooShort",
   "passwordTooLong",
+  "passwordNeedsLowercase",
+  "passwordNeedsUppercase",
+  "passwordNeedsSymbol",
   "passwordMismatch",
 ]);
 
@@ -56,6 +62,27 @@ function getLang(formData: FormData): Locale {
 function readCaptchaToken(formData: FormData): string | null {
   const token = formData.get("cf-turnstile-response");
   return typeof token === "string" && token.length > 0 ? token : null;
+}
+
+/**
+ * The `origin` request header is absent in some proxied/edge configurations.
+ * Without a fallback, `${origin}/...` silently becomes the literal string
+ * "null/th/auth/callback" and a signup/reset email's link goes nowhere —
+ * indistinguishable from "email not sending" to the person who clicks it.
+ * NEXT_PUBLIC_SITE_URL is the explicit fallback (.env.example); if that's
+ * also unset, fall back to the request's own Host header rather than
+ * emitting a known-broken URL.
+ */
+async function resolveOrigin(): Promise<string> {
+  const headerList = await headers();
+  const origin = headerList.get("origin");
+  if (origin) return origin;
+
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL;
+  if (siteUrl) return siteUrl;
+
+  const host = headerList.get("host");
+  return host ? `https://${host}` : "";
 }
 
 async function redirectByRole(lang: Locale): Promise<never> {
@@ -154,7 +181,7 @@ export async function signUpWithPassword(
     return { ok: false, messageKey: "captchaFailed" };
   }
 
-  const origin = (await headers()).get("origin");
+  const origin = await resolveOrigin();
   const supabase = await createClient();
 
   const { error } = await supabase.auth.signUp({
@@ -167,6 +194,13 @@ export async function signUpWithPassword(
   });
 
   if (error) {
+    // The user-facing response deliberately stays the generic signUpFailed
+    // key (an enumeration guard — see the JSDoc above), but that collapses
+    // "address already registered", "SMTP misconfigured", and "rate
+    // limited" into one indistinguishable message. Logging the real code
+    // server-side is what makes those distinguishable in Vercel logs
+    // without weakening the client-facing guarantee.
+    console.error("[signUpWithPassword]", error.code, error.message);
     return { ok: false, messageKey: "signUpFailed" };
   }
 
@@ -193,17 +227,24 @@ export async function requestPasswordReset(
     return { ok: false, messageKey: "captchaFailed" };
   }
 
-  const origin = (await headers()).get("origin");
+  const origin = await resolveOrigin();
   const supabase = await createClient();
 
-  await supabase.auth.resetPasswordForEmail(parsed.data.email, {
+  const { error } = await supabase.auth.resetPasswordForEmail(parsed.data.email, {
     redirectTo: `${origin}/${lang}/auth/reset`,
     ...(captchaToken ? { captchaToken } : {}),
   });
 
-  // Deliberately ignore the error result here too (beyond a malformed
-  // request already caught above) — surfacing "no such account" would be
-  // the same enumeration leak the uniform success panel exists to avoid.
+  // The user-facing response deliberately ignores this error (beyond a
+  // malformed request already caught above) — surfacing "no such account"
+  // would be the same enumeration leak the uniform success panel exists to
+  // avoid. Logged server-side only, so an SMTP failure or rate limit is
+  // still visible in Vercel logs instead of looking identical to a
+  // successful send.
+  if (error) {
+    console.error("[requestPasswordReset]", error.code, error.message);
+  }
+
   return { ok: true };
 }
 
@@ -258,7 +299,7 @@ export async function updatePassword(
  * reasoning as the password actions above.
  */
 export async function signInWithGoogle(lang: Locale) {
-  const origin = (await headers()).get("origin");
+  const origin = await resolveOrigin();
   const supabase = await createClient();
 
   const { data, error } = await supabase.auth.signInWithOAuth({
