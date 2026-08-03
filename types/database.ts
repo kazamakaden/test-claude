@@ -6,7 +6,9 @@
  *
  * Manually patched (not regenerated — no live DB access in this session) to
  * add `signature_records`, `sign_document()`, and `rejected_reason` on
- * `projects`/`documents` for 0016/0017_project_document_workflow_*.sql.
+ * `projects`/`documents` for 0016/0017_project_document_workflow_*.sql, and
+ * to add `'pending'` to the `user_role` enum for
+ * 0019_add_pending_role.sql/0020_pending_signup_flow.sql.
  * Re-run the command above for real once those migrations are applied live,
  * to catch any drift between this hand-edit and the actual schema.
  *
@@ -19,8 +21,10 @@
  * 0008_dashboard_rls.sql. `select("*")` on either table compiles but fails
  * at the database with 42501 for any non-service-role client.
  *
- * `approved_accounts` (0011) is admin-only RLS — no student/teacher/
- * aft_teacher policy exists for it at all.
+ * `approved_accounts` (0011) was dropped by 0020_pending_signup_flow.sql —
+ * no longer present in this type. Every signup lands `role = 'pending'` on
+ * `profiles` directly; an admin assigns a real role afterward via
+ * `/approvals`.
  *
  * `documents.flipbook_url`/`cover_url`/`description`/`published_at` (0013)
  * are public book metadata, not sensitive — no column-grant restriction
@@ -111,54 +115,6 @@ export type Database = {
           },
           {
             foreignKeyName: "activities_department_id_fkey"
-            columns: ["department_id"]
-            isOneToOne: false
-            referencedRelation: "departments"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      approved_accounts: {
-        Row: {
-          approved_by: string | null
-          created_at: string
-          department_id: string | null
-          email: string
-          id: string
-          note: string | null
-          role: Database["public"]["Enums"]["user_role"]
-          student_id: string | null
-        }
-        Insert: {
-          approved_by?: string | null
-          created_at?: string
-          department_id?: string | null
-          email: string
-          id?: string
-          note?: string | null
-          role?: Database["public"]["Enums"]["user_role"]
-          student_id?: string | null
-        }
-        Update: {
-          approved_by?: string | null
-          created_at?: string
-          department_id?: string | null
-          email?: string
-          id?: string
-          note?: string | null
-          role?: Database["public"]["Enums"]["user_role"]
-          student_id?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "approved_accounts_approved_by_fkey"
-            columns: ["approved_by"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "approved_accounts_department_id_fkey"
             columns: ["department_id"]
             isOneToOne: false
             referencedRelation: "departments"
@@ -608,7 +564,7 @@ export type Database = {
         | "approval"
         | "announcement"
       project_status: "draft" | "teacher_review" | "admin_approval" | "official"
-      user_role: "guest" | "student" | "teacher" | "aft_teacher" | "admin"
+      user_role: "guest" | "pending" | "student" | "teacher" | "aft_teacher" | "admin"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -746,7 +702,7 @@ export const Constants = {
         "announcement",
       ],
       project_status: ["draft", "teacher_review", "admin_approval", "official"],
-      user_role: ["guest", "student", "teacher", "aft_teacher", "admin"],
+      user_role: ["guest", "pending", "student", "teacher", "aft_teacher", "admin"],
     },
   },
 } as const

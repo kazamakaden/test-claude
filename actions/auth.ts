@@ -13,23 +13,12 @@ type AuthErrorKey =
   | "wrongDomain"
   | "sendFailed"
   | "captchaFailed"
-  | "notApproved";
+  | "oauthFailed";
 
 export type SignInResult = { ok: true } | { ok: false; messageKey: AuthErrorKey };
 
 function isAuthErrorKey(value: string | undefined): value is AuthErrorKey {
   return value === "invalidEmail" || value === "personalDomain" || value === "wrongDomain";
-}
-
-/**
- * §14 allow-list rejection surfaces from handle_new_user() as a Postgres
- * exception during signInWithOtp itself (shouldCreateUser defaults to true,
- * so the auth.users insert — and its trigger — fires at OTP-request time,
- * not at magic-link verification). Distinguish it from a generic send
- * failure so the user gets an actionable message instead of "try again".
- */
-function isNotApprovedError(message: string): boolean {
-  return message.includes("account not approved");
 }
 
 /**
@@ -84,18 +73,44 @@ export async function signIn(
 
   // Same success response whether or not the address is registered —
   // signInWithOtp doesn't distinguish, and we don't want to either
-  // (account enumeration). The §14 allow-list rejection is the one
-  // deliberate exception: telling an unapproved student "contact an admin"
-  // is more useful than a generic failure, and it doesn't leak whether a
-  // *named* address exists — only that a student-ID-shaped one isn't approved.
+  // (account enumeration). Every @udontech.ac.th signup is accepted and
+  // lands 'pending' (0020) — there is no longer a pre-approval rejection
+  // to special-case here.
   if (error) {
-    if (isNotApprovedError(error.message)) {
-      return { ok: false, messageKey: "notApproved" };
-    }
     return { ok: false, messageKey: "sendFailed" };
   }
 
   return { ok: true };
+}
+
+/**
+ * Google OAuth, restricted to the same @udontech.ac.th domain as magic-link
+ * sign-in. `hd` is a UI hint to Google's account picker only — it is NOT
+ * enforcement and a user can bypass it by picking a different account than
+ * the one it suggests. The actual boundary is profiles.email's CHECK
+ * constraint (0001), which a non-college address fails at signup, plus the
+ * explicit re-check in the callback route as defence in depth. Bound to the
+ * login form's `action` (not an onClick handler) so it still works — as a
+ * real redirect-driving POST — with JavaScript disabled, same reasoning as
+ * signIn above.
+ */
+export async function signInWithGoogle(lang: Locale) {
+  const origin = (await headers()).get("origin");
+  const supabase = await createClient();
+
+  const { data, error } = await supabase.auth.signInWithOAuth({
+    provider: "google",
+    options: {
+      redirectTo: `${origin}/${lang}/auth/callback`,
+      queryParams: { hd: "udontech.ac.th", prompt: "select_account" },
+    },
+  });
+
+  if (error || !data?.url) {
+    redirect(`/${lang}/login?error=oauthFailed`);
+  }
+
+  redirect(data.url);
 }
 
 export async function signOut(lang: Locale) {

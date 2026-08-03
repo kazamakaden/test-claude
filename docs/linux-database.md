@@ -59,21 +59,31 @@ psql "postgresql://postgres.hmkciwgzbdszsgnbeakc@aws-0-<region>.pooler.supabase.
 
 `supabase/migrations/0001` through `0015` were already applied by hand
 (SQL Editor / Supabase MCP), so the hosted project's own migration-history
-table has no record of them. **`supabase/migrations/0016`, `0017`, and
-`0018`** — the entire Projects/Documents draft → review → approve
-workflow, its RLS policies, and the status-transition triggers — are
-**not yet applied**.
+table has no record of them. **`supabase/migrations/0016` through `0020`**
+are **not yet applied**:
+
+* `0016`/`0017`/`0018` — the Projects/Documents draft → review → approve
+  workflow, its RLS policies, and the status-transition triggers.
+* `0019`/`0020` — replaces the pre-approval signup flow with a `pending`
+  role + post-signup admin approval (see README.md's "Sign-up rule"
+  section and `CLAUDE.md` §0 for the full reasoning). `0019` must be
+  applied and committed on its own before `0020` runs — PostgreSQL forbids
+  using a new enum value (`'pending'`) in the same transaction that added
+  it, so if your tooling batches statements into one transaction, apply
+  `0019` as a fully separate step first.
 
 ### Method 1 — SQL Editor (simplest, no CLI needed)
 
 1. Dashboard → project `hmkciwgzbdszsgnbeakc` → **SQL Editor** → New query.
 2. Open `supabase/migrations/0016_project_document_workflow_tables.sql`,
    paste its full contents, run it.
-3. Repeat for `0017_project_document_workflow_rls.sql`, then
-   `0018_transition_trigger_service_role_bypass.sql`.
+3. Repeat for each remaining file **in order**: `0017_project_document_workflow_rls.sql`,
+   `0018_transition_trigger_service_role_bypass.sql`,
+   `0019_add_pending_role.sql`, `0020_pending_signup_flow.sql`.
 
 **Order matters** — `0017`'s RLS policies reference columns `0016` adds,
-and `0018` replaces functions `0016` creates.
+`0018` replaces functions `0016` creates, and `0020` requires `0019`'s enum
+value to already be committed (see above).
 
 ### Method 2 — psql from Linux
 
@@ -84,6 +94,11 @@ for f in 0016_project_document_workflow_tables.sql \
          0018_transition_trigger_service_role_bypass.sql; do
   psql "$DATABASE_URL" -f "$f" -v ON_ERROR_STOP=1
 done
+
+# 0019 must commit on its own before 0020 can use the enum value it adds —
+# run it as a separate psql invocation, not batched with 0020.
+psql "$DATABASE_URL" -f 0019_add_pending_role.sql -v ON_ERROR_STOP=1
+psql "$DATABASE_URL" -f 0020_pending_signup_flow.sql -v ON_ERROR_STOP=1
 ```
 
 `-v ON_ERROR_STOP=1` is important — without it, `psql` keeps going after a
@@ -103,16 +118,17 @@ npx supabase login                                   # opens a browser for an ac
 npx supabase link --project-ref hmkciwgzbdszsgnbeakc
 ```
 
-Then tell the CLI that `0001`–`0018` are already live, so it doesn't try
+Then tell the CLI that `0001`–`0020` are already live, so it doesn't try
 to replay them:
 
 ```bash
 npx supabase migration repair --status applied \
   0001 0002 0003 0004 0005 0006 0007 0008 0009 \
-  0010 0011 0012 0013 0014 0015 0016 0017 0018
+  0010 0011 0012 0013 0014 0015 0016 0017 0018 \
+  0019 0020
 ```
 
-(If you applied `0016`–`0018` via Method 1/2 above *before* running
+(If you applied `0016`–`0020` via Method 1/2 above *before* running
 `repair`, include them in that list too — the point is the remote history
 table and the local migration files must agree on what's already applied
 before `db push` is safe to use.)
@@ -126,7 +142,7 @@ Running `supabase db push` against this project **before** the `repair`
 step above will try to replay `0001_auth.sql` onward from scratch and fail
 loudly on `relation "profiles" already exists` (or similar) — because the
 CLI's local view of "what's applied" starts empty, while the actual
-database already has everything through `0015` (and now `0016`–`0018`).
+database already has everything through `0015` (and now `0016`–`0020`).
 This isn't dangerous — it fails on `CREATE TABLE`/`CREATE POLICY`
 conflicts rather than silently corrupting anything — but it's a confusing
 wall of errors if you don't know why. Run `migration repair` first.
@@ -134,10 +150,11 @@ wall of errors if you don't know why. Run `migration repair` first.
 ## Regenerating types
 
 `types/database.ts` is currently **hand-patched**, not generated — the
-session that wrote `0016`–`0018` had no live database access, so the
-`signature_records` table, `sign_document()` function, and
-`rejected_reason` columns were typed by hand to match the SQL. Once the
-migrations above are actually applied, regenerate for real:
+session that wrote `0016`–`0020` had no live database access, so the
+`signature_records` table, `sign_document()` function, `rejected_reason`
+columns, and the `'pending'` addition to the `user_role` enum were all
+typed by hand to match the SQL. Once the migrations above are actually
+applied, regenerate for real:
 
 ```bash
 npx supabase gen types typescript --linked > types/database.ts
@@ -160,6 +177,11 @@ correct. At minimum:
    select table_name from information_schema.tables
      where table_schema = 'public' and table_name = 'signature_records';
    select proname from pg_proc where proname like 'enforce_%_status_transition';
+   select enumlabel from pg_enum
+     where enumtypid = 'public.user_role'::regtype and enumlabel = 'pending';
+   -- approved_accounts should be gone, not just empty
+   select table_name from information_schema.tables
+     where table_schema = 'public' and table_name = 'approved_accounts';
    ```
 2. Spot-check RLS as at least a student and a teacher account (real JWTs,
    not the service-role key, which bypasses RLS entirely and will report
@@ -173,6 +195,18 @@ correct. At minimum:
    approve one still at `admin_approval`, and that skipping straight from
    `draft` to `pending_approval` (bypassing the signature step) is actually
    rejected, not just assumed rejected because the code looks right.
+3. For `0019`/`0020` specifically: sign up with a genuinely new
+   `@udontech.ac.th` address (magic link or Google) and confirm the
+   resulting `profiles` row has `role = 'pending'`, and that visiting
+   `/th/dashboard` while signed in as that user redirects to `/th/pending`
+   rather than looping back to `/th/login`. Then, as an admin, confirm
+   `/th/approvals` lists that user and that approving them actually changes
+   `profiles.role` and lets them reach the dashboard on next reload.
+   Separately, attempt a Google sign-in with a **non**-`@udontech.ac.th`
+   account and confirm it's rejected — and check `auth.users` directly
+   afterward to confirm **no row was left behind**, not just that the
+   browser showed an error (a row surviving a supposedly-rejected signup
+   would mean the CHECK-constraint rollback didn't actually happen).
 
 ## Troubleshooting
 

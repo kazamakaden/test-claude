@@ -99,20 +99,69 @@ confirmed live via `information_schema.role_routine_grants` immediately
 after applying `0011`, and worth knowing if you ever `CREATE OR REPLACE` a
 function that `0006` locked down: the revoke does not survive the replace.
 
-## Sign-up rule: numeric student-ID emails need admin approval
+## Sign-up rule: every new account lands pending, an admin approves and assigns a role
 
-An `@udontech.ac.th` address whose local part is **all digits** (§14 student
-ID, e.g. `69319010015@udontech.ac.th`) must be pre-approved by an admin —
-add it via `/approvals` (admin-only, gated on `member:manage`) before that
-person can request a magic link at all. A **named** staff address
-(`somchai.j@udontech.ac.th`) signs up freely and lands as `teacher`.
+`0019_add_pending_role.sql` / `0020_pending_signup_flow.sql` **replace** an
+earlier pre-approval-roster design (see "Historical: the pre-approval
+allow-list" below for why and what changed). Current behaviour: anyone with
+an `@udontech.ac.th` address — magic link or Google — can sign in freely.
+`handle_new_user()` gives every new signup `role = 'pending'`, which holds
+guest-level permissions only (public content, no dashboard). An admin then
+opens `/approvals` (gated on `member:manage`), sees everyone waiting, and
+assigns their real role (`student` / `teacher` / `aft_teacher`) — granting
+`admin` through the UI is deliberately not offered; promote to admin
+directly in the database, out of band from this form.
 
-This is enforced in `handle_new_user()`, not in the Server Action — §19
-forbids trusting an app-layer check alone. Rejection surfaces from
-`signInWithOtp` itself (the OTP request creates the `auth.users` row
-immediately, which is when the trigger fires) as a Postgres exception
-containing `"account not approved"`; `actions/auth.ts` matches on that string
-to show a friendlier message than the generic send-failure one.
+A pending user who tries to reach a gated page is redirected to `/pending`
+("your account is awaiting approval"), not back to `/login` — see
+`deniedRedirectTarget()` in `lib/auth/require-role.ts`. The
+`@udontech.ac.th` domain restriction itself is unchanged and still enforced
+in three layers regardless of which sign-in method is used: Zod on the
+client, the same Zod schema again in the `signIn` Server Action, and a
+`CHECK (email like '%@udontech.ac.th')` constraint on `profiles.email`
+(`0001_auth.sql`) — the last of which is what actually protects the Google
+path below, since OAuth never touches the Server Action's Zod checks at all.
+
+### Google sign-in setup
+
+Two dashboards, no credential enters this repo:
+
+1. **Google Cloud Console** → APIs & Services → Credentials → Create OAuth
+   client ID (Web application). Authorized redirect URI:
+   `https://hmkciwgzbdszsgnbeakc.supabase.co/auth/v1/callback`.
+2. **Supabase** → Authentication → Providers → Google → enable, paste the
+   Client ID and Client Secret from step 1.
+
+That's it on the Supabase side — no code here needs the client secret,
+since Supabase's own server handles the OAuth token exchange.
+
+**`hd=udontech.ac.th` is a hint, not enforcement.** `signInWithGoogle`
+(`actions/auth.ts`) passes it so Google's account picker *suggests* a
+college account, but a user can still choose a different Google account
+than the one it suggests — Google does not block this. The
+`profiles.email` CHECK constraint is what actually rejects a non-college
+address (the `profiles` insert fails, which rolls back the whole
+`auth.users` row `handle_new_user()`'s trigger fired from); the callback
+route (`app/[lang]/auth/callback/route.ts`) also re-checks the signed-in
+email directly and signs out + redirects with a friendly message if it
+somehow gets past that, as defence in depth.
+
+**Turnstile does not cover the Google path.** The CAPTCHA lives inside the
+`signIn` Server Action (magic-link only); OAuth redirects straight to
+Google and back, never through it. This is an accepted trade-off, the same
+shape as the already-documented JS-disabled trade-off below.
+
+### Historical: the pre-approval allow-list
+
+Migrations `0010`/`0011` (see `CLAUDE.md` §0 for the full narrative) added
+an `approved_accounts` roster: a numeric-local-part address had to be added
+by an admin *before* it could sign in at all, or `signInWithOtp` itself
+failed with `"account not approved"`. `0020` drops that table and the
+rejection path entirely — superseded, not deleted from history, because the
+`0010`–`0012` migrations still document a real defect worth knowing about
+(a `CREATE OR REPLACE FUNCTION` silently resetting `handle_new_user()`'s
+`EXECUTE` grant, twice) even though the feature they were part of no longer
+exists as shipped.
 
 ## Responsive check
 
@@ -249,29 +298,33 @@ The `SUPABASE_SECRET_KEY` / `SUPABASE_URL` / `SUPABASE_PUBLISHABLE_KEY` /
 Functions phase — nothing in the deployed app reads them yet, so there's no
 need to set them on Vercel until that phase starts.
 
-## Auth setup (magic link)
+## Auth setup (magic link + Google)
 
-Login is email-only, restricted to `@udontech.ac.th`, via Supabase's magic
-link. After creating the project:
+Login is restricted to `@udontech.ac.th`, via Supabase magic link and,
+optionally, Google (see "Google sign-in setup" above). After creating the
+project:
 
 1. Supabase dashboard → **Authentication → URL Configuration** → add
    `http://localhost:59500/**` (and your production URL) to the redirect
-   allow-list. Magic links fail silently if the callback URL isn't allow-listed.
+   allow-list. Both magic links and OAuth fail silently if the callback URL
+   isn't allow-listed.
 2. Apply all migrations above, in order.
-3. Sign in at `/th/login` with an `@udontech.ac.th` address — a link arrives
-   by email and lands on `/th/auth/callback`, which exchanges it for a session
-   and redirects to `/th/dashboard`. A numeric student-ID address must be
-   approved first (see above) or the request fails at step 1.
+3. Sign in at `/th/login` with an `@udontech.ac.th` address (or the Google
+   button, if configured) — you land on `/th/auth/callback`, which
+   exchanges the code for a session and redirects to `/th/pending` (every
+   fresh signup) or `/th/dashboard` (once an admin has approved you — see
+   "Sign-up rule" above).
 
 ## Demo accounts
 
-One account per role (`student` via the allow-list, `teacher`, `aft_teacher`,
-`admin`), created via the Supabase Admin API with generated passwords —
-credentials in `.demo-accounts.local.md` (git-ignored, never committed). The
-passwords work for API/automated testing only; the app's UI is magic-link
-only, so browser login for a demo account needs Supabase dashboard →
-Authentication → Users → **Generate link**, pasted directly into a browser.
-Teardown SQL is in that same file — run it before any production cutover.
+One account per role (`student`, `teacher`, `aft_teacher`, `admin`),
+created via the Supabase Admin API with generated passwords and manually
+promoted past `pending` — credentials in `.demo-accounts.local.md`
+(git-ignored, never committed). The passwords work for API/automated
+testing only; the app's UI is magic-link/Google only, so browser login for
+a demo account needs Supabase dashboard → Authentication → Users →
+**Generate link**, pasted directly into a browser. Teardown SQL is in that
+same file — run it before any production cutover.
 
 ## Other scripts
 

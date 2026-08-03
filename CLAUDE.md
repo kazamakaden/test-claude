@@ -720,6 +720,80 @@ advisories, and adding CSP headers. Both are real, but both are the kind of
 change where a rushed, unverified attempt is worse than the problem it
 fixes — see ❌ Remaining for why and what a correct fix would need.
 
+**Sign-up flow replaced: `pending` role + post-signup admin approval,
+superseding the `0010`–`0012` pre-approval allow-list above.** The old
+design required a numeric-local-part (§14 student-ID) address to already be
+on `approved_accounts` *before* it could sign in at all, rejected otherwise
+with `"account not approved"`. `0019_add_pending_role.sql` adds `'pending'`
+to `user_role` (its own migration — same PostgreSQL constraint that made
+`0010` add `aft_teacher` separately: a new enum value can't be used in the
+transaction that adds it). `0020_pending_signup_flow.sql` rewrites
+`handle_new_user()` so every signup — numeric student ID or named staff,
+magic link or Google — lands `role = 'pending'` unconditionally, drops the
+`approved_accounts` lookup and rejection path, re-revokes `EXECUTE` on the
+replaced function in the same migration (the exact `0011`→`0012` trap
+documented above — `create or replace` resets grants to `PUBLIC EXECUTE`,
+and skipping the re-revoke would silently reopen it), and drops the
+`approved_accounts` table itself, since nothing else read it.
+
+`pending` sits at guest-level permissions (`lib/auth/permissions.ts`) —
+public content only, no `workspace:access` — so every existing
+`requirePermission()` guard already excludes it with no new policy needed.
+What *did* need a change: `requirePermission`/`requireAnyPermission`
+(`lib/auth/require-role.ts`) previously redirected anyone lacking a
+permission to `/login`; a `pending` user hitting that would have bounced
+back to a login they just used, an obvious broken-loop. Added
+`deniedRedirectTarget()` to send `pending` to a new `/pending` page instead
+— "your account is awaiting approval" — while every other role still goes
+to `/login` as before. `app/[lang]/auth/callback/route.ts` makes the same
+distinction right after exchanging the session, so a fresh signup lands on
+`/pending` immediately rather than bouncing through `/dashboard` first.
+
+`/approvals` (still gated on `member:manage`, unchanged) is repurposed from
+"add a pre-approved email" to "here is everyone waiting, assign their
+role": `services/profiles.ts` replaces `services/approvals.ts`
+(deleted, along with `types/approvals.ts` and the two components built
+around the old add/revoke form), reading `profiles` directly rather than
+the now-dropped `approved_accounts` table. No new RLS was needed for this
+either — `profiles_select_admin`/`profiles_update_admin` (`0002`) already
+grant an admin unconditional read/update on any profile, and
+`prevent_role_self_escalation` (`0002`) already permits an admin-initiated
+role change through the same trigger that blocks everyone else's.
+Assigning `admin` through this UI is still deliberately not offered, same
+reasoning as the old form: promote to admin directly in the database, out
+of band.
+
+**Google OAuth sign-in added, alongside magic link, same domain
+restriction.** `signInWithGoogle` (`actions/auth.ts`) calls
+`signInWithOAuth` with `queryParams: { hd: "udontech.ac.th" }` — explicitly
+documented in that file as a UI hint only, not enforcement, since a user
+can pick a different Google account than the one it suggests and Google
+does not block that. The actual boundary is unchanged from magic-link
+sign-in: `profiles.email`'s `CHECK (email like '%@udontech.ac.th')`
+constraint (`0001_auth.sql`) rejects the `profiles` insert for a
+non-college address, which rolls back the whole `auth.users` row
+`handle_new_user()`'s trigger fired from — this is what actually protects
+the OAuth path, since it never touches `signIn`'s Zod checks at all. The
+callback route additionally re-checks the signed-in email directly and
+signs out + redirects with the existing `wrongDomain` message if it somehow
+gets past that, as defence in depth rather than the sole guard. Turnstile
+does not cover this path — the CAPTCHA lives inside the `signIn` Server
+Action, and OAuth redirects straight to Google and back, never through it;
+recorded as an accepted trade-off in README.md, the same shape as the
+already-documented JS-disabled trade-off.
+
+Not verified live: this session had no Supabase credentials, Postgres, or
+Docker access (same constraint noted for `0016`–`0018` above). The
+`0019`/`0020` migrations, the RLS/permission reasoning, and the OAuth
+domain-rejection path are reasoned through and internally consistent with
+the schema, but none of it has been run against a real project. Needs the
+same live proof pass this project already has a precedent for (`0005`
+citizen_id, `0008` attendance, `0011` role split) before being trusted:
+confirm a fresh signup — both magic-link and Google — actually lands
+`pending`; confirm a non-college Google account is rejected and leaves
+*no* `auth.users` row behind, not just a generic error; confirm an
+admin-approved role sticks and reaches the dashboard.
+
 ### ❌ Remaining
 
 * **RLS policy performance (`auth_rls_initplan`, `multiple_permissive_policies`)**

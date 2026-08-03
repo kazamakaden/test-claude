@@ -8,7 +8,7 @@ import { Turnstile, type TurnstileInstance } from "@marsidev/react-turnstile";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { FormField, FormLabel, FormError } from "@/components/ui/form";
-import { signIn, type SignInResult } from "@/actions/auth";
+import { signIn, signInWithGoogle, type SignInResult } from "@/actions/auth";
 import { isTurnstileConfigured, turnstileSiteKey } from "@/lib/turnstile";
 import type { Locale } from "@/lib/i18n/config";
 import type { Dictionary } from "@/types/i18n";
@@ -22,12 +22,32 @@ function SubmitButton({ label, pendingLabel }: { label: string; pendingLabel: st
   );
 }
 
+function GoogleSubmitButton({ label }: { label: string }) {
+  const { pending } = useFormStatus();
+  return (
+    <Button type="submit" variant="outline" className="w-full" disabled={pending}>
+      {label}
+    </Button>
+  );
+}
+
 /**
  * Submits via the form's native `action` (useActionState) rather than a
  * client-invoked RPC, so it still posts and gets a real server-validated
- * result with JavaScript disabled (§30.9).
+ * result with JavaScript disabled (§30.9). The Google button below is a
+ * separate plain form bound to signInWithGoogle for the same reason — it's
+ * a real POST that redirects to Google, not an onClick handler, so it also
+ * works without JS.
  */
-export function LoginForm({ lang, dict }: { lang: Locale; dict: Dictionary }) {
+export function LoginForm({
+  lang,
+  dict,
+  initialErrorKey,
+}: {
+  lang: Locale;
+  dict: Dictionary;
+  initialErrorKey?: keyof Dictionary["auth"]["errors"];
+}) {
   const [state, formAction] = useActionState<SignInResult | null, FormData>(signIn, null);
   const turnstileRef = useRef<TurnstileInstance>(null);
 
@@ -38,10 +58,18 @@ export function LoginForm({ lang, dict }: { lang: Locale; dict: Dictionary }) {
     if (errorMessage) {
       toast.error(errorMessage);
       // The token is single-use — a failed submit (wrong domain, captcha
-      // rejected, not approved, ...) must not let a stale token be replayed.
+      // rejected, ...) must not let a stale token be replayed.
       turnstileRef.current?.reset();
     }
   }, [errorMessage]);
+
+  // One-time toast for a reason carried back from the OAuth callback route
+  // (?error=... in the URL) — not tied to `state`, since it didn't come
+  // from this form's own submission.
+  useEffect(() => {
+    if (initialErrorKey) toast.error(dict.auth.errors[initialErrorKey]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   if (state?.ok) {
     return (
@@ -58,33 +86,45 @@ export function LoginForm({ lang, dict }: { lang: Locale; dict: Dictionary }) {
   }
 
   return (
-    <form
-      action={formAction}
-      className="flex flex-col gap-4 rounded-xl border border-border bg-card p-6 shadow-sm"
-    >
-      <input type="hidden" name="lang" value={lang} />
+    <div className="flex flex-col gap-4">
+      <form action={signInWithGoogle.bind(null, lang)}>
+        <GoogleSubmitButton label={dict.auth.googleSignIn} />
+      </form>
 
-      <FormField name="email" invalid={Boolean(errorMessage)}>
-        <FormLabel>{dict.auth.emailLabel}</FormLabel>
-        <Input
-          name="email"
-          type="email"
-          required
-          autoComplete="email"
-          placeholder={dict.auth.emailPlaceholder}
-        />
-        <FormError>{errorMessage}</FormError>
-      </FormField>
+      <div className="flex items-center gap-3 text-xs text-muted-foreground">
+        <div className="h-px flex-1 bg-border" aria-hidden />
+        {dict.auth.orDivider}
+        <div className="h-px flex-1 bg-border" aria-hidden />
+      </div>
 
-      {isTurnstileConfigured ? (
-        <Turnstile
-          ref={turnstileRef}
-          siteKey={turnstileSiteKey}
-          options={{ appearance: "always" }}
-        />
-      ) : null}
+      <form
+        action={formAction}
+        className="flex flex-col gap-4 rounded-xl border border-border bg-card p-6 shadow-sm"
+      >
+        <input type="hidden" name="lang" value={lang} />
 
-      <SubmitButton label={dict.auth.submit} pendingLabel={dict.auth.submitting} />
-    </form>
+        <FormField name="email" invalid={Boolean(errorMessage)}>
+          <FormLabel>{dict.auth.emailLabel}</FormLabel>
+          <Input
+            name="email"
+            type="email"
+            required
+            autoComplete="email"
+            placeholder={dict.auth.emailPlaceholder}
+          />
+          <FormError>{errorMessage}</FormError>
+        </FormField>
+
+        {isTurnstileConfigured ? (
+          <Turnstile
+            ref={turnstileRef}
+            siteKey={turnstileSiteKey}
+            options={{ appearance: "always" }}
+          />
+        ) : null}
+
+        <SubmitButton label={dict.auth.submit} pendingLabel={dict.auth.submitting} />
+      </form>
+    </div>
   );
 }

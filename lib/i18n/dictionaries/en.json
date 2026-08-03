@@ -38,6 +38,7 @@
   },
   "roles": {
     "guest": "Guest",
+    "pending": "Pending Approval",
     "student": "AFT Student/Member",
     "teacher": "Teacher",
     "aft_teacher": "AFT Advisor Teacher",
@@ -57,13 +58,20 @@
       "wrongDomain": "Only @udontech.ac.th email addresses are allowed",
       "sendFailed": "Couldn't send the sign-in link. Please try again.",
       "captchaFailed": "Please complete the verification check and try again.",
-      "notApproved": "This student ID hasn't been approved yet. Please contact an administrator."
-    }
+      "oauthFailed": "Couldn't sign in with Google. Please try again.",
+      "auth": "Sign-in failed. Please try again."
+    },
+    "orDivider": "or",
+    "googleSignIn": "Sign in with Google"
   },
   "footer": {
     "orgName": "Association of Future Thai Professionals",
     "collegeName": "Udon Thani Technical College",
     "copyright": "All rights reserved"
+  },
+  "pending": {
+    "title": "Your account is awaiting approval",
+    "description": "You're signed in, but an administrator still needs to approve your account and assign your role before you can use the rest of the dashboard. Contact an administrator if this takes longer than expected."
   },
   "dashboard": {
     "welcomeTitle": "Welcome",
@@ -350,28 +358,18 @@
   },
   "approvals": {
     "title": "Account Approvals",
-    "description": "Numeric student-ID email addresses must be approved by an administrator before they can sign in. Named staff email addresses can sign in immediately.",
-    "addTitle": "Add an approved account",
-    "emailLabel": "Email",
-    "emailPlaceholder": "69319010099@udontech.ac.th",
+    "description": "Everyone who signs in with an @udontech.ac.th address waits for approval until an administrator assigns them a role. The list below is everyone currently waiting.",
     "roleLabel": "Role",
     "departmentLabel": "Department (optional)",
     "noDepartment": "No department",
-    "noteLabel": "Note (optional)",
-    "submit": "Add account",
-    "submitting": "Adding...",
-    "columnEmail": "Email",
-    "columnRole": "Role",
-    "columnDepartment": "Department",
-    "columnApprovedBy": "Approved by",
-    "columnDate": "Date",
-    "revoke": "Revoke",
-    "empty": "No approved accounts yet",
+    "approve": "Approve",
+    "approving": "Approving...",
+    "approved": "Account approved",
+    "columnStudentId": "Student ID",
+    "signedUpAt": "First signed in",
+    "empty": "No accounts awaiting approval",
     "errors": {
-      "invalidEmail": "Please enter a valid email address",
-      "wrongDomain": "Only @udontech.ac.th email addresses are allowed",
       "invalidRole": "Please choose a role",
-      "duplicate": "This email has already been approved",
       "unknown": "Something went wrong. Please try again."
     }
   }
