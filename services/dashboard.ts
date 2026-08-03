@@ -174,7 +174,12 @@ const allQuickActions: QuickAction[] = [
   { key: "scanAttendance", href: "/activities", permission: "attendance:submit" },
   { key: "signDocument", href: "/documents/manage", permission: "document:sign" },
   { key: "reviewDrafts", href: "/projects/review", permission: "project:draft:review" },
-  { key: "manageMembers", href: "/members", permission: "member:manage" },
+  // Quick Actions is a workspace-only card (dashboard is behind (app)), so
+  // this doesn't need to consider guests — but the /members directory
+  // itself is now public. member:approve is the right gate here since it's
+  // aft_teacher + admin who can actually act on a member from that page;
+  // member:manage would wrongly hide this for aft_teacher.
+  { key: "manageMembers", href: "/members", permission: "member:approve" },
 ];
 
 export function getQuickActions(role: Role): QuickAction[] {

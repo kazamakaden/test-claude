@@ -15,7 +15,10 @@ export const navItems: readonly NavItem[] = [
   { key: "projects", href: "/projects", permission: "workspace:access" },
   { key: "activities", href: "/activities" },
   { key: "documents", href: "/documents" },
-  { key: "members", href: "/members", permission: "workspace:access" },
+  // §5: public — guests can browse the directory to check whether they're
+  // registered; services/members.ts hides email from them and the "add
+  // filters"/edit affordances stay role-gated inside the page itself.
+  { key: "members", href: "/members" },
   { key: "reports", href: "/reports", permission: "workspace:access" },
   { key: "approvals", href: "/approvals", permission: "member:approve" },
 ];

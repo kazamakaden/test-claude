@@ -94,11 +94,15 @@ const PUBLIC_PAGES = [
   // this list either way.
   "/th/documents/a2722df0-af24-47b3-84d1-bb5f731bc70b",
   "/th/calendar",
+  // Moved from AUTH_PAGES: /members is now public (§5) — guests read
+  // name/student id/class/year/department/club, email stays hidden. The
+  // edit-affordance column only renders for admin/aft_teacher, so this
+  // unauthenticated pass exercises the read-only view.
+  "/th/members",
 ];
 
 const AUTH_PAGES = [
   "/th/dashboard",
-  "/th/members",
   "/th/projects",
   "/th/projects/new",
   "/th/projects/review",

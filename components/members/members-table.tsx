@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowDown, ArrowUp, ArrowUpDown, Users } from "lucide-react";
+import { ArrowDown, ArrowUp, ArrowUpDown, User, Users } from "lucide-react";
 import {
   Table,
   TableBody,
@@ -8,12 +8,18 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { CardEmpty } from "@/components/dashboard/card-states";
-import type { Member, MemberFilters, MemberSortColumn } from "@/types/members";
+import { MemberEditSheet } from "@/components/members/member-edit-sheet";
+import type { Club, Department, Member, MemberFilters, MemberSortColumn } from "@/types/members";
 import type { Locale } from "@/lib/i18n/config";
 import type { Dictionary } from "@/types/i18n";
+import type { Role } from "@/types/auth";
 
-const SORTABLE_COLUMNS: { key: MemberSortColumn; labelKey: keyof Dictionary["members"] }[] = [
+const SORTABLE_COLUMNS: {
+  key: MemberSortColumn;
+  labelKey: "columnName" | "columnStudentId" | "columnClass" | "columnYear";
+}[] = [
   { key: "fullName", labelKey: "columnName" },
   { key: "studentId", labelKey: "columnStudentId" },
   { key: "className", labelKey: "columnClass" },
@@ -38,6 +44,10 @@ export function MembersTable({
   filters,
   pathname,
   searchParams,
+  departments,
+  clubs,
+  canEdit,
+  actorRole,
   lang,
   dict,
 }: {
@@ -45,6 +55,11 @@ export function MembersTable({
   filters: MemberFilters;
   pathname: string;
   searchParams: URLSearchParams;
+  departments: Department[];
+  clubs: Club[];
+  /** Whether the viewer holds member:approve — gates the actions column entirely. */
+  canEdit: boolean;
+  actorRole: Role;
   lang: Locale;
   dict: Dictionary;
 }) {
@@ -84,17 +99,40 @@ export function MembersTable({
           })}
           <TableHead>{d.columnDepartment}</TableHead>
           <TableHead>{d.columnClub}</TableHead>
+          {canEdit ? <TableHead>{d.columnActions}</TableHead> : null}
         </TableRow>
       </TableHeader>
       <TableBody>
         {members.map((m) => (
           <TableRow key={m.id}>
-            <TableCell className="font-medium text-foreground">{m.fullName}</TableCell>
+            <TableCell className="font-medium text-foreground">
+              <div className="flex items-center gap-2">
+                <Avatar size="sm">
+                  <AvatarImage src={m.avatarUrl ?? undefined} referrerPolicy="no-referrer" />
+                  <AvatarFallback>
+                    <User className="size-3.5" aria-hidden />
+                  </AvatarFallback>
+                </Avatar>
+                {m.fullName}
+              </div>
+            </TableCell>
             <TableCell className="text-muted-foreground">{m.studentId ?? "—"}</TableCell>
             <TableCell className="text-muted-foreground">{m.className ?? "—"}</TableCell>
             <TableCell className="text-muted-foreground">{m.academicYear ?? "—"}</TableCell>
             <TableCell className="text-muted-foreground">{m.departmentName ?? "—"}</TableCell>
             <TableCell className="text-muted-foreground">{m.clubName ?? "—"}</TableCell>
+            {canEdit ? (
+              <TableCell>
+                <MemberEditSheet
+                  member={m}
+                  departments={departments}
+                  clubs={clubs}
+                  actorRole={actorRole}
+                  lang={lang}
+                  dict={dict}
+                />
+              </TableCell>
+            ) : null}
           </TableRow>
         ))}
       </TableBody>

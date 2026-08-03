@@ -16,11 +16,17 @@ export interface Club {
 /**
  * Deliberately has NO citizen_id field — omitting it from the shape makes
  * leaking that column a type error, not just a query-discipline convention.
+ *
+ * `email` is nullable, not omitted like citizen_id: it IS selectable by a
+ * signed-in viewer (§9), just not by a guest (§5) — getMembers's
+ * `includeEmail` option controls which query runs. `null` here means "this
+ * viewer isn't allowed to see it", not "no data exists".
  */
 export interface Member {
   id: string;
   fullName: string;
-  email: string;
+  email: string | null;
+  avatarUrl: string | null;
   role: Role;
   studentId: string | null;
   departmentId: string | null;

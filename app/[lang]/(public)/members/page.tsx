@@ -1,7 +1,10 @@
 import { Suspense } from "react";
 import { getDictionary } from "@/lib/i18n/get-dictionary";
+import { getRole } from "@/lib/auth/get-role";
+import { can } from "@/lib/auth/permissions";
 import type { Locale } from "@/lib/i18n/config";
 import type { Dictionary } from "@/types/i18n";
+import type { Role } from "@/types/auth";
 import { parseMembersSearchParams, PER_PAGE_SIZE } from "@/schemas/members";
 import { getClubs, getDepartments, getFilterOptions, getMembers } from "@/services/members";
 import { MembersFilters } from "@/components/members/members-filters";
@@ -13,16 +16,27 @@ async function MembersResults({
   filters,
   pathname,
   searchParams,
+  departments,
+  clubs,
+  role,
   lang,
   dict,
 }: {
   filters: ReturnType<typeof parseMembersSearchParams>;
   pathname: string;
   searchParams: URLSearchParams;
+  departments: Awaited<ReturnType<typeof getDepartments>>;
+  clubs: Awaited<ReturnType<typeof getClubs>>;
+  role: Role;
   lang: Locale;
   dict: Dictionary;
 }) {
-  const { rows, total } = await getMembers(filters);
+  // §5: guests read name/student id/class/year/department/club only —
+  // email stays hidden. includeEmail is decided here, by role, not left to
+  // the service (services/members.ts stays role-agnostic by design).
+  const includeEmail = can(role, "workspace:access");
+  const canEdit = can(role, "member:approve");
+  const { rows, total } = await getMembers(filters, { includeEmail });
 
   return (
     <div className="flex flex-col gap-4">
@@ -31,6 +45,10 @@ async function MembersResults({
         filters={filters}
         pathname={pathname}
         searchParams={searchParams}
+        departments={departments}
+        clubs={clubs}
+        canEdit={canEdit}
+        actorRole={role}
         lang={lang}
         dict={dict}
       />
@@ -56,8 +74,9 @@ export default async function MembersPage({
   const { lang: rawLang } = await params;
   const lang = rawLang as Locale;
   const rawParams = await rawSearchParams;
-  const [dict, departments, clubs, filterOptions] = await Promise.all([
+  const [dict, role, departments, clubs, filterOptions] = await Promise.all([
     getDictionary(lang),
+    getRole(),
     getDepartments(),
     getClubs(),
     getFilterOptions(),
@@ -94,6 +113,9 @@ export default async function MembersPage({
           filters={filters}
           pathname={pathname}
           searchParams={searchParams}
+          departments={departments}
+          clubs={clubs}
+          role={role}
           lang={lang}
           dict={dict}
         />

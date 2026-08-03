@@ -1,6 +1,7 @@
 import "server-only";
 import { createClient } from "@/lib/supabase/server";
 import type { Club, Department, Member, MemberFilters, MembersResult } from "@/types/members";
+import type { Role } from "@/types/auth";
 import { PER_PAGE_SIZE } from "@/schemas/members";
 
 /**
@@ -16,46 +17,109 @@ const SORT_COLUMNS = {
 
 // Explicit column list — never select("*"); citizen_id is column-revoked
 // (0005_citizen_id_column_grants.sql) and a "*" would fail outright anyway.
-const MEMBER_COLUMNS =
-  "id, full_name, email, role, student_id, department_id, class_name, club_id, academic_year, departments(name_th), clubs(name_th)";
+//
+// Split in two: `email` is selectable by `authenticated` (0005) but NOT by
+// `anon` (0026 grants anon a narrower allow-list that omits it). Selecting
+// the base list unconditionally and only adding email for signed-in
+// viewers means a guest request can never hit 42501 on this column — a
+// guest that DID try to select email would get a Postgres permission error
+// that getMembers swallows into a silently empty directory (`{ rows: [],
+// total: 0 }` on any error), which would look like "no members exist"
+// rather than "you can't see this column". This split is what avoids that.
+const MEMBER_COLUMNS_BASE =
+  "id, full_name, avatar_url, role, student_id, department_id, class_name, club_id, academic_year, departments(name_th), clubs(name_th)";
+const MEMBER_COLUMNS_WITH_EMAIL = `${MEMBER_COLUMNS_BASE}, email`;
 
-export async function getMembers(filters: MemberFilters): Promise<MembersResult> {
+/**
+ * `includeEmail` defaults to false — fail-closed, matching 0005/0026's own
+ * allow-list philosophy. The *page* decides via
+ * can(role, "workspace:access"); this service stays role-agnostic.
+ *
+ * The two branches below look like they could share a helper, but a
+ * runtime ternary INSIDE `.select()` collapses Supabase's compile-time
+ * column parser into a useless `ParserError` type (tried that first) — a
+ * generic helper over the builder's own type hits the same wall one level
+ * up, since the real PostgrestFilterBuilder's `.eq()`/`.neq()` overloads
+ * don't structurally satisfy a simplified shared constraint. Two full
+ * branches, each with its own literal `.select()` call, is what keeps
+ * Supabase's type inference working end to end.
+ */
+export async function getMembers(
+  filters: MemberFilters,
+  options: { includeEmail?: boolean } = {}
+): Promise<MembersResult> {
   const supabase = await createClient();
   const start = (filters.page - 1) * PER_PAGE_SIZE;
 
+  if (options.includeEmail) {
+    let query = supabase
+      .from("profiles")
+      .select(MEMBER_COLUMNS_WITH_EMAIL, { count: "exact" })
+      // "Members" means approved accounts — a still-pending signup isn't
+      // one yet, whatever the viewer's own role is. RLS already hides this
+      // row from anon (0026); this also excludes it for every signed-in
+      // viewer, since profiles_select_directory (0004) grants
+      // `using (true)` with no role filter of its own.
+      .neq("role", "pending");
+
+    if (filters.search) {
+      const q = filters.search.replace(/[%_]/g, "\\$&");
+      query = query.or(`full_name.ilike.%${q}%,student_id.ilike.%${q}%`);
+    }
+    if (filters.departmentId) query = query.eq("department_id", filters.departmentId);
+    if (filters.academicYear !== null) query = query.eq("academic_year", filters.academicYear);
+    if (filters.className) query = query.eq("class_name", filters.className);
+    if (filters.clubId) query = query.eq("club_id", filters.clubId);
+
+    const { data, error, count } = await query
+      .order(SORT_COLUMNS[filters.sort], { ascending: filters.direction === "asc" })
+      .range(start, start + PER_PAGE_SIZE - 1);
+
+    if (error || !data) return { rows: [], total: 0 };
+
+    const rows: Member[] = data.map((m) => ({
+      id: m.id,
+      fullName: m.full_name ?? "",
+      email: m.email,
+      avatarUrl: m.avatar_url,
+      role: m.role,
+      studentId: m.student_id,
+      departmentId: m.department_id,
+      departmentName: m.departments?.name_th ?? null,
+      className: m.class_name,
+      clubId: m.club_id,
+      clubName: m.clubs?.name_th ?? null,
+      academicYear: m.academic_year,
+    }));
+
+    return { rows, total: count ?? 0 };
+  }
+
   let query = supabase
     .from("profiles")
-    .select(MEMBER_COLUMNS, { count: "exact" });
+    .select(MEMBER_COLUMNS_BASE, { count: "exact" })
+    .neq("role", "pending");
 
   if (filters.search) {
     const q = filters.search.replace(/[%_]/g, "\\$&");
     query = query.or(`full_name.ilike.%${q}%,student_id.ilike.%${q}%`);
   }
-  if (filters.departmentId) {
-    query = query.eq("department_id", filters.departmentId);
-  }
-  if (filters.academicYear !== null) {
-    query = query.eq("academic_year", filters.academicYear);
-  }
-  if (filters.className) {
-    query = query.eq("class_name", filters.className);
-  }
-  if (filters.clubId) {
-    query = query.eq("club_id", filters.clubId);
-  }
+  if (filters.departmentId) query = query.eq("department_id", filters.departmentId);
+  if (filters.academicYear !== null) query = query.eq("academic_year", filters.academicYear);
+  if (filters.className) query = query.eq("class_name", filters.className);
+  if (filters.clubId) query = query.eq("club_id", filters.clubId);
 
-  query = query
+  const { data, error, count } = await query
     .order(SORT_COLUMNS[filters.sort], { ascending: filters.direction === "asc" })
     .range(start, start + PER_PAGE_SIZE - 1);
-
-  const { data, error, count } = await query;
 
   if (error || !data) return { rows: [], total: 0 };
 
   const rows: Member[] = data.map((m) => ({
     id: m.id,
     fullName: m.full_name ?? "",
-    email: m.email,
+    email: null,
+    avatarUrl: m.avatar_url,
     role: m.role,
     studentId: m.student_id,
     departmentId: m.department_id,
@@ -67,6 +131,51 @@ export async function getMembers(filters: MemberFilters): Promise<MembersResult>
   }));
 
   return { rows, total: count ?? 0 };
+}
+
+/**
+ * §5: admin/aft_teacher own member data. RLS already permits this UPDATE
+ * (profiles_update_admin, profiles_update_aft_teacher — 0002, 0024); the
+ * two triggers those policies rely on are the actual authority on which
+ * changes are legal: prevent_role_self_escalation (0024, role) and
+ * prevent_member_identity_change (0025, department/club/class/student_id).
+ * A caller here that violates either gets a Postgres exception, mapped
+ * below to a message key rather than surfaced raw. student_id is UNIQUE —
+ * a duplicate is a realistic data-entry mistake, mapped to its own key
+ * rather than the generic "unknown".
+ */
+export async function updateMember(input: {
+  id: string;
+  role: Exclude<Role, "guest" | "pending" | "admin">;
+  departmentId: string | null;
+  clubId: string | null;
+  className: string | null;
+  studentId: string | null;
+  fullName: string | null;
+}): Promise<{ ok: true } | { ok: false; error: string }> {
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("profiles")
+    .update({
+      role: input.role,
+      department_id: input.departmentId,
+      club_id: input.clubId,
+      class_name: input.className,
+      student_id: input.studentId,
+      full_name: input.fullName,
+    })
+    .eq("id", input.id);
+
+  if (error) {
+    if (error.code === "23505" && error.message.includes("profiles_student_id_key")) {
+      return { ok: false, error: "studentIdTaken" };
+    }
+    if (error.message.includes("insufficient privilege")) {
+      return { ok: false, error: "forbiddenRole" };
+    }
+    return { ok: false, error: error.message };
+  }
+  return { ok: true };
 }
 
 export async function getDepartments(): Promise<Department[]> {

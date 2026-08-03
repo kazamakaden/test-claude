@@ -209,7 +209,31 @@
     "columnYear": "Year",
     "columnDepartment": "Department",
     "columnClub": "Club",
-    "empty": "No members match these filters"
+    "columnActions": "Actions",
+    "empty": "No members match these filters",
+    "edit": {
+      "title": "Edit member",
+      "editButton": "Edit",
+      "fullNameLabel": "Full name",
+      "roleLabel": "Role",
+      "departmentLabel": "Department",
+      "noDepartment": "No department",
+      "clubLabel": "Club",
+      "noClub": "No club",
+      "classLabel": "Class",
+      "studentIdLabel": "Student ID",
+      "studentIdHint": "Editing the student ID also changes the automatically-derived academic year.",
+      "save": "Save",
+      "saving": "Saving...",
+      "saved": "Member updated",
+      "errors": {
+        "invalidRole": "Please choose a role",
+        "forbiddenRole": "An AFT teacher cannot assign this role. Please contact an administrator.",
+        "invalidStudentId": "Student ID format is invalid",
+        "studentIdTaken": "This student ID is already in use",
+        "unknown": "Something went wrong. Please try again."
+      }
+    }
   },
   "activities": {
     "description": "Search and filter upcoming and past activities",
