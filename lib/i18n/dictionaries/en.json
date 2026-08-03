@@ -108,6 +108,8 @@
       "description": "Track the status of recent documents",
       "empty": "No draft documents",
       "emptyCta": "Create a new document",
+      "viewAllManage": "View all my documents",
+      "viewAllReview": "Go to document review",
       "status": {
         "draft": "Draft",
         "signed": "Signed",

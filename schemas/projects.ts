@@ -29,17 +29,47 @@ export const projectFiltersSchema = z.object({
   page: z.coerce.number().int().positive().catch(1),
 });
 
+/**
+ * URL param names for one project list. `/projects/review` renders two
+ * independent queues on a single page, so each needs its own namespaced keys
+ * — otherwise both lists share `?page=`/`?sort=` and paging or sorting one
+ * silently moves the other. Unprefixed (the default) keeps the plain names
+ * every single-list page uses.
+ */
+export type ProjectsParamKeys = {
+  search: string;
+  status: string;
+  sort: string;
+  dir: string;
+  page: string;
+};
+
+export function projectsParamKeys(prefix = ""): ProjectsParamKeys {
+  if (!prefix) {
+    return { search: "search", status: "status", sort: "sort", dir: "dir", page: "page" };
+  }
+  return {
+    search: `${prefix}Search`,
+    status: `${prefix}Status`,
+    sort: `${prefix}Sort`,
+    dir: `${prefix}Dir`,
+    page: `${prefix}Page`,
+  };
+}
+
 export function parseProjectsSearchParams(
-  searchParams: Record<string, string | string[] | undefined>
+  searchParams: Record<string, string | string[] | undefined>,
+  prefix = ""
 ) {
   const single = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v);
+  const keys = projectsParamKeys(prefix);
 
   return projectFiltersSchema.parse({
-    search: single(searchParams.search) ?? "",
-    status: single(searchParams.status) ?? null,
-    sort: single(searchParams.sort) ?? "updatedAt",
-    direction: single(searchParams.dir) ?? "desc",
-    page: single(searchParams.page) ?? "1",
+    search: single(searchParams[keys.search]) ?? "",
+    status: single(searchParams[keys.status]) ?? null,
+    sort: single(searchParams[keys.sort]) ?? "updatedAt",
+    direction: single(searchParams[keys.dir]) ?? "desc",
+    page: single(searchParams[keys.page]) ?? "1",
   });
 }
 

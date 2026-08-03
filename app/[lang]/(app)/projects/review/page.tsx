@@ -2,11 +2,77 @@ import { getDictionary } from "@/lib/i18n/get-dictionary";
 import { requireAnyPermission } from "@/lib/auth/require-role";
 import { getRole } from "@/lib/auth/get-role";
 import { can } from "@/lib/auth/permissions";
-import { parseProjectsSearchParams, PROJECTS_PER_PAGE_SIZE } from "@/schemas/projects";
+import {
+  parseProjectsSearchParams,
+  projectsParamKeys,
+  PROJECTS_PER_PAGE_SIZE,
+} from "@/schemas/projects";
 import { listReviewProjects } from "@/services/projects";
 import { ProjectsTable } from "@/components/projects/projects-table";
 import { Pagination } from "@/components/table/pagination";
 import type { Locale } from "@/lib/i18n/config";
+import type { Dictionary } from "@/types/i18n";
+import type { ProjectsResult } from "@/types/projects";
+
+/**
+ * Both queues render on one page, so each gets its own URL param namespace —
+ * sharing them made paging or sorting one queue silently move the other.
+ */
+const TEACHER_PREFIX = "t";
+const ADMIN_PREFIX = "a";
+
+function ReviewQueue({
+  title,
+  queue,
+  prefix,
+  rawParams,
+  pathname,
+  searchParams,
+  lang,
+  dict,
+}: {
+  title: string;
+  queue: ProjectsResult;
+  prefix: string;
+  rawParams: Record<string, string | string[] | undefined>;
+  pathname: string;
+  searchParams: URLSearchParams;
+  lang: Locale;
+  dict: Dictionary;
+}) {
+  const filters = parseProjectsSearchParams(rawParams, prefix);
+  const paramKeys = projectsParamKeys(prefix);
+
+  return (
+    <section className="flex flex-col gap-4">
+      <h2 className="font-heading text-lg font-semibold text-foreground">{title}</h2>
+      {queue.rows.length === 0 ? (
+        <p className="text-sm text-muted-foreground">{dict.projects.review.empty}</p>
+      ) : (
+        <>
+          <ProjectsTable
+            projects={queue.rows}
+            filters={filters}
+            pathname={pathname}
+            searchParams={searchParams}
+            lang={lang}
+            dict={dict}
+            paramKeys={paramKeys}
+          />
+          <Pagination
+            page={filters.page}
+            perPage={PROJECTS_PER_PAGE_SIZE}
+            total={queue.total}
+            pathname={pathname}
+            searchParams={searchParams}
+            dict={dict}
+            pageParam={paramKeys.page}
+          />
+        </>
+      )}
+    </section>
+  );
+}
 
 export default async function ProjectsReviewPage({
   params,
@@ -22,7 +88,6 @@ export default async function ProjectsReviewPage({
 
   const rawParams = await rawSearchParams;
   const [dict, role] = await Promise.all([getDictionary(lang), getRole()]);
-  const filters = parseProjectsSearchParams(rawParams);
   const d = dict.projects;
 
   const pathname = `/${lang}/projects/review`;
@@ -36,8 +101,12 @@ export default async function ProjectsReviewPage({
   const showAdminQueue = can(role, "project:approve");
 
   const [teacherQueue, adminQueue] = await Promise.all([
-    showTeacherQueue ? listReviewProjects("teacher_review", filters) : Promise.resolve(null),
-    showAdminQueue ? listReviewProjects("admin_approval", filters) : Promise.resolve(null),
+    showTeacherQueue
+      ? listReviewProjects("teacher_review", parseProjectsSearchParams(rawParams, TEACHER_PREFIX))
+      : Promise.resolve(null),
+    showAdminQueue
+      ? listReviewProjects("admin_approval", parseProjectsSearchParams(rawParams, ADMIN_PREFIX))
+      : Promise.resolve(null),
   ]);
 
   return (
@@ -48,64 +117,30 @@ export default async function ProjectsReviewPage({
         </h1>
       </div>
 
-      {showTeacherQueue && teacherQueue ? (
-        <section className="flex flex-col gap-4">
-          <h2 className="font-heading text-lg font-semibold text-foreground">
-            {d.review.teacherQueueTitle}
-          </h2>
-          {teacherQueue.rows.length === 0 ? (
-            <p className="text-sm text-muted-foreground">{d.review.empty}</p>
-          ) : (
-            <>
-              <ProjectsTable
-                projects={teacherQueue.rows}
-                filters={filters}
-                pathname={pathname}
-                searchParams={searchParams}
-                lang={lang}
-                dict={dict}
-              />
-              <Pagination
-                page={filters.page}
-                perPage={PROJECTS_PER_PAGE_SIZE}
-                total={teacherQueue.total}
-                pathname={pathname}
-                searchParams={searchParams}
-                dict={dict}
-              />
-            </>
-          )}
-        </section>
+      {teacherQueue ? (
+        <ReviewQueue
+          title={d.review.teacherQueueTitle}
+          queue={teacherQueue}
+          prefix={TEACHER_PREFIX}
+          rawParams={rawParams}
+          pathname={pathname}
+          searchParams={searchParams}
+          lang={lang}
+          dict={dict}
+        />
       ) : null}
 
-      {showAdminQueue && adminQueue ? (
-        <section className="flex flex-col gap-4">
-          <h2 className="font-heading text-lg font-semibold text-foreground">
-            {d.review.adminQueueTitle}
-          </h2>
-          {adminQueue.rows.length === 0 ? (
-            <p className="text-sm text-muted-foreground">{d.review.empty}</p>
-          ) : (
-            <>
-              <ProjectsTable
-                projects={adminQueue.rows}
-                filters={filters}
-                pathname={pathname}
-                searchParams={searchParams}
-                lang={lang}
-                dict={dict}
-              />
-              <Pagination
-                page={filters.page}
-                perPage={PROJECTS_PER_PAGE_SIZE}
-                total={adminQueue.total}
-                pathname={pathname}
-                searchParams={searchParams}
-                dict={dict}
-              />
-            </>
-          )}
-        </section>
+      {adminQueue ? (
+        <ReviewQueue
+          title={d.review.adminQueueTitle}
+          queue={adminQueue}
+          prefix={ADMIN_PREFIX}
+          rawParams={rawParams}
+          pathname={pathname}
+          searchParams={searchParams}
+          lang={lang}
+          dict={dict}
+        />
       ) : null}
     </div>
   );

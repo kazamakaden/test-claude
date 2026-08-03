@@ -13,6 +13,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { CardEmpty } from "@/components/dashboard/card-states";
 import type { Project, ProjectFilters, ProjectSortColumn, ProjectStatus } from "@/types/projects";
+import { projectsParamKeys, type ProjectsParamKeys } from "@/schemas/projects";
 import type { Locale } from "@/lib/i18n/config";
 import type { Dictionary } from "@/types/i18n";
 
@@ -33,12 +34,16 @@ function sortHref(
   pathname: string,
   searchParams: URLSearchParams,
   column: ProjectSortColumn,
-  filters: ProjectFilters
+  filters: ProjectFilters,
+  paramKeys: ProjectsParamKeys
 ) {
   const params = new URLSearchParams(searchParams.toString());
   const nextDirection = filters.sort === column && filters.direction === "asc" ? "desc" : "asc";
-  params.set("sort", column);
-  params.set("dir", nextDirection);
+  params.set(paramKeys.sort, column);
+  params.set(paramKeys.dir, nextDirection);
+  // Sorting invalidates the current page — otherwise the viewer stays on
+  // page 3 of a list that just reordered under them.
+  params.delete(paramKeys.page);
   return `${pathname}?${params.toString()}`;
 }
 
@@ -49,6 +54,7 @@ export function ProjectsTable({
   searchParams,
   lang,
   dict,
+  paramKeys = projectsParamKeys(),
 }: {
   projects: Project[];
   filters: ProjectFilters;
@@ -56,6 +62,8 @@ export function ProjectsTable({
   searchParams: URLSearchParams;
   lang: Locale;
   dict: Dictionary;
+  /** Namespaced URL param names when two lists share one page. */
+  paramKeys?: ProjectsParamKeys;
 }) {
   const d = dict.projects;
   const locale = lang === "th" ? th : enUS;
@@ -82,7 +90,7 @@ export function ProjectsTable({
             return (
               <TableHead key={key}>
                 <Link
-                  href={sortHref(pathname, searchParams, key, filters)}
+                  href={sortHref(pathname, searchParams, key, filters, paramKeys)}
                   className="flex items-center gap-1 outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
                   aria-sort={active ? (filters.direction === "asc" ? "ascending" : "descending") : "none"}
                 >
