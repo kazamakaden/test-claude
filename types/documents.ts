@@ -1,22 +1,5 @@
 export type DocumentStatus = "draft" | "signed" | "pending_approval" | "official";
 
-/**
- * Shelf-listing shape — no flipbook_url, since the shelf only ever shows a
- * placeholder cover (see components/documents/book-cover.tsx) and links to
- * the reader route rather than embedding the frame inline.
- */
-export interface DocumentSummary {
-  id: string;
-  title: string;
-  description: string | null;
-  publishedAt: string | null;
-}
-
-/** Reader-page shape — the only place flipbook_url is ever read. */
-export interface DocumentDetail extends DocumentSummary {
-  flipbookUrl: string | null;
-}
-
 export type DocumentSortColumn = "updatedAt" | "title" | "status";
 export type DocumentSortDirection = "asc" | "desc";
 
@@ -26,9 +9,10 @@ export interface DocumentDraftContent {
 }
 
 /**
- * Owner/reviewer workflow shape — distinct from DocumentDetail above, which
- * hardcodes status='official' and never needs draft content or signature
- * info.
+ * Owner/reviewer workflow shape. An approved document's public-facing
+ * lifetime is on the books shelf, not here — see
+ * services/documents.ts#approveDocument's bridge into `books` — so this
+ * type only ever needs to describe the private draft/review side.
  */
 export interface DocumentWorkflowDetail {
   id: string;
@@ -47,8 +31,7 @@ export interface DocumentWorkflowDetail {
    * a draft (components/documents/document-form.tsx), then carried through
    * unchanged for the rest of the workflow so a reviewer can preview the
    * attached book (components/documents/flipbook-viewer.tsx) before
-   * approving. Distinct from DocumentDetail's flipbookUrl, which only ever
-   * reads an already-official row.
+   * approving.
    */
   description: string | null;
   flipbookUrl: string | null;

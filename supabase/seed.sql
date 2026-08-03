@@ -56,6 +56,30 @@ insert into public.documents (title, description, status, flipbook_url, publishe
   ('คู่มือนักเรียน อวท. (ตัวอย่าง)', 'เอกสารอย่างเป็นทางการ ยังไม่แนบไฟล์ e-book', 'official', null, now() - interval '30 days'),
   ('รายงานประจำปี อวท. (ตัวอย่าง)', 'เอกสารอย่างเป็นทางการ ยังไม่แนบไฟล์ e-book', 'official', null, now() - interval '60 days');
 
+-- §3 public books shelf (0027–0029). Separate from the `documents` rows
+-- above — the shelf now reads from `books`, populated either directly
+-- (below) or via services/documents.ts#approveDocument's bridge, which
+-- only fires when that Server Action actually runs, not retroactively for
+-- rows already seeded as 'official' above.
+--
+-- All three rows here are 'draft', not 'published': no flipbook_url can be
+-- claimed (this session's outbound network policy blocked every request to
+-- fliphtml5.com, so no URL could be verified reachable before committing
+-- it — see CLAUDE.md §0), and books_published_needs_content (0027) refuses
+-- a published row with neither a link nor a PDF outright — confirmed live
+-- when a first attempt at this seed tried 'published' and correctly got
+-- 23514. A genuinely content-less book can only legally be a draft, so a
+-- fresh guest visiting /documents sees the honest empty "no published
+-- books yet" state, and staff/an owner browsing while signed in sees these
+-- three exercising the year/season filters and search instead.
+-- owner_id/published_by are left null — the demo accounts these would
+-- otherwise reference are created out-of-band via the Admin API, not
+-- guaranteed to exist when this script runs.
+insert into public.books (title, description, academic_year, season, status) values
+  ('วารสาร อวท. ภาคเรียนที่ 1 (ตัวอย่าง)', 'ตัวอย่างหนังสือประจำภาคเรียนที่ 1 ยังไม่แนบไฟล์', 2569, 1, 'draft'),
+  ('รายงานประจำปีการศึกษา 2568 (ตัวอย่าง)', 'ตัวอย่างหนังสือปีการศึกษาก่อนหน้า ยังไม่แนบไฟล์', 2568, 2, 'draft'),
+  ('ร่างวารสาร อวท. ภาคเรียนที่ 2 (ตัวอย่าง)', 'ร่างหนังสือที่ยังไม่เผยแพร่', 2569, 2, 'draft');
+
 insert into public.notifications (recipient_id, type, title, body, read) values
   (null, 'approval', 'โครงการ "ค่ายอาสาพัฒนาชุมชน" ได้รับการอนุมัติแล้ว', null, false),
   (null, 'deadline', 'ส่งร่างเอกสารกิจกรรมภายในวันที่ 5 สิงหาคม', null, false),

@@ -1,6 +1,6 @@
 /**
  * Generated from the live project (hmkciwgzbdszsgnbeakc) via
- * `generate_typescript_types` after migrations 0001–0025 were applied live
+ * `generate_typescript_types` after migrations 0001–0029 were applied live
  * (2026-08-03/04). Genuinely regenerated each time a migration adds/removes
  * a column or table — do not hand-patch this file; the discipline that
  * broke down before (a hand-patched type drifting from the live schema) is
@@ -13,6 +13,9 @@
  * `profiles.citizen_id` appears in this type because the column exists, but
  * it is NOT selectable by `authenticated`/`anon` at runtime — see
  * 0005_citizen_id_column_grants.sql. Read it only via `get_citizen_id()`.
+ * `profiles.email` is also unselectable by `anon` (0026 grants anon a
+ * narrower column allow-list than `authenticated` gets) — see
+ * services/members.ts's `includeEmail` split.
  *
  * `attendance`'s `gps_lat`/`gps_lng`/`device_fingerprint`/`browser`/`ip`
  * columns are similarly present in the type but not selectable — see
@@ -37,6 +40,18 @@
  * DB-level CHECK restricting it to the FlipHTML5 host pattern (0021,
  * superseding 0013's original AnyFlip constraint) — see lib/fliphtml5.ts
  * for the matching app-layer check.
+ *
+ * `books` (0027–0029) is a separate table from `documents`, not an
+ * extension of it — see 0027's header comment for why (documents.status is
+ * welded to the §12 signature workflow, and documents deliberately has no
+ * owner-DELETE policy). `academic_year` here is the 4-digit Buddhist year
+ * (e.g. 2569), NOT the 2-digit form `profiles.academic_year` uses — same
+ * name, different unit, do not conflate them. `pdf_path`/`cover_path` are
+ * Storage object paths in the private `books`/`book-covers` buckets, not
+ * URLs — a signed URL is minted per request (see lib/books.ts), which is
+ * what keeps a draft's PDF unguessable while it's unpublished. Publishing
+ * is gated on aft_teacher/admin (`books_staff_all`, 0028); an owner can
+ * only ever write `status = 'draft'` (`books_update_own_draft`).
  */
 
 export type Json =
@@ -197,6 +212,82 @@ export type Database = {
             columns: ["student_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      books: {
+        Row: {
+          academic_year: number
+          cover_path: string | null
+          created_at: string
+          description: string | null
+          flipbook_url: string | null
+          id: string
+          owner_id: string | null
+          pdf_path: string | null
+          published_at: string | null
+          published_by: string | null
+          season: number
+          source_document_id: string | null
+          status: Database["public"]["Enums"]["book_status"]
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          academic_year: number
+          cover_path?: string | null
+          created_at?: string
+          description?: string | null
+          flipbook_url?: string | null
+          id?: string
+          owner_id?: string | null
+          pdf_path?: string | null
+          published_at?: string | null
+          published_by?: string | null
+          season: number
+          source_document_id?: string | null
+          status?: Database["public"]["Enums"]["book_status"]
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          academic_year?: number
+          cover_path?: string | null
+          created_at?: string
+          description?: string | null
+          flipbook_url?: string | null
+          id?: string
+          owner_id?: string | null
+          pdf_path?: string | null
+          published_at?: string | null
+          published_by?: string | null
+          season?: number
+          source_document_id?: string | null
+          status?: Database["public"]["Enums"]["book_status"]
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "books_owner_id_fkey"
+            columns: ["owner_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "books_published_by_fkey"
+            columns: ["published_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "books_source_document_id_fkey"
+            columns: ["source_document_id"]
+            isOneToOne: true
+            referencedRelation: "documents"
             referencedColumns: ["id"]
           },
         ]
@@ -559,6 +650,7 @@ export type Database = {
     }
     Enums: {
       activity_status: "pending" | "completed" | "cancelled"
+      book_status: "draft" | "published"
       document_status: "draft" | "signed" | "pending_approval" | "official"
       notification_type:
         | "meeting"
@@ -702,6 +794,7 @@ export const Constants = {
   public: {
     Enums: {
       activity_status: ["pending", "completed", "cancelled"],
+      book_status: ["draft", "published"],
       document_status: ["draft", "signed", "pending_approval", "official"],
       notification_type: [
         "meeting",

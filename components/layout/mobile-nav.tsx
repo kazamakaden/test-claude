@@ -1,34 +1,61 @@
 "use client";
 
+import Link from "next/link";
 import { useRef, useState } from "react";
 import { MenuIcon, type MenuIconHandle } from "@animateicons/react/lucide";
+import { LogOut, Settings, User } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useReducedMotion } from "@/hooks/use-reduced-motion";
 import {
   Sheet,
   SheetContent,
+  SheetFooter,
   SheetHeader,
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { NavLinks } from "@/components/layout/nav-links";
 import { Logo } from "@/components/layout/logo";
+import { LanguageToggle } from "@/components/layout/language-toggle";
+import { ThemeToggle } from "@/components/layout/theme-toggle";
+import { signOut } from "@/actions/auth";
+import { getInitials } from "@/lib/utils";
 import type { NavItem } from "@/lib/navigation";
 import type { Locale } from "@/lib/i18n/config";
+import type { Role } from "@/types/auth";
 import type { Dictionary } from "@/types/i18n";
 
+/**
+ * UserMenu is `hidden lg:block` (top-nav.tsx), so below 1024px this sheet
+ * is the ONLY place sign-out, the theme toggle, and the language toggle
+ * exist at all — a previously-undetected gap: there used to be no way to
+ * do any of those three things on a narrow viewport. Fixed by rendering
+ * the same user-menu affordances here, in the footer, rather than only the
+ * nav links.
+ */
 export function MobileNav({
   items,
   lang,
+  role,
+  fullName,
+  avatarUrl,
+  email,
   dict,
 }: {
   items: NavItem[];
   lang: Locale;
+  role: Role;
+  fullName: string | null;
+  avatarUrl: string | null;
+  email: string | null;
   dict: Dictionary;
 }) {
   const [open, setOpen] = useState(false);
   const menuIconRef = useRef<MenuIconHandle>(null);
   const prefersReducedMotion = useReducedMotion();
+  const initials = getInitials(fullName);
 
   // Driven from the button rather than the icon's own hover — Button sets
   // [&_svg]:pointer-events-none, so the icon never sees mouse events.
@@ -76,6 +103,67 @@ export function MobileNav({
             onNavigate={() => setOpen(false)}
           />
         </nav>
+        <SheetFooter className="gap-3 border-t border-border">
+          {role !== "guest" ? (
+            <>
+              {fullName || email ? (
+                <div className="flex items-center gap-2">
+                  <Avatar size="sm">
+                    <AvatarImage src={avatarUrl ?? undefined} referrerPolicy="no-referrer" />
+                    <AvatarFallback>{initials ?? <User className="size-4" />}</AvatarFallback>
+                  </Avatar>
+                  <div className="flex flex-col overflow-hidden">
+                    {fullName ? (
+                      <span className="truncate text-sm font-medium text-foreground">{fullName}</span>
+                    ) : null}
+                    {email ? <span className="truncate text-xs text-muted-foreground">{email}</span> : null}
+                  </div>
+                </div>
+              ) : null}
+              <div className="flex flex-col gap-1">
+                <Button
+                  variant="ghost"
+                  className="justify-start"
+                  nativeButton={false}
+                  render={<Link href={`/${lang}/profile`} onClick={() => setOpen(false)} />}
+                >
+                  <User className="size-4" aria-hidden />
+                  {dict.nav.profile}
+                </Button>
+                <Button
+                  variant="ghost"
+                  className="justify-start"
+                  onClick={() => toast.info(dict.common.comingSoon)}
+                >
+                  <Settings className="size-4" aria-hidden />
+                  {dict.common.settings}
+                </Button>
+                <Button
+                  variant="ghost"
+                  className="justify-start text-destructive hover:bg-destructive/10 hover:text-destructive"
+                  onClick={() => {
+                    setOpen(false);
+                    void signOut(lang);
+                  }}
+                >
+                  <LogOut className="size-4" aria-hidden />
+                  {dict.common.signOut}
+                </Button>
+              </div>
+            </>
+          ) : (
+            <Button
+              nativeButton={false}
+              render={<Link href={`/${lang}/login`} onClick={() => setOpen(false)} />}
+            >
+              {dict.nav.login}
+            </Button>
+          )}
+          <div className="flex items-center gap-1">
+            <ThemeToggle label={dict.common.toggleTheme} />
+            <LanguageToggle lang={lang} label={dict.common.toggleLanguage} />
+          </div>
+        </SheetFooter>
       </SheetContent>
     </Sheet>
   );

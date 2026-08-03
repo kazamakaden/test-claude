@@ -1,27 +1,100 @@
+import Link from "next/link";
+import { Suspense } from "react";
+import { Plus } from "lucide-react";
 import { getDictionary } from "@/lib/i18n/get-dictionary";
-import { listDocuments } from "@/services/documents";
-import { BookShelf } from "@/components/documents/book-shelf";
+import { getRole } from "@/lib/auth/get-role";
+import { can } from "@/lib/auth/permissions";
+import { createClient } from "@/lib/supabase/server";
+import { parseBooksSearchParams, BOOKS_PER_PAGE_SIZE } from "@/schemas/books";
+import { listBooks, getBookYears } from "@/services/books";
+import { BooksFilters } from "@/components/books/books-filters";
+import { BooksShelf } from "@/components/books/books-shelf";
+import { BooksShelfSkeleton } from "@/components/books/books-shelf-skeleton";
+import { Pagination } from "@/components/table/pagination";
+import { Button } from "@/components/ui/button";
 import type { Locale } from "@/lib/i18n/config";
+import type { Dictionary } from "@/types/i18n";
+
+async function BooksResults({
+  filters,
+  pathname,
+  searchParams,
+  lang,
+  dict,
+}: {
+  filters: ReturnType<typeof parseBooksSearchParams>;
+  pathname: string;
+  searchParams: URLSearchParams;
+  lang: Locale;
+  dict: Dictionary;
+}) {
+  const [role, { rows, total }] = await Promise.all([getRole(), listBooks(filters)]);
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  const isStaff = can(role, "document:approve");
+
+  return (
+    <div className="flex flex-col gap-4">
+      <BooksShelf books={rows} viewerId={user?.id ?? null} isStaff={isStaff} lang={lang} dict={dict} />
+      <Pagination
+        page={filters.page}
+        perPage={BOOKS_PER_PAGE_SIZE}
+        total={total}
+        pathname={pathname}
+        searchParams={searchParams}
+        dict={dict}
+      />
+    </div>
+  );
+}
 
 export default async function DocumentsPage({
   params,
+  searchParams: rawSearchParams,
 }: {
   params: Promise<{ lang: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const { lang: rawLang } = await params;
   const lang = rawLang as Locale;
-  const [dict, documents] = await Promise.all([getDictionary(lang), listDocuments()]);
+  const rawParams = await rawSearchParams;
+  const [dict, role, years] = await Promise.all([getDictionary(lang), getRole(), getBookYears()]);
+
+  const filters = parseBooksSearchParams(rawParams);
+  const pathname = `/${lang}/documents`;
+  const searchParams = new URLSearchParams(
+    Object.entries(rawParams).flatMap(([k, v]) =>
+      v === undefined ? [] : [[k, Array.isArray(v) ? v[0] : v]]
+    ) as [string, string][]
+  );
+  const suspenseKey = JSON.stringify(filters);
+  const canAdd = can(role, "workspace:access");
 
   return (
     <div className="mx-auto flex max-w-7xl flex-col gap-6 px-4 py-8 sm:px-6 lg:px-8">
-      <div className="flex flex-col gap-1">
-        <h1 className="text-gradient-brand font-heading text-2xl font-semibold tracking-tight">
-          {dict.nav.documents}
-        </h1>
-        <p className="text-sm text-muted-foreground">{dict.documents.description}</p>
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div className="flex flex-col gap-1">
+          <h1 className="text-gradient-brand font-heading text-2xl font-semibold tracking-tight">
+            {dict.nav.documents}
+          </h1>
+          <p className="text-sm text-muted-foreground">{dict.documents.description}</p>
+        </div>
+        {canAdd ? (
+          <Button nativeButton={false} render={<Link href={`/${lang}/books/new`} />}>
+            <Plus className="size-4" aria-hidden />
+            {dict.documents.addBookCta}
+          </Button>
+        ) : null}
       </div>
 
-      <BookShelf documents={documents} lang={lang} dict={dict} />
+      <BooksFilters years={years} lang={lang} dict={dict} />
+
+      <Suspense key={suspenseKey} fallback={<BooksShelfSkeleton />}>
+        <BooksResults filters={filters} pathname={pathname} searchParams={searchParams} lang={lang} dict={dict} />
+      </Suspense>
     </div>
   );
 }

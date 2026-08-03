@@ -11,10 +11,16 @@ import type { Dictionary } from "@/types/i18n";
 export function TopNav({
   lang,
   role,
+  fullName,
+  avatarUrl,
+  email,
   dict,
 }: {
   lang: Locale;
   role: Role;
+  fullName: string | null;
+  avatarUrl: string | null;
+  email: string | null;
   dict: Dictionary;
 }) {
   const items = navFor(role);
@@ -34,9 +40,17 @@ export function TopNav({
             <NotificationsButton label={dict.nav.notifications} />
           ) : null}
           <div className="hidden lg:block">
-            <UserMenu lang={lang} role={role} dict={dict} />
+            <UserMenu lang={lang} role={role} fullName={fullName} avatarUrl={avatarUrl} email={email} dict={dict} />
           </div>
-          <MobileNav items={items} lang={lang} dict={dict} />
+          <MobileNav
+            items={items}
+            lang={lang}
+            role={role}
+            fullName={fullName}
+            avatarUrl={avatarUrl}
+            email={email}
+            dict={dict}
+          />
         </div>
       </div>
     </header>

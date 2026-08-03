@@ -2,9 +2,7 @@ import "server-only";
 import { createClient } from "@/lib/supabase/server";
 import type { Database } from "@/types/database";
 import type {
-  DocumentDetail,
   DocumentStatus,
-  DocumentSummary,
   DocumentWorkflowDetail,
   DocumentWorkflowFilters,
   DocumentWorkflowSummary,
@@ -17,59 +15,14 @@ import type {
 } from "@/schemas/documents";
 import { DOCUMENTS_PER_PAGE_SIZE } from "@/schemas/documents";
 import { toFlipHtml5EmbedUrl } from "@/lib/fliphtml5";
-
-// RLS (documents_select_official, 0008_dashboard_rls.sql) already scopes
-// anon/authenticated to status = 'official' or their own rows — no status
-// filter needed here, same as services/activities.ts relying on RLS rather
-// than app-layer role branching.
-export async function listDocuments(): Promise<DocumentSummary[]> {
-  const supabase = await createClient();
-  const { data, error } = await supabase
-    .from("documents")
-    .select("id, title, description, published_at, status")
-    .eq("status", "official")
-    .order("published_at", { ascending: false });
-
-  if (error || !data) return [];
-
-  return data.map((doc) => ({
-    id: doc.id,
-    title: doc.title,
-    description: doc.description,
-    publishedAt: doc.published_at,
-  }));
-}
-
-/**
- * A missing row (RLS hid it, or the id doesn't exist) returns null — the
- * caller calls notFound(), which is correct: a guest requesting a draft's id
- * genuinely gets no row back, indistinguishable from a bad id, and that is
- * the right behavior (§19, never leak existence via a different error).
- */
-export async function getDocument(id: string): Promise<DocumentDetail | null> {
-  const supabase = await createClient();
-  const { data, error } = await supabase
-    .from("documents")
-    .select("id, title, description, published_at, flipbook_url, status")
-    .eq("id", id)
-    .eq("status", "official")
-    .maybeSingle();
-
-  if (error || !data) return null;
-
-  return {
-    id: data.id,
-    title: data.title,
-    description: data.description,
-    publishedAt: data.published_at,
-    flipbookUrl: data.flipbook_url,
-  };
-}
+import { deriveAcademicYearAndSeason } from "@/lib/books";
 
 // ---------------------------------------------------------------------
-// §12/§17 draft -> signed -> pending_approval -> official workflow.
-// Distinct from listDocuments/getDocument above, which serve the public
-// official-only shelf and reader.
+// §12/§17 draft -> signed -> pending_approval -> official workflow. The
+// public-facing shelf/reader reads from `books` (services/books.ts), not
+// this table directly — approveDocument below bridges an approved row
+// into `books` — so everything from here down is the private draft/review
+// side only.
 // ---------------------------------------------------------------------
 
 /** §12 → snake_case column mapping, whitelisted so it's never interpolated raw into order(). */
@@ -299,16 +252,54 @@ export async function submitDocumentForApproval(documentId: string) {
 }
 
 /**
- * Sets published_at, which is what wires this into the already-built
- * public shelf (listDocuments above orders by published_at desc where
- * status='official') — without it, a newly-approved document would never
- * surface on /documents.
+ * Sets published_at, then bridges onto the public books shelf (confirmed
+ * decision: an approved document auto-lists as a book) — upserted on
+ * source_document_id (0027's unique constraint) so this stays idempotent
+ * rather than risking a duplicate. Only a document that actually has a
+ * book link is bridged: one with neither a link nor a PDF would violate
+ * books_published_needs_content (0027) outright, and there'd be nothing to
+ * read anyway. The bridge is best-effort and never blocks or fails the
+ * underlying document approval — the §12 trigger/RLS/UI stay untouched.
  */
 export async function approveDocument(documentId: string) {
-  return transitionDocument(documentId, {
+  const result = await transitionDocument(documentId, {
     status: "official",
     published_at: new Date().toISOString(),
   });
+  if (!result.ok) return result;
+
+  const supabase = await createClient();
+  const { data: doc } = await supabase
+    .from("documents")
+    .select("title, description, flipbook_url, owner_id")
+    .eq("id", documentId)
+    .maybeSingle();
+
+  if (doc?.flipbook_url) {
+    const now = new Date();
+    const { academicYear, season } = deriveAcademicYearAndSeason(now);
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    await supabase.from("books").upsert(
+      {
+        source_document_id: documentId,
+        title: doc.title,
+        description: doc.description,
+        flipbook_url: doc.flipbook_url,
+        academic_year: academicYear,
+        season,
+        status: "published",
+        owner_id: doc.owner_id,
+        published_at: now.toISOString(),
+        published_by: user?.id ?? null,
+      },
+      { onConflict: "source_document_id" }
+    );
+  }
+
+  return result;
 }
 
 export async function rejectDocument(input: RejectDocumentInput) {

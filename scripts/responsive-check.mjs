@@ -84,15 +84,13 @@ const PUBLIC_PAGES = [
   "/th/pending",
   "/th/announcements",
   "/th/activities",
+  // The shelf now reads from `books` (0027–0029), not `documents` directly
+  // — every seeded book is 'draft' (no verified FlipHTML5 URL was
+  // available to seed a legally-publishable row — see supabase/seed.sql),
+  // so a guest here correctly sees the empty "no published books yet"
+  // shelf. /th/documents/<id> moved to AUTH_PAGES below, since only a
+  // signed-in staff session can actually see any of the seeded rows.
   "/th/documents",
-  // A seeded document id, kept stable across re-seeds — see supabase/seed.sql.
-  // Its flipbook_url may or may not be attached (0021_documents_fliphtml5.sql
-  // switched hosts and no verified FlipHTML5 demo URL was available to
-  // re-seed — see README's "E-books: FlipHTML5"), so this now mostly
-  // exercises the reader page's "book not attached" empty state rather than
-  // a real iframe, but it's still the one non-shelf /documents/[id] page in
-  // this list either way.
-  "/th/documents/a2722df0-af24-47b3-84d1-bb5f731bc70b",
   "/th/calendar",
   // Moved from AUTH_PAGES: /members is now public (§5) — guests read
   // name/student id/class/year/department/club, email stays hidden. The
@@ -113,6 +111,12 @@ const AUTH_PAGES = [
   "/th/notifications",
   "/th/profile",
   "/th/approvals",
+  "/th/books/new",
+  // A seeded book id (see supabase/seed.sql) — draft, owner_id null, so
+  // only visible to a staff session (books_select_staff, 0028), which is
+  // what this authenticated pass runs as. Exercises the unified
+  // detail/edit/publish page, not just the shelf.
+  "/th/documents/781d3f9e-154f-4e4b-bde9-5dd66542d937",
 ];
 
 // ---------------------------------------------------------------------------
