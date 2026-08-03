@@ -1,11 +1,11 @@
 import { BookX } from "lucide-react";
-import { isAnyFlipEmbedUrl, toAnyFlipEmbedUrl } from "@/lib/anyflip";
+import { isFlipHtml5EmbedUrl, toFlipHtml5EmbedUrl } from "@/lib/fliphtml5";
 import type { Dictionary } from "@/types/i18n";
 
 /**
  * The last line of defense before a DB value is ever placed in an iframe
- * src — a flipbook_url that fails isAnyFlipEmbedUrl (should be impossible
- * given the DB CHECK constraint in 0013_documents_ebook.sql, but never
+ * src — a flipbook_url that fails isFlipHtml5EmbedUrl (should be impossible
+ * given the DB CHECK constraint in 0021_documents_fliphtml5.sql, but never
  * trust a single layer per §19) renders the empty state instead of the
  * frame.
  */
@@ -19,7 +19,7 @@ export function FlipbookViewer({
   dict: Dictionary;
 }) {
   const d = dict.documents;
-  const embedUrl = flipbookUrl && isAnyFlipEmbedUrl(flipbookUrl) ? toAnyFlipEmbedUrl(flipbookUrl) : null;
+  const embedUrl = flipbookUrl && isFlipHtml5EmbedUrl(flipbookUrl) ? toFlipHtml5EmbedUrl(flipbookUrl) : null;
 
   if (!embedUrl) {
     return (

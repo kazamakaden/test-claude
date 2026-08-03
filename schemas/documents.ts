@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { isFlipHtml5EmbedUrl } from "@/lib/fliphtml5";
 
 const documentIdSchema = z.uuid();
 
@@ -46,6 +47,20 @@ export const saveDocumentDraftSchema = z.object({
   documentId: z.uuid(),
   title: z.string().trim().min(1, { message: "titleRequired" }).max(200),
   content: z.string().trim().max(20000).nullable().catch(null),
+  description: z.string().trim().max(500).nullable().catch(null),
+  // "" (an empty form field) means "no book attached yet", not a validation
+  // error — only a genuinely non-empty value gets checked against the
+  // FlipHTML5 allow-list (lib/fliphtml5.ts), same shape as the AnyFlip-era
+  // check this replaces.
+  flipbookUrl: z
+    .string()
+    .trim()
+    .nullable()
+    .catch(null)
+    .transform((value) => (value ? value : null))
+    .refine((value) => value === null || isFlipHtml5EmbedUrl(value), {
+      message: "flipbookUrlInvalid",
+    }),
 });
 export type SaveDocumentDraftInput = z.infer<typeof saveDocumentDraftSchema>;
 

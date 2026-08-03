@@ -794,6 +794,49 @@ confirm a fresh signup — both magic-link and Google — actually lands
 *no* `auth.users` row behind, not just a generic error; confirm an
 admin-approved role sticks and reaches the dashboard.
 
+**Magic link replaced with password sign-in; sign-up and reset pages
+added; e-book host switched AnyFlip → FlipHTML5, attaching a book moved
+into the §12 draft workflow.** `signInWithOtp` (`actions/auth.ts`) is gone
+— `/login` now takes email + password (`signInWithPassword`), `/signup`
+registers a new account with email confirmation required
+(`signUpWithPassword`), and `/forgot-password` → `/reset-password` recovers
+a forgotten one (`requestPasswordReset` / `updatePassword`), the latter via
+a new `app/[lang]/auth/reset/route.ts` kept deliberately separate from the
+existing `/auth/callback` so a recovery code can never land anywhere but
+`/reset-password` — preserving both routes' "redirect target is never
+caller-supplied" property. Every action collapses its failures into one
+generic message (`invalidCredentials`, or a uniform "check your email" panel
+regardless of whether the address exists) — the same account-enumeration
+guard `signInWithOtp` was already built around. `handle_new_user()` needed
+no changes: it fires on any `auth.users` insert regardless of provider, so
+password signups still land `pending` and still fail the `profiles.email`
+CHECK for a non-college address. Google sign-in is now offered on both
+`/login` and `/signup`, via a new shared `components/auth/google-sign-in.tsx`
+extracted from the login form. Not verified live, same constraint as above —
+password signup landing `pending`, the confirmation/reset email round-trip,
+and an existing account being able to set a password via the reset flow all
+still need the live proof pass.
+
+`lib/anyflip.ts` → `lib/fliphtml5.ts` (`0021_documents_fliphtml5.sql`
+replaces `0013`'s AnyFlip CHECK constraint with a FlipHTML5 one, nulling any
+existing non-matching `flipbook_url` first since there's no cross-host URL
+translation). More significant than the host rename: attaching a book is no
+longer Table-Editor-only — `flipbook_url` and `description` are now fields
+on the owner's draft (`schemas/documents.ts`'s `saveDocumentDraftSchema`,
+`components/documents/document-form.tsx`), so a book flows through the
+existing draft → sign → submit → review → approve workflow instead of being
+pasted straight onto a published row; the document detail page renders a
+live `FlipbookViewer` preview for anyone who isn't the owner mid-edit, so a
+reviewer can check the book before approving it. No new RLS was needed —
+the owner's existing draft-UPDATE policy (`0017`) already covers the two
+new columns, and only `document:approve` can reach `official`. **No
+verified demo book is seeded**: this session's outbound network policy
+blocked every request to `fliphtml5.com` (proxy returned `403` on
+`CONNECT`), so — unlike the AnyFlip-era seed, which carried one row with a
+real, checked-reachable book — all three seeded documents now have
+`flipbook_url = null`. `docs/add-ebook.md` was rewritten around the in-app
+flow, demoting the Table Editor to an admin-only fallback.
+
 ### ❌ Remaining
 
 * **RLS policy performance (`auth_rls_initplan`, `multiple_permissive_policies`)**
@@ -821,8 +864,10 @@ admin-approved role sticks and reaches the dashboard.
   gradient uses an inline `style` attribute (React's `style` prop always
   renders as `style="..."`, which a strict `style-src` without
   `'unsafe-inline'` blocks), Turnstile needs `challenges.cloudflare.com` in
-  both `script-src` and `frame-src`, and the new AnyFlip viewer needs
-  `anyflip.com` in `frame-src`. A correct policy needs to be built with all
+  both `script-src` and `frame-src`, and the flipbook viewer needs
+  `fliphtml5.com` (and its `online.` reader subdomain) in `frame-src` — was
+  `anyflip.com` before the §12 e-book host switch. A correct policy needs to
+  be built with all
   three allowances and then verified live on every page/theme (login
   especially, since a misconfigured CSP silently breaking Turnstile would be
   worse than having no CSP at all) — not assembled from a generic template

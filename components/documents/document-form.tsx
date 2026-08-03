@@ -41,6 +41,9 @@ export function DocumentForm({
   const d = dict.documents.manage;
 
   const errorMessage = state && !state.ok ? d.form.errors[state.messageKey] : undefined;
+  const titleError = state && !state.ok && state.messageKey === "titleRequired" ? errorMessage : undefined;
+  const flipbookError =
+    state && !state.ok && state.messageKey === "flipbookUrlInvalid" ? errorMessage : undefined;
 
   useEffect(() => {
     if (errorMessage) toast.error(errorMessage);
@@ -56,17 +59,41 @@ export function DocumentForm({
         <input type="hidden" name="documentId" value={document.id} />
       ) : null}
 
-      <FormField name="title" invalid={Boolean(errorMessage)}>
+      <FormField name="title" invalid={Boolean(titleError)}>
         <FormLabel>{d.form.titleLabel}</FormLabel>
         <Input name="title" required maxLength={200} defaultValue={document?.title} />
-        <FormError>{errorMessage}</FormError>
+        <FormError>{titleError}</FormError>
       </FormField>
 
       {mode === "edit" ? (
-        <FormField name="content">
-          <FormLabel>{d.form.contentLabel}</FormLabel>
-          <Textarea name="content" maxLength={20000} rows={12} defaultValue={document?.draft?.content ?? ""} />
-        </FormField>
+        <>
+          <FormField name="content">
+            <FormLabel>{d.form.contentLabel}</FormLabel>
+            <Textarea
+              name="content"
+              maxLength={20000}
+              rows={12}
+              defaultValue={document?.draft?.content ?? ""}
+            />
+          </FormField>
+
+          <FormField name="description">
+            <FormLabel>{d.form.descriptionLabel}</FormLabel>
+            <Textarea name="description" maxLength={500} rows={3} defaultValue={document?.description ?? ""} />
+          </FormField>
+
+          <FormField name="flipbookUrl" invalid={Boolean(flipbookError)}>
+            <FormLabel>{d.form.flipbookUrlLabel}</FormLabel>
+            <Input
+              name="flipbookUrl"
+              type="url"
+              placeholder="https://fliphtml5.com/xxxx/yyyy/"
+              defaultValue={document?.flipbookUrl ?? ""}
+            />
+            <p className="text-sm text-muted-foreground">{d.form.flipbookUrlHint}</p>
+            <FormError>{flipbookError}</FormError>
+          </FormField>
+        </>
       ) : null}
 
       <SubmitButton

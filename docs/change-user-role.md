@@ -51,7 +51,7 @@ select email, role from public.profiles where email = 'someone@udontech.ac.th';
   (next page load / next server request that calls `getRole()`). If you
   change your own role while logged into the app, reload the page.
 - **Every new signup lands `pending`**, regardless of address shape or
-  sign-in method (magic link or Google) — there is no separate pre-approval
+  sign-up method (password or Google) — there is no separate pre-approval
   step anymore (`public.approved_accounts` no longer exists as of
   `0020_pending_signup_flow.sql`; see `CLAUDE.md` §0 for what it replaced).
   A `pending` user is redirected to `/pending` until an admin assigns them a

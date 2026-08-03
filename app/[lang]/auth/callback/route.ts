@@ -3,8 +3,10 @@ import { createClient } from "@/lib/supabase/server";
 import { isLocale, defaultLocale } from "@/lib/i18n/config";
 
 /**
- * Magic-link and Google OAuth landing point. The redirect target is fixed
- * at /dashboard or /pending — never reflects a caller-supplied `next`
+ * Signup-confirmation and Google OAuth landing point (password recovery
+ * has its own route, app/[lang]/auth/reset/route.ts, since a recovery code
+ * must land on /reset-password rather than here). The redirect target is
+ * fixed at /dashboard or /pending — never reflects a caller-supplied `next`
  * param (that would be an open redirect).
  */
 export async function GET(request: NextRequest, { params }: { params: Promise<{ lang: string }> }) {

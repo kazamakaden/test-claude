@@ -29,8 +29,9 @@
  * `documents.flipbook_url`/`cover_url`/`description`/`published_at` (0013)
  * are public book metadata, not sensitive — no column-grant restriction
  * needed, unlike citizen_id/attendance above. `flipbook_url` also carries a
- * DB-level CHECK restricting it to the AnyFlip host pattern — see
- * lib/anyflip.ts for the matching app-layer check.
+ * DB-level CHECK restricting it to the FlipHTML5 host pattern (0021,
+ * superseding 0013's original AnyFlip constraint) — see lib/fliphtml5.ts
+ * for the matching app-layer check.
  */
 
 export type Json =

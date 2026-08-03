@@ -59,7 +59,7 @@ psql "postgresql://postgres.hmkciwgzbdszsgnbeakc@aws-0-<region>.pooler.supabase.
 
 `supabase/migrations/0001` through `0015` were already applied by hand
 (SQL Editor / Supabase MCP), so the hosted project's own migration-history
-table has no record of them. **`supabase/migrations/0016` through `0020`**
+table has no record of them. **`supabase/migrations/0016` through `0021`**
 are **not yet applied**:
 
 * `0016`/`0017`/`0018` — the Projects/Documents draft → review → approve
@@ -71,6 +71,11 @@ are **not yet applied**:
   using a new enum value (`'pending'`) in the same transaction that added
   it, so if your tooling batches statements into one transaction, apply
   `0019` as a fully separate step first.
+* `0021` — switches the §12 e-book host from AnyFlip to FlipHTML5 (see
+  README.md's "E-books: FlipHTML5" section). Nulls out any existing
+  `flipbook_url` that can't match the new pattern before replacing the
+  CHECK constraint, so it's safe to run even against a project that already
+  has AnyFlip-era rows.
 
 ### Method 1 — SQL Editor (simplest, no CLI needed)
 
@@ -79,7 +84,8 @@ are **not yet applied**:
    paste its full contents, run it.
 3. Repeat for each remaining file **in order**: `0017_project_document_workflow_rls.sql`,
    `0018_transition_trigger_service_role_bypass.sql`,
-   `0019_add_pending_role.sql`, `0020_pending_signup_flow.sql`.
+   `0019_add_pending_role.sql`, `0020_pending_signup_flow.sql`,
+   `0021_documents_fliphtml5.sql`.
 
 **Order matters** — `0017`'s RLS policies reference columns `0016` adds,
 `0018` replaces functions `0016` creates, and `0020` requires `0019`'s enum
@@ -99,6 +105,8 @@ done
 # run it as a separate psql invocation, not batched with 0020.
 psql "$DATABASE_URL" -f 0019_add_pending_role.sql -v ON_ERROR_STOP=1
 psql "$DATABASE_URL" -f 0020_pending_signup_flow.sql -v ON_ERROR_STOP=1
+
+psql "$DATABASE_URL" -f 0021_documents_fliphtml5.sql -v ON_ERROR_STOP=1
 ```
 
 `-v ON_ERROR_STOP=1` is important — without it, `psql` keeps going after a
@@ -118,17 +126,17 @@ npx supabase login                                   # opens a browser for an ac
 npx supabase link --project-ref hmkciwgzbdszsgnbeakc
 ```
 
-Then tell the CLI that `0001`–`0020` are already live, so it doesn't try
+Then tell the CLI that `0001`–`0021` are already live, so it doesn't try
 to replay them:
 
 ```bash
 npx supabase migration repair --status applied \
   0001 0002 0003 0004 0005 0006 0007 0008 0009 \
   0010 0011 0012 0013 0014 0015 0016 0017 0018 \
-  0019 0020
+  0019 0020 0021
 ```
 
-(If you applied `0016`–`0020` via Method 1/2 above *before* running
+(If you applied `0016`–`0021` via Method 1/2 above *before* running
 `repair`, include them in that list too — the point is the remote history
 table and the local migration files must agree on what's already applied
 before `db push` is safe to use.)
@@ -196,7 +204,7 @@ correct. At minimum:
    `draft` to `pending_approval` (bypassing the signature step) is actually
    rejected, not just assumed rejected because the code looks right.
 3. For `0019`/`0020` specifically: sign up with a genuinely new
-   `@udontech.ac.th` address (magic link or Google) and confirm the
+   `@udontech.ac.th` address (password sign-up or Google) and confirm the
    resulting `profiles` row has `role = 'pending'`, and that visiting
    `/th/dashboard` while signed in as that user redirects to `/th/pending`
    rather than looping back to `/th/login`. Then, as an admin, confirm

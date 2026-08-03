@@ -36,7 +36,7 @@ cp .env.example .env.local
 | `SUPABASE_JWKS_URL` | `https://<project>.supabase.co/auth/v1/.well-known/jwks.json` — read by `@supabase/server` |
 | `NEXT_PUBLIC_TURNSTILE_SITE_KEY` | Cloudflare Turnstile sitekey (public by design). Login form renders no CAPTCHA widget at all when unset — see "CAPTCHA + SMTP setup" below |
 
-Until `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` are set, sign-in falls back to a dev-only role cookie (the switcher in the bottom-right corner, development mode only). The moment both are set, that switcher disappears and local dev requires a real magic-link sign-in — see "Auth setup" below.
+Until `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` are set, sign-in falls back to a dev-only role cookie (the switcher in the bottom-right corner, development mode only). The moment both are set, that switcher disappears and local dev requires a real sign-in (password sign-up, or Google) — see "Auth setup" below.
 
 **`NEXT_PUBLIC_*` variables are baked into the client bundle at build time.** They must be present before `npm run build`, not just before `npm run start` — the most common deploy failure with this app.
 
@@ -99,28 +99,71 @@ confirmed live via `information_schema.role_routine_grants` immediately
 after applying `0011`, and worth knowing if you ever `CREATE OR REPLACE` a
 function that `0006` locked down: the revoke does not survive the replace.
 
+**`0021_documents_fliphtml5.sql`** switches the §12 e-book host from AnyFlip
+to FlipHTML5: it nulls out any existing `flipbook_url` that can't match the
+new pattern (there is no automatic cross-host URL translation), then
+replaces `0013`'s `documents_flipbook_url_is_anyflip` CHECK constraint with
+`documents_flipbook_url_is_fliphtml5`. See "E-books: FlipHTML5" below.
+
 ## Sign-up rule: every new account lands pending, an admin approves and assigns a role
 
 `0019_add_pending_role.sql` / `0020_pending_signup_flow.sql` **replace** an
 earlier pre-approval-roster design (see "Historical: the pre-approval
 allow-list" below for why and what changed). Current behaviour: anyone with
-an `@udontech.ac.th` address — magic link or Google — can sign in freely.
-`handle_new_user()` gives every new signup `role = 'pending'`, which holds
-guest-level permissions only (public content, no dashboard). An admin then
-opens `/approvals` (gated on `member:manage`), sees everyone waiting, and
-assigns their real role (`student` / `teacher` / `aft_teacher`) — granting
-`admin` through the UI is deliberately not offered; promote to admin
-directly in the database, out of band from this form.
+an `@udontech.ac.th` address — email/password sign-up or Google — can
+register freely. `handle_new_user()` gives every new signup `role =
+'pending'`, which holds guest-level permissions only (public content, no
+dashboard). An admin then opens `/approvals` (gated on `member:manage`),
+sees everyone waiting, and assigns their real role (`student` / `teacher` /
+`aft_teacher`) — granting `admin` through the UI is deliberately not
+offered; promote to admin directly in the database, out of band from this
+form.
 
 A pending user who tries to reach a gated page is redirected to `/pending`
 ("your account is awaiting approval"), not back to `/login` — see
 `deniedRedirectTarget()` in `lib/auth/require-role.ts`. The
 `@udontech.ac.th` domain restriction itself is unchanged and still enforced
 in three layers regardless of which sign-in method is used: Zod on the
-client, the same Zod schema again in the `signIn` Server Action, and a
-`CHECK (email like '%@udontech.ac.th')` constraint on `profiles.email`
-(`0001_auth.sql`) — the last of which is what actually protects the Google
-path below, since OAuth never touches the Server Action's Zod checks at all.
+client, the same Zod schema again in every auth Server Action
+(`actions/auth.ts`), and a `CHECK (email like '%@udontech.ac.th')`
+constraint on `profiles.email` (`0001_auth.sql`) — the last of which is what
+actually protects the Google path below, since OAuth never touches any
+Server Action's Zod checks at all.
+
+### Password sign-in, sign-up, and reset
+
+The login page (`/login`) takes an email + password (plus Google above it);
+there is no magic-link option anymore — `signInWithOtp` was replaced
+outright by `signInWithPassword` (`actions/auth.ts`), so an address with no
+password set cannot sign in until it goes through the reset flow below.
+`/signup` registers a new email/password account and requires clicking a
+confirmation link before the account is usable (`signUp`'s
+`emailRedirectTo` points at the existing `/auth/callback` route — the same
+one Google already used). `/forgot-password` → `/reset-password` covers a
+forgotten password: `resetPasswordForEmail` sends a recovery link to a
+**new**, dedicated `app/[lang]/auth/reset/route.ts` route (kept separate
+from `/auth/callback` so a recovery code can never be redirected anywhere
+but `/reset-password`, preserving that both routes' redirect targets are
+always hard-coded, never caller-supplied).
+
+Every one of `signInWithPassword` / `signUpWithPassword` /
+`requestPasswordReset` collapses its failure modes into one generic message
+(`invalidCredentials`, or a uniform "check your email" success either way)
+— never revealing whether a given `@udontech.ac.th` address is already
+registered, the same account-enumeration guard `signInWithOtp` was built
+around.
+
+Two settings this depends on, both in the Supabase dashboard, neither in
+this repo:
+
+* **Authentication → Providers → Email → "Confirm email" must stay ON.**
+  With it off, `signUp` hands back a usable session immediately and §19's
+  email-verification requirement silently stops being met.
+* **The mailer's send-rate cap now bites harder.** Whichever mailer is
+  active (see "CAPTCHA + SMTP setup" below) now serves signup-confirmation
+  and password-reset emails in addition to whatever it served before —
+  reconfiguring custom SMTP (rather than relying on Supabase's ~2/hour
+  built-in sender) matters more now than it did with magic-link-only auth.
 
 ### Google sign-in setup
 
@@ -147,7 +190,7 @@ email directly and signs out + redirects with a friendly message if it
 somehow gets past that, as defence in depth.
 
 **Turnstile does not cover the Google path.** The CAPTCHA lives inside the
-`signIn` Server Action (magic-link only); OAuth redirects straight to
+password sign-in/sign-up/reset Server Actions; OAuth redirects straight to
 Google and back, never through it. This is an accepted trade-off, the same
 shape as the already-documented JS-disabled trade-off below.
 
@@ -162,6 +205,36 @@ rejection path entirely — superseded, not deleted from history, because the
 (a `CREATE OR REPLACE FUNCTION` silently resetting `handle_new_user()`'s
 `EXECUTE` grant, twice) even though the feature they were part of no longer
 exists as shipped.
+
+## E-books: FlipHTML5
+
+The §12 e-book shelf (`/documents`) embeds books from
+[FlipHTML5](https://fliphtml5.com), replacing an earlier AnyFlip-based
+version (`0021_documents_fliphtml5.sql` supersedes `0013`'s AnyFlip CHECK
+constraint — see `CLAUDE.md` §0). `lib/fliphtml5.ts` is the single source of
+truth for what counts as a valid embed URL, shared by the write-time Zod
+check (`schemas/documents.ts`) and the reader iframe
+(`components/documents/flipbook-viewer.tsx`); both `fliphtml5.com/<id>/<book>`
+(the share link a person copies out of their dashboard) and
+`online.fliphtml5.com/<id>/<book>` (the reader host FlipHTML5's own embed
+code points at) are accepted and normalized to the `online.` form on save.
+
+Unlike the AnyFlip era, attaching a book is no longer a Table-Editor-only
+step — it's a field on the owner's draft (`components/documents/document-form.tsx`)
+that flows through the existing §12 draft → sign → submit → review →
+approve workflow, so a book can't reach the public shelf without a reviewer
+seeing it first (the document detail page renders a live preview via
+`FlipbookViewer` for anyone who isn't the owner mid-edit). See
+`docs/add-ebook.md` for the full walkthrough, including the Table Editor
+fallback that still exists for admin-only one-off fixes.
+
+**No verified demo book is seeded.** The previous AnyFlip-era seed carried
+one row with a real, checked-reachable book; this session's outbound
+network policy blocked every request to `fliphtml5.com` (proxy returned
+`403` on `CONNECT`), so no replacement FlipHTML5 URL could be verified
+before committing it — all three seeded rows currently have
+`flipbook_url = null` ("book not attached"). Attach a real one via
+`docs/add-ebook.md` once you can verify a URL by hand.
 
 ## Responsive check
 
@@ -199,10 +272,11 @@ enters this repo:
    `lib/turnstile.ts`.
 
    **Trade-off, not a bug:** a CAPTCHA token cannot be produced without
-   JavaScript, so login can no longer *complete* with JS disabled once
-   Turnstile is configured. Server-side Zod re-validation in `signIn` still
-   runs regardless (a `gmail.com` address is still rejected server-side with
-   JS off) — only the final submit now requires JS. See `CLAUDE.md` §0.
+   JavaScript, so login/signup/reset can no longer *complete* with JS
+   disabled once Turnstile is configured. Server-side Zod re-validation in
+   `actions/auth.ts` still runs regardless (a `gmail.com` address is still
+   rejected server-side with JS off) — only the final submit now requires
+   JS. See `CLAUDE.md` §0.
 
    **Local development without a Cloudflare account:** for a fresh clone with
    no widget yet, `NEXT_PUBLIC_TURNSTILE_SITE_KEY=1x00000000000000000000AA` —
@@ -210,7 +284,8 @@ enters this repo:
    that always passes — renders the real widget and self-completes with no
    external calls. **Never let a test key reach production** —
    `lib/turnstile.ts`'s `assertTurnstileSafeForProduction()` throws at the
-   top of `signIn` if `NODE_ENV === "production"` and the sitekey is either
+   top of every password-auth Server Action if `NODE_ENV === "production"`
+   and the sitekey is either
    unset or a known test key, and `lib/env-guard.ts`'s
    `assertDeployEnvConfigured()` fails the Vercel Production build outright
    for the same condition (see "Deploying to Vercel" below) — so
@@ -256,8 +331,8 @@ them are missing or the Turnstile key is a test key, listing every problem in
 one combined error rather than failing once per missing var. This is a
 deploy-time backstop for the same condition
 `assertTurnstileSafeForProduction()` (`lib/turnstile.ts`) already catches at
-runtime in `signIn` — the build guard means that runtime throw should never
-actually be reached.
+runtime in every password-auth Server Action — the build guard means that
+runtime throw should never actually be reached.
 
 Required in Vercel → Settings → Environment Variables (Production **and**
 Preview scope):
@@ -280,51 +355,55 @@ Two more things, or the deploy still fails at the same step:
    build actually runs.
 2. **Add the production URL to Supabase → Authentication → URL
    Configuration** (a `https://<your-domain>/**` redirect entry, alongside
-   the existing `http://localhost:59500/**`). `signIn` builds
-   `emailRedirectTo` from the request's `origin` header (`actions/auth.ts`),
-   so an un-allow-listed production origin makes Supabase reject the magic
-   link at send time.
+   the existing `http://localhost:59500/**`). `signUpWithPassword` and
+   `signInWithGoogle` both build their redirect from the request's `origin`
+   header (`actions/auth.ts`), so an un-allow-listed production origin makes
+   Supabase reject the confirmation/OAuth link at send time.
 
 A third setting is easy to miss because it isn't in this repo at all:
 **Supabase → Authentication → Sign In / Providers → "Allow new users to sign
-up"** must be on. If it's off, every first-time magic-link sign-in — not just
-a broken demo account — is rejected with `422 signup_disabled` at the
-`/otp` step, before `handle_new_user()`'s own `approved_accounts` gate (§19)
-ever runs. This project relies on that trigger, not the blunt project-level
-toggle, to control who can actually get a `profiles` row.
+up"** must be on. If it's off, every first-time sign-up — not just a broken
+demo account — is rejected with `422 signup_disabled` at the `/signup` or
+OAuth step, before `handle_new_user()` ever runs. This project relies on
+that trigger (which lands every signup as `pending`, see "Sign-up rule"
+above), not the blunt project-level toggle, to control who can actually get
+a `profiles` row.
 
 The `SUPABASE_SECRET_KEY` / `SUPABASE_URL` / `SUPABASE_PUBLISHABLE_KEY` /
 `SUPABASE_JWKS_URL` variables are for the future `@supabase/server` Edge
 Functions phase — nothing in the deployed app reads them yet, so there's no
 need to set them on Vercel until that phase starts.
 
-## Auth setup (magic link + Google)
+## Auth setup (password + Google)
 
-Login is restricted to `@udontech.ac.th`, via Supabase magic link and,
+Login is restricted to `@udontech.ac.th`, via email/password and,
 optionally, Google (see "Google sign-in setup" above). After creating the
 project:
 
 1. Supabase dashboard → **Authentication → URL Configuration** → add
    `http://localhost:59500/**` (and your production URL) to the redirect
-   allow-list. Both magic links and OAuth fail silently if the callback URL
-   isn't allow-listed.
+   allow-list. Signup confirmation links, password-reset links, and OAuth
+   all fail silently if the callback URL isn't allow-listed.
 2. Apply all migrations above, in order.
-3. Sign in at `/th/login` with an `@udontech.ac.th` address (or the Google
-   button, if configured) — you land on `/th/auth/callback`, which
-   exchanges the code for a session and redirects to `/th/pending` (every
-   fresh signup) or `/th/dashboard` (once an admin has approved you — see
-   "Sign-up rule" above).
+3. Register at `/th/signup` with an `@udontech.ac.th` address (or use the
+   Google button, if configured), confirm via the email link, then sign in
+   at `/th/login` with the same email + password — you land on
+   `/th/auth/callback`, which exchanges the code for a session and
+   redirects to `/th/pending` (every fresh signup) or `/th/dashboard` (once
+   an admin has approved you — see "Sign-up rule" above). A forgotten
+   password is recovered at `/th/forgot-password`.
 
 ## Demo accounts
 
 One account per role (`student`, `teacher`, `aft_teacher`, `admin`),
 created via the Supabase Admin API with generated passwords and manually
 promoted past `pending` — credentials in `.demo-accounts.local.md`
-(git-ignored, never committed). The passwords work for API/automated
-testing only; the app's UI is magic-link/Google only, so browser login for
-a demo account needs Supabase dashboard → Authentication → Users →
-**Generate link**, pasted directly into a browser. Teardown SQL is in that
-same file — run it before any production cutover.
+(git-ignored, never committed). Since the app's UI now supports
+email/password sign-in directly, these credentials work for **both**
+API/automated testing and ordinary browser login at `/login` — no admin
+"Generate link" step needed anymore (that remains a fallback for an account
+whose password isn't known). Teardown SQL is in that same file — run it
+before any production cutover.
 
 ## Other scripts
 

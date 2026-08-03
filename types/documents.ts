@@ -42,6 +42,16 @@ export interface DocumentWorkflowDetail {
   updatedAt: string;
   draft: DocumentDraftContent | null;
   hasSignature: boolean;
+  /**
+   * §12 e-book metadata — editable by the owner while the document is still
+   * a draft (components/documents/document-form.tsx), then carried through
+   * unchanged for the rest of the workflow so a reviewer can preview the
+   * attached book (components/documents/flipbook-viewer.tsx) before
+   * approving. Distinct from DocumentDetail's flipbookUrl, which only ever
+   * reads an already-official row.
+   */
+  description: string | null;
+  flipbookUrl: string | null;
 }
 
 export interface DocumentWorkflowSummary {

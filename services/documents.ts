@@ -16,6 +16,7 @@ import type {
   SaveDocumentDraftInput,
 } from "@/schemas/documents";
 import { DOCUMENTS_PER_PAGE_SIZE } from "@/schemas/documents";
+import { toFlipHtml5EmbedUrl } from "@/lib/fliphtml5";
 
 // RLS (documents_select_official, 0008_dashboard_rls.sql) already scopes
 // anon/authenticated to status = 'official' or their own rows — no status
@@ -79,7 +80,7 @@ const WORKFLOW_SORT_COLUMNS = {
 } as const;
 
 const WORKFLOW_COLUMNS =
-  "id, title, status, owner_id, rejected_reason, published_at, created_at, updated_at, profiles(full_name)";
+  "id, title, status, owner_id, rejected_reason, published_at, created_at, updated_at, description, flipbook_url, profiles(full_name)";
 
 type DocumentWorkflowRow = {
   id: string;
@@ -90,6 +91,8 @@ type DocumentWorkflowRow = {
   published_at: string | null;
   created_at: string;
   updated_at: string;
+  description: string | null;
+  flipbook_url: string | null;
   profiles: { full_name: string | null } | null;
 };
 
@@ -199,6 +202,8 @@ export async function getDocumentForWorkflow(id: string): Promise<DocumentWorkfl
       ? { content: draftResult.data.content, updatedAt: draftResult.data.updated_at }
       : null,
     hasSignature: Boolean(signatureResult.data),
+    description: row.description,
+    flipbookUrl: row.flipbook_url,
   };
 }
 
@@ -232,9 +237,17 @@ export async function saveDocumentDraft(
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   const supabase = await createClient();
 
+  // Normalize before writing so what lands in the column is always the
+  // canonical https://online.fliphtml5.com/x/y/ form regardless of which
+  // valid variant (bare share link, www., mixed case) the owner pasted —
+  // schemas/documents.ts already refused anything that fails
+  // isFlipHtml5EmbedUrl, so toFlipHtml5EmbedUrl here can't return null for
+  // a non-null input.
+  const flipbookUrl = input.flipbookUrl ? toFlipHtml5EmbedUrl(input.flipbookUrl) : null;
+
   const { data: docData, error: docError } = await supabase
     .from("documents")
-    .update({ title: input.title })
+    .update({ title: input.title, description: input.description, flipbook_url: flipbookUrl })
     .eq("id", input.documentId)
     .select("id")
     .maybeSingle();

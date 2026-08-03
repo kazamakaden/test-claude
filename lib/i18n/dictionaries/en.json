@@ -47,16 +47,39 @@
   "auth": {
     "emailLabel": "Email",
     "emailPlaceholder": "your.name@udontech.ac.th",
-    "submit": "Send sign-in link",
+    "passwordLabel": "Password",
+    "confirmPasswordLabel": "Confirm password",
+    "newPasswordLabel": "New password",
+    "signIn": "Sign in",
+    "signingIn": "Signing in...",
+    "signUp": "Sign up",
+    "signingUp": "Signing up...",
+    "forgotPassword": "Forgot password?",
+    "noAccount": "Don't have an account?",
+    "haveAccount": "Already have an account?",
+    "resetTitle": "Set a new password",
+    "resetDescription": "Enter your email and we'll send you a link to reset your password.",
+    "submit": "Send reset link",
     "submitting": "Sending...",
+    "updatePassword": "Save new password",
+    "updatingPassword": "Saving...",
     "checkEmailTitle": "Check your email",
-    "checkEmailDescription": "We've sent a sign-in link to your email address.",
+    "checkEmailSignupDescription": "We've sent a confirmation email to your address. Click the link in it to verify your account.",
+    "checkEmailResetDescription": "If that address is registered, we've sent a link to reset your password.",
     "captchaLabel": "Verification",
     "errors": {
       "invalidEmail": "Please enter a valid email address",
       "personalDomain": "Please use your college email (@udontech.ac.th) instead of a personal address",
       "wrongDomain": "Only @udontech.ac.th email addresses are allowed",
-      "sendFailed": "Couldn't send the sign-in link. Please try again.",
+      "passwordRequired": "Please enter your password",
+      "passwordTooShort": "Password must be at least 8 characters",
+      "passwordTooLong": "Password is too long",
+      "passwordMismatch": "Passwords do not match",
+      "invalidCredentials": "Incorrect email or password",
+      "signUpFailed": "Couldn't sign up. Please try again.",
+      "resetFailed": "Couldn't send the reset link. Please try again.",
+      "updateFailed": "Couldn't save the new password. Please try again.",
+      "sessionExpired": "This link has expired or already been used. Please request a new one.",
       "captchaFailed": "Please complete the verification check and try again.",
       "oauthFailed": "Couldn't sign in with Google. Please try again.",
       "auth": "Sign-in failed. Please try again."
@@ -305,13 +328,17 @@
       "form": {
         "titleLabel": "Document title",
         "contentLabel": "Document content",
+        "descriptionLabel": "Description (optional)",
+        "flipbookUrlLabel": "FlipHTML5 book link (optional)",
+        "flipbookUrlHint": "Paste a link from fliphtml5.com, e.g. https://fliphtml5.com/xxxx/yyyy/",
         "create": "Create document",
         "creating": "Creating...",
         "save": "Save draft",
         "saving": "Saving...",
         "errors": {
           "titleRequired": "Please enter a document title",
-          "unknown": "Something went wrong — please try again"
+          "unknown": "Something went wrong — please try again",
+          "flipbookUrlInvalid": "The link must be a valid FlipHTML5 link (fliphtml5.com)"
         }
       },
       "actions": {
@@ -346,7 +373,8 @@
       "detail": {
         "backToList": "Back to documents",
         "ownerLabel": "Document owner",
-        "viewPublished": "View published document"
+        "viewPublished": "View published document",
+        "bookPreviewTitle": "Attached book preview"
       },
       "rejectedReasonLabel": "Sent back — reason"
     },

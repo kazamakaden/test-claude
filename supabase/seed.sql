@@ -41,13 +41,18 @@ insert into public.documents (title, status) values
   ('หนังสือขออนุมัติจัดกิจกรรม', 'pending_approval');
 
 -- §12 e-book shelf demo rows — status 'official' so anon can see them
--- (documents_select_official, 0008_dashboard_rls.sql). flipbook_url is a
--- real, publicly viewable AnyFlip book (verified reachable at
--- authoring time), used as a stand-in until the college's own อวท.
--- publications are added via docs/add-ebook.md; the other two rows have no
--- flipbook_url on purpose, to exercise the "book not attached" empty state.
+-- (documents_select_official, 0008_dashboard_rls.sql). All three rows are
+-- seeded with no flipbook_url, exercising the "book not attached" empty
+-- state for every one of them. This is a deliberate step back from the
+-- prior AnyFlip-era seed (0013), which had one row carrying a real,
+-- verified-reachable AnyFlip book: after the FlipHTML5 host switch (0021)
+-- this session's outbound network policy blocked every request to
+-- fliphtml5.com (proxy returned 403 on CONNECT), so no FlipHTML5 URL could
+-- be verified reachable before committing it — see CLAUDE.md §0. Attach a
+-- real FlipHTML5 book via docs/add-ebook.md (or the in-app draft editor)
+-- once one is available to verify by hand.
 insert into public.documents (title, description, status, flipbook_url, published_at) values
-  ('ปฏิทินกิจกรรม อวท. ตัวอย่าง', 'ตัวอย่างหนังสือ e-book แบบพลิกหน้าสำหรับสาธิตระบบ', 'official', 'https://anyflip.com/aasdd/luel/', now() - interval '10 days'),
+  ('ปฏิทินกิจกรรม อวท. ตัวอย่าง', 'ตัวอย่างหนังสือ e-book แบบพลิกหน้าสำหรับสาธิตระบบ', 'official', null, now() - interval '10 days'),
   ('คู่มือนักเรียน อวท. (ตัวอย่าง)', 'เอกสารอย่างเป็นทางการ ยังไม่แนบไฟล์ e-book', 'official', null, now() - interval '30 days'),
   ('รายงานประจำปี อวท. (ตัวอย่าง)', 'เอกสารอย่างเป็นทางการ ยังไม่แนบไฟล์ e-book', 'official', null, now() - interval '60 days');
 

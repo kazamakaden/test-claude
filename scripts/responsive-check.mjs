@@ -74,11 +74,24 @@ const PUBLIC_PAGES = [
   "/th",
   "/en",
   "/th/login",
+  "/th/signup",
+  "/th/forgot-password",
+  // No session in this script's run, so this redirects straight to /login —
+  // still worth checking, since that's a genuinely reachable unauthenticated
+  // state (someone opening a stale/reused reset link after the recovery
+  // session has already expired).
+  "/th/reset-password",
+  "/th/pending",
   "/th/announcements",
   "/th/activities",
   "/th/documents",
-  // Seeded demo e-book (supabase/seed.sql) — the flipbook iframe is a real
-  // overflow candidate that /th/documents alone (the shelf) doesn't exercise.
+  // A seeded document id, kept stable across re-seeds — see supabase/seed.sql.
+  // Its flipbook_url may or may not be attached (0021_documents_fliphtml5.sql
+  // switched hosts and no verified FlipHTML5 demo URL was available to
+  // re-seed — see README's "E-books: FlipHTML5"), so this now mostly
+  // exercises the reader page's "book not attached" empty state rather than
+  // a real iframe, but it's still the one non-shelf /documents/[id] page in
+  // this list either way.
   "/th/documents/a2722df0-af24-47b3-84d1-bb5f731bc70b",
   "/th/calendar",
 ];
@@ -87,6 +100,11 @@ const AUTH_PAGES = [
   "/th/dashboard",
   "/th/members",
   "/th/projects",
+  "/th/projects/new",
+  "/th/projects/review",
+  "/th/documents/manage",
+  "/th/documents/manage/new",
+  "/th/documents/review",
   "/th/reports",
   "/th/notifications",
   "/th/profile",

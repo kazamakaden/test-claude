@@ -47,16 +47,39 @@
   "auth": {
     "emailLabel": "อีเมล",
     "emailPlaceholder": "your.name@udontech.ac.th",
-    "submit": "ส่งลิงก์เข้าสู่ระบบ",
+    "passwordLabel": "รหัสผ่าน",
+    "confirmPasswordLabel": "ยืนยันรหัสผ่าน",
+    "newPasswordLabel": "รหัสผ่านใหม่",
+    "signIn": "เข้าสู่ระบบ",
+    "signingIn": "กำลังเข้าสู่ระบบ...",
+    "signUp": "สมัครสมาชิก",
+    "signingUp": "กำลังสมัครสมาชิก...",
+    "forgotPassword": "ลืมรหัสผ่าน?",
+    "noAccount": "ยังไม่มีบัญชี?",
+    "haveAccount": "มีบัญชีอยู่แล้ว?",
+    "resetTitle": "ตั้งรหัสผ่านใหม่",
+    "resetDescription": "กรอกอีเมลของคุณ เราจะส่งลิงก์สำหรับตั้งรหัสผ่านใหม่ไปให้",
+    "submit": "ส่งลิงก์ตั้งรหัสผ่านใหม่",
     "submitting": "กำลังส่ง...",
+    "updatePassword": "บันทึกรหัสผ่านใหม่",
+    "updatingPassword": "กำลังบันทึก...",
     "checkEmailTitle": "ตรวจสอบอีเมลของคุณ",
-    "checkEmailDescription": "เราได้ส่งลิงก์สำหรับเข้าสู่ระบบไปยังอีเมลของคุณแล้ว",
+    "checkEmailSignupDescription": "เราได้ส่งอีเมลยืนยันการสมัครสมาชิกไปยังอีเมลของคุณแล้ว กรุณาคลิกลิงก์ในอีเมลเพื่อยืนยันตัวตน",
+    "checkEmailResetDescription": "หากอีเมลนี้ลงทะเบียนไว้ในระบบ เราได้ส่งลิงก์สำหรับตั้งรหัสผ่านใหม่ไปให้แล้ว",
     "captchaLabel": "การยืนยันตัวตน",
     "errors": {
       "invalidEmail": "กรุณากรอกอีเมลที่ถูกต้อง",
       "personalDomain": "กรุณาใช้อีเมลของวิทยาลัย (@udontech.ac.th) แทนอีเมลส่วนตัว",
       "wrongDomain": "อนุญาตเฉพาะอีเมล @udontech.ac.th เท่านั้น",
-      "sendFailed": "ไม่สามารถส่งลิงก์เข้าสู่ระบบได้ กรุณาลองใหม่อีกครั้ง",
+      "passwordRequired": "กรุณากรอกรหัสผ่าน",
+      "passwordTooShort": "รหัสผ่านต้องมีอย่างน้อย 8 ตัวอักษร",
+      "passwordTooLong": "รหัสผ่านยาวเกินไป",
+      "passwordMismatch": "รหัสผ่านทั้งสองช่องไม่ตรงกัน",
+      "invalidCredentials": "อีเมลหรือรหัสผ่านไม่ถูกต้อง",
+      "signUpFailed": "ไม่สามารถสมัครสมาชิกได้ กรุณาลองใหม่อีกครั้ง",
+      "resetFailed": "ไม่สามารถส่งลิงก์ตั้งรหัสผ่านใหม่ได้ กรุณาลองใหม่อีกครั้ง",
+      "updateFailed": "ไม่สามารถบันทึกรหัสผ่านใหม่ได้ กรุณาลองใหม่อีกครั้ง",
+      "sessionExpired": "ลิงก์หมดอายุหรือใช้งานไปแล้ว กรุณาขอลิงก์ใหม่อีกครั้ง",
       "captchaFailed": "กรุณายืนยันตัวตนแล้วลองใหม่อีกครั้ง",
       "oauthFailed": "ไม่สามารถเข้าสู่ระบบด้วย Google ได้ กรุณาลองใหม่อีกครั้ง",
       "auth": "การเข้าสู่ระบบไม่สำเร็จ กรุณาลองใหม่อีกครั้ง"
@@ -305,13 +328,17 @@
       "form": {
         "titleLabel": "ชื่อเอกสาร",
         "contentLabel": "เนื้อหาเอกสาร",
+        "descriptionLabel": "คำอธิบายเอกสาร (ไม่บังคับ)",
+        "flipbookUrlLabel": "ลิงก์หนังสือ FlipHTML5 (ไม่บังคับ)",
+        "flipbookUrlHint": "วางลิงก์จาก fliphtml5.com เช่น https://fliphtml5.com/xxxx/yyyy/",
         "create": "สร้างเอกสาร",
         "creating": "กำลังสร้าง...",
         "save": "บันทึกร่าง",
         "saving": "กำลังบันทึก...",
         "errors": {
           "titleRequired": "กรุณากรอกชื่อเอกสาร",
-          "unknown": "เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง"
+          "unknown": "เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง",
+          "flipbookUrlInvalid": "ลิงก์ต้องเป็นลิงก์ FlipHTML5 ที่ถูกต้อง (fliphtml5.com)"
         }
       },
       "actions": {
@@ -346,7 +373,8 @@
       "detail": {
         "backToList": "กลับไปที่รายการเอกสาร",
         "ownerLabel": "เจ้าของเอกสาร",
-        "viewPublished": "ดูเอกสารที่เผยแพร่แล้ว"
+        "viewPublished": "ดูเอกสารที่เผยแพร่แล้ว",
+        "bookPreviewTitle": "ตัวอย่างหนังสือที่แนบไว้"
       },
       "rejectedReasonLabel": "เหตุผลที่ตีกลับ"
     },

@@ -11,6 +11,7 @@ import { parseDocumentId } from "@/schemas/documents";
 import { DocumentForm } from "@/components/documents/document-form";
 import { SubmitDocumentButton } from "@/components/documents/submit-document-button";
 import { DocumentReviewActions } from "@/components/documents/document-review-actions";
+import { FlipbookViewer } from "@/components/documents/flipbook-viewer";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import type { Locale } from "@/lib/i18n/config";
@@ -100,11 +101,20 @@ export default async function DocumentWorkflowDetailPage({
           ) : null}
         </>
       ) : (
-        <div className="rounded-xl border border-border bg-card p-6 shadow-sm">
-          <p className="whitespace-pre-wrap text-sm text-foreground">
-            {document.draft?.content || "—"}
-          </p>
-        </div>
+        <>
+          <div className="rounded-xl border border-border bg-card p-6 shadow-sm">
+            <p className="whitespace-pre-wrap text-sm text-foreground">
+              {document.draft?.content || "—"}
+            </p>
+          </div>
+
+          {document.status !== "draft" ? (
+            <div className="flex flex-col gap-2">
+              <h2 className="text-sm font-medium text-foreground">{d.detail.bookPreviewTitle}</h2>
+              <FlipbookViewer title={document.title} flipbookUrl={document.flipbookUrl} dict={dict} />
+            </div>
+          ) : null}
+        </>
       )}
 
       {canSubmit ? (
