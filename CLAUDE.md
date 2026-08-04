@@ -1420,6 +1420,111 @@ occurrence's Vercel Runtime Logs — or the digest now shown directly on the
 error card — should answer that immediately, unlike this report which had
 neither.
 
+**Dashboard calendar day cells are now clickable, and the empty slot beside
+them is filled with a live Thai holiday list.** Two real gaps on
+`/th/dashboard`'s ปฏิทิน: the grid was fully read-only (a plain `<div>` per
+day, no way to see or add anything — in fact nothing anywhere in the app
+could create an `activities` row before this pass, despite RLS having
+allowed `aft_teacher`/`admin` writes there since `0011`), and the dashboard
+grid's `xl:grid-cols-3` layout left the third column empty next to the
+calendar's `md:col-span-2`.
+
+**Clicking a day** opens `components/dashboard/calendar-day-sheet.tsx`,
+showing that day's activities to everyone; staff (`activity:manage` —
+aft_teacher/admin, the same RLS boundary `activities_insert_aft_teacher`/
+`activities_update_aft_teacher`/`activities_all_admin` already enforce, 0008/
+0011) additionally get inline Edit/Delete per activity and an "add" form,
+sharing one form component for create and edit. No migration was needed —
+the write boundary already existed, only the UI and the write path
+(`actions/activities.ts`, new) didn't. `requirePermission("activity:manage",
+lang)` re-checks server-side in every action, never trusting the page guard.
+Times are combined with the clicked date and anchored to `+07:00`
+(Asia/Bangkok) explicitly in `services/activities.ts#toBangkokInstant` rather
+than the server runtime's own timezone (Vercel's Node runtime defaults to
+UTC) — without this, a staff member typing "09:00" would store a timestamp
+that only renders as 09:00 by accident of where the server happens to run.
+`calendar-card.tsx` split into a server shell (fetches data) +
+`calendar-grid.tsx` (client, owns which day is selected) — day cells are
+real `<button>`s, not a `<div onClick>`, so they stay keyboard-reachable
+(§24); Enter/Space opens the sheet the same as a click, verified directly
+(not assumed) via a real headless Chrome tab over CDP with a synthetic day
+click, confirming the sheet opens with the add form present for `admin` and
+absent for `student` — `can(role, "activity:manage")` is `true` only for
+`aft_teacher`/`admin`, confirmed by reading the actual matrix in
+`lib/auth/permissions.ts` rather than assumed. Escape-closes-sheet was
+verified the same way (`sheetStillVisible: false` after a real
+`Input.dispatchKeyEvent` Escape).
+
+**ปฏิทินวันหยุด** (`components/dashboard/holiday-card.tsx`, new) sources Thai
+public holidays from the exact Google Calendar the user pointed at
+(`th.th#holiday@group.v.calendar.google.com`, the `src` of
+`.../newembed?src=...`) — not an embedded iframe (Google's own blue chrome
+would clash with the §3 monochrome palette and doesn't fit at 375px), but a
+plain `fetch` of that calendar's public ICS export, parsed by a small
+hand-rolled RFC 5545 reader in `services/holidays.ts` and rendered as a
+native scrollable list (`max-h-80 overflow-y-auto`) in the app's own card
+styling. Renders beside the calendar at `xl` (CSS grid's default sparse
+row-major auto-placement naturally fills the otherwise-empty third column,
+verified rather than assumed — no `grid-auto-flow` override needed) and
+stacks below it at `md`/mobile.
+
+Two real correctness details the parser has to get right, both unit-tested
+against a synthetic-but-format-accurate ICS sample (line-folded per RFC
+5545 §3.1, since Thai holiday names are long enough to fold at the 75-octet
+boundary) rather than assumed: unfolding a continuation line before reading
+`SUMMARY`/`DTSTART` (a naive line-by-line reader would silently truncate a
+folded name at the fold point), and unescaping RFC 5545 TEXT escaping
+(`\,` `\;` `\n`) in `SUMMARY`. All assertions passed, including a folded
+long name round-tripping intact.
+
+`getHolidays()` fails soft to `[]` on any fetch/parse problem — same
+contract as every other list service in this codebase — which is also the
+**directly observed** behavior here, not just designed-for-but-unverified:
+`calendar.google.com` is blocked by this session's network policy (confirmed
+`000` on both the ICS and embed URLs), so the empty-state path
+("ไม่พบข้อมูลวันหยุด") is what actually rendered in every check this pass ran.
+**The live feed itself — real reachability, the actual Thai holiday names,
+and the guessed `en.th#holiday@…` English sibling calendar's existence — is
+unverified and stated as pending, not done.** Confirm once deployed.
+
+**Two related fixes discovered while building this, applied while already in
+the code rather than deferred:**
+1. `services/activities.ts#getMonthActivities` switched from `createClient()`
+   to `tryCreateClient()` — the same read-only-list-should-fail-soft
+   convention already applied to `listBooks`/`getBookYears`/`getMembers` in
+   prior passes, which this function had been missed by. Concretely surfaced
+   during this pass's own dev-mode testing: with no Supabase configured, the
+   calendar card's `CardBoundary` was catching a synchronous
+   `createClient()` throw exactly like the pre-fix `/documents` bug, just
+   contained rather than fatal this time. `listActivities`/`getActivityCounts`
+   (the full `/activities` page, untouched by this feature) were
+   deliberately left as-is — out of scope, not silently "also fixed."
+2. `types/activities.ts#MonthActivity`/`services/activities.ts#getMonthActivities`
+   gained `description`/`endsAt` columns, and `services/dashboard.ts`'s
+   `getCalendarEvents`/`CalendarEvent` (a narrower wrapper that existed only
+   to feed the old read-only mini-grid) were deleted as dead code once the
+   day-sheet needed the richer shape directly — `/calendar`'s `MonthGrid`/
+   `MonthEventList` simply don't read the two new fields, verified via a
+   clean `tsc` pass rather than assumed safe.
+
+**Live-verification gap, stated plainly**: creating/editing/deleting a real
+activity end-to-end, and confirming RLS actually rejects a `student`
+attempting the same write, both need the live proof pass this project has a
+precedent for (`0005`/`0008`/`0011`'s role-matrix checks) — this session has
+no reachable Supabase project. The UI-side gate (`canManage` hiding the
+form) was verified directly via the dev-role cookie stub; the
+`requirePermission` server-side re-check was verified by reading the code
+and confirming it's the same call already proven in `actions/members.ts`,
+not independently exercised against a live database this pass.
+
+`npx tsc --noEmit && npm run lint && npm run build` all pass clean.
+`npm run check:responsive` (72/72, public pages) stays clean, confirming the
+`MonthActivity` type change didn't regress `/calendar`. The dashboard itself
+is authenticated so the script's own credential-less mode skips it (stated,
+not silently passed) — checked separately via the dev-role cookie stub and
+the same real-viewport-emulation CDP technique: 375/768/1280, `admin` role,
+zero horizontal overflow at any width.
+
 ### ❌ Remaining
 
 * **RLS policy performance (`auth_rls_initplan`, `multiple_permissive_policies`)**

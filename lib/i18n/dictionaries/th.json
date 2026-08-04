@@ -137,7 +137,40 @@
     "calendar": {
       "title": "ปฏิทิน",
       "description": "กิจกรรมประจำเดือนนี้",
-      "today": "วันนี้"
+      "today": "วันนี้",
+      "noEventsOnDay": "ไม่มีกิจกรรมในวันนี้",
+      "addEvent": "เพิ่มกิจกรรม",
+      "edit": "แก้ไข",
+      "delete": "ลบ",
+      "titleLabel": "ชื่อกิจกรรม",
+      "startTimeLabel": "เวลาเริ่ม",
+      "endTimeLabel": "เวลาสิ้นสุด",
+      "locationLabel": "สถานที่",
+      "descriptionLabel": "รายละเอียด",
+      "cancel": "ยกเลิก",
+      "add": "เพิ่ม",
+      "adding": "กำลังเพิ่ม...",
+      "save": "บันทึก",
+      "saving": "กำลังบันทึก...",
+      "created": "เพิ่มกิจกรรมแล้ว",
+      "updated": "บันทึกการเปลี่ยนแปลงแล้ว",
+      "deleted": "ลบกิจกรรมแล้ว",
+      "deleteConfirmTitle": "ลบกิจกรรมนี้หรือไม่",
+      "deleteConfirmDescription": "\"{title}\" จะถูกลบอย่างถาวรและไม่สามารถกู้คืนได้",
+      "confirmDelete": "ลบกิจกรรม",
+      "errors": {
+        "invalidDate": "วันที่ไม่ถูกต้อง",
+        "invalidTime": "เวลาไม่ถูกต้อง",
+        "titleRequired": "กรุณาระบุชื่อกิจกรรม",
+        "descriptionTooLong": "รายละเอียดยาวเกินไป",
+        "unknown": "เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง"
+      }
+    },
+    "holidays": {
+      "title": "ปฏิทินวันหยุด",
+      "description": "วันหยุดราชการไทย",
+      "empty": "ไม่พบข้อมูลวันหยุด",
+      "emptyCta": "ดูปฏิทินทั้งหมด"
     },
     "activityStats": {
       "title": "สถิติกิจกรรม",
