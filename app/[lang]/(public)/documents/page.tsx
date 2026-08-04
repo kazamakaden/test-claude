@@ -4,7 +4,7 @@ import { Plus } from "lucide-react";
 import { getDictionary } from "@/lib/i18n/get-dictionary";
 import { getRole } from "@/lib/auth/get-role";
 import { can } from "@/lib/auth/permissions";
-import { createClient } from "@/lib/supabase/server";
+import { tryCreateClient } from "@/lib/supabase/server";
 import { parseBooksSearchParams, BOOKS_PER_PAGE_SIZE } from "@/schemas/books";
 import { listBooks, getBookYears } from "@/services/books";
 import { BooksFilters } from "@/components/books/books-filters";
@@ -43,10 +43,10 @@ async function BooksResults({
   dict: Dictionary;
 }) {
   const [role, { rows, total }] = await Promise.all([getRole(), listBooks(filters)]);
-  const supabase = await createClient();
+  const supabase = await tryCreateClient();
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = supabase ? await supabase.auth.getUser() : { data: { user: null } };
 
   const isStaff = can(role, "document:approve");
 

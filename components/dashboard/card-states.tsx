@@ -33,12 +33,22 @@ export function CardEmpty({
   );
 }
 
-export function CardError({ title, retryLabel }: { title: string; retryLabel: string }) {
+export function CardError({
+  title,
+  retryLabel,
+  digest,
+}: {
+  title: string;
+  retryLabel: string;
+  /** Vercel keys a production server error by this — same convention as app/[lang]/error.tsx. */
+  digest?: string;
+}) {
   return (
     <div className="flex flex-col items-center justify-center gap-3 py-8 text-center">
       <AlertCircle className="size-8 text-destructive" aria-hidden />
       <p className="text-sm text-muted-foreground">{title}</p>
       <p className="text-xs text-muted-foreground">{retryLabel}</p>
+      {digest ? <p className="text-xs text-muted-foreground">Error reference: {digest}</p> : null}
     </div>
   );
 }
