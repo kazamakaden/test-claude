@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { signedInLandingTarget } from "@/lib/auth/require-role";
 import { isLocale, defaultLocale } from "@/lib/i18n/config";
 
 /**
@@ -47,8 +48,29 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         ? await supabase.from("profiles").select("role").eq("id", user.id).single()
         : { data: null };
 
-      const target = profile?.role === "pending" ? "pending" : "dashboard";
-      return NextResponse.redirect(new URL(`/${lang}/${target}`, request.url));
+      // 0023's handle_new_user() only copies Google's name/photo at signup
+      // INSERT time — an account that signed up with a password and linked
+      // Google later never gets one. Re-sync on every Google sign-in instead,
+      // under the user's own session (profiles_update_own already permits
+      // full_name/avatar_url, see 0025's header). Best-effort: a failure here
+      // shouldn't block sign-in.
+      const fromGoogle = user?.app_metadata.providers?.includes("google") ?? false;
+      if (user && fromGoogle) {
+        const googleName = user.user_metadata.full_name ?? user.user_metadata.name ?? null;
+        const googleAvatar = user.user_metadata.avatar_url ?? user.user_metadata.picture ?? null;
+        if (googleName || (googleAvatar && googleAvatar.startsWith("https://"))) {
+          await supabase
+            .from("profiles")
+            .update({
+              ...(googleName ? { full_name: String(googleName).slice(0, 100) } : {}),
+              ...(googleAvatar && googleAvatar.startsWith("https://") ? { avatar_url: googleAvatar } : {}),
+            })
+            .eq("id", user.id);
+        }
+      }
+
+      const target = signedInLandingTarget(profile?.role ?? "guest", lang);
+      return NextResponse.redirect(new URL(target, request.url));
     }
   }
 

@@ -10,6 +10,11 @@ function deniedRedirectTarget(role: Role, lang: Locale): string {
   return role === "pending" ? `/${lang}/pending` : `/${lang}/login`;
 }
 
+/** Where an already-signed-in viewer belongs instead of a guest-facing page (homepage, login, signup) — mirrors deniedRedirectTarget's pending/dashboard split. */
+export function signedInLandingTarget(role: Role, lang: Locale): string {
+  return role === "pending" ? `/${lang}/pending` : `/${lang}/dashboard`;
+}
+
 /**
  * Server-side guard for routes that require a permission from the §6 matrix.
  * Redirects to /login when the viewer's role doesn't hold it (or /pending

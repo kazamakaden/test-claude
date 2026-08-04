@@ -866,6 +866,71 @@ all pass clean; the guard's three branches (no source → throws,
 `VERCEL_PROJECT_PRODUCTION_URL` set → passes, explicit override → passes)
 were exercised directly against the compiled module rather than assumed.
 
+**Signed-in landing redirect, 12-hour hard session cap, and name beside the
+desktop avatar.** Three small UX/security fixes to the auth layer:
+
+1. A signed-in user hitting `/`, `/login`, or `/signup` used to see the
+   guest-facing page (marketing hero, login form) instead of being sent to
+   where they actually belong. New `signedInLandingTarget(role, lang)` in
+   `lib/auth/require-role.ts` (mirrors the existing `deniedRedirectTarget()`)
+   is now called from all three pages plus `app/[lang]/auth/callback/route.ts`,
+   which previously duplicated the same `pending`/`dashboard` branch inline.
+   Deliberately left untouched: `/forgot-password` and `/reset-password` — the
+   recovery route establishes a real session before landing on
+   `/reset-password`, so redirecting signed-in viewers away from it would
+   break password recovery outright. Verified via the `dev_role` cookie stub
+   (no live Supabase project in this session): student/admin → `/dashboard`,
+   `pending` → `/pending`, guest → hero still renders, `/forgot-password` and
+   `/reset-password` both still reachable while "signed in."
+2. Sessions never expired. New `lib/auth/session-timeout.ts` defines a
+   12-hour hard cap since sign-in (not an idle timer), checked against
+   Supabase's server-verified `user.last_sign_in_at` — not bumped by token
+   refresh, so it's a true session start, and it comes from the auth server
+   rather than a client-writable cookie. Enforced in
+   `lib/supabase/middleware.ts`'s `updateSession()` (now returns
+   `{ response, sessionExpired }` instead of a bare response — its one caller,
+   `middleware.ts`, was updated to match) and `middleware.ts` redirects to
+   `/login?error=sessionTimedOut` on expiry, copying `response.cookies` from
+   the sign-out onto the redirect response — skipping that copy would leave
+   the expired cookie in place and loop forever, the same trap
+   `updateSession`'s own doc comment already warns about for its normal
+   cookie-refresh path. New `auth.errors.sessionTimedOut` dictionary key in
+   both `th.json`/`en.json` (deliberately not a reuse of the existing
+   `sessionExpired` key, which is worded about an expired *password-reset
+   link*, not a timed-out session). README documents Supabase dashboard →
+   Authentication → Sessions → time-box user sessions (12h) as a defence-in-depth
+   backstop that invalidates the refresh token at the auth server — a manual
+   step, not applied here, and not required for the app-level cap to work.
+   Verified: `isSessionExpired()`'s boundary cases (just signed in, 11h59m,
+   12h01m, missing/garbage timestamp) exercised directly against the compiled
+   module — no live Supabase project in this session to observe the real
+   redirect, so the 12-hour boundary itself was proven in isolation, not
+   end-to-end.
+3. The desktop top bar showed an icon-only avatar button; the user's name was
+   one click away in the dropdown, while the mobile sheet already showed both
+   together. `components/layout/user-menu.tsx`'s dropdown trigger now shows
+   avatar + name (falling back to the email local part when `full_name` is
+   null — a password-only signup has no Google name — and to nothing when
+   neither exists), `max-w-[10rem] truncate` so a long Thai name can't repeat
+   the nav's existing 768px overflow regression (§0, "Login was completely
+   broken on a second live production URL" section has the responsive-check
+   history). Also: `0023`'s `handle_new_user()` only copies Google's
+   name/photo at signup INSERT time, so an account that signed up with a
+   password and linked Google *later* would never get one — the callback
+   route now re-syncs `full_name`/`avatar_url` from Google's identity data on
+   every Google sign-in, best-effort, under the user's own session (already
+   permitted by `profiles_update_own`, no new RLS). Verified: layout at
+   1280px/1024px in light/dark shows no horizontal overflow
+   (`scrollWidth === clientWidth` in both themes, checked directly via CDP
+   `Emulation.setDeviceMetricsOverride` — the same real-viewport-emulation
+   technique `scripts/responsive-check.mjs` uses); with no real profile data
+   available in this session, the empty-name case (dev-cookie stub) was
+   confirmed to render identically to before (icon only, no stray padding).
+   The actual name-populated rendering was not observed live.
+
+`npx tsc --noEmit && npm run lint && npm run build` all pass clean for all
+three changes together.
+
 ### ❌ Remaining
 
 * **RLS policy performance (`auth_rls_initplan`, `multiple_permissive_policies`)**

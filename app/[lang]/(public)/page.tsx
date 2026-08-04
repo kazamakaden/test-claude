@@ -1,7 +1,10 @@
 import Link from "next/link";
 import Image from "next/image";
+import { redirect } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { getDictionary } from "@/lib/i18n/get-dictionary";
+import { getRole } from "@/lib/auth/get-role";
+import { signedInLandingTarget } from "@/lib/auth/require-role";
 import type { Locale } from "@/lib/i18n/config";
 
 export default async function HomePage({
@@ -11,7 +14,11 @@ export default async function HomePage({
 }) {
   const { lang: rawLang } = await params;
   const lang = rawLang as Locale;
-  const dict = await getDictionary(lang);
+  const [dict, role] = await Promise.all([getDictionary(lang), getRole()]);
+
+  if (role !== "guest") {
+    redirect(signedInLandingTarget(role, lang));
+  }
 
   return (
     <div className="bg-hero relative mx-auto flex min-h-[calc(100dvh-5rem)] max-w-7xl flex-col items-center justify-center gap-8 overflow-hidden rounded-b-3xl px-4 py-20 text-center sm:px-6 lg:px-8">

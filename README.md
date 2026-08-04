@@ -402,6 +402,21 @@ project:
    an admin has approved you — see "Sign-up rule" above). A forgotten
    password is recovered at `/th/forgot-password`.
 
+## Session timeout
+
+Every session is force-signed-out 12 hours after sign-in (`SESSION_MAX_AGE_MS`
+in `lib/auth/session-timeout.ts`), checked in `middleware.ts` against
+Supabase's server-verified `last_sign_in_at` on every request — a redirect to
+`/login?error=sessionTimedOut` with an explanatory message, not a silent
+bounce. This is a hard cap since sign-in, not an idle timer.
+
+For defence in depth, also set a matching **project-level** cap in Supabase
+dashboard → **Authentication → Sessions → Time-box user sessions** → `12`
+hours. That setting invalidates the refresh token itself at the auth server —
+stronger than the app-level check, which can only act once a request reaches
+this app's middleware. The app-level cap above works correctly without it;
+this is a manual dashboard step, not applied by any migration here.
+
 ## Demo accounts
 
 One account per role (`student`, `teacher`, `aft_teacher`, `admin`),
