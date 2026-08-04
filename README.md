@@ -342,6 +342,15 @@ Preview scope):
 | `NEXT_PUBLIC_SUPABASE_URL` | your Supabase project URL |
 | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | your Supabase publishable key |
 | `NEXT_PUBLIC_TURNSTILE_SITE_KEY` | a **real** Cloudflare Turnstile sitekey scoped to the deployment's hostname |
+| `NEXT_PUBLIC_SITE_URL` | optional on Vercel — see below |
+
+`NEXT_PUBLIC_SITE_URL` (`lib/site-url.ts`) doesn't need to be set by hand on
+Vercel: when a project's "Automatically expose System Environment Variables"
+setting is on (the default), Vercel injects `VERCEL_PROJECT_PRODUCTION_URL`
+itself, and the build guard and auth redirect logic both fall back to it. Set
+`NEXT_PUBLIC_SITE_URL` explicitly only if that setting is off, or for a custom
+domain, or for the self-hosted Linux target (CLAUDE.md §2), which has no
+Vercel env to fall back to.
 
 **Never put a Cloudflare testing sitekey (e.g. `1x00000000000000000000AA`) in
 a production environment.** It is a documented always-pass key; both the

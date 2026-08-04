@@ -1,4 +1,5 @@
 import { isTurnstileTestKeyValue } from "./turnstile";
+import { resolveConfiguredSiteUrl } from "./site-url";
 
 /**
  * Fails the build when a Vercel Production deploy is missing config that
@@ -18,9 +19,9 @@ export function assertDeployEnvConfigured(): void {
   if (!process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY) {
     problems.push("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY is not set.");
   }
-  if (!process.env.NEXT_PUBLIC_SITE_URL) {
+  if (!resolveConfiguredSiteUrl()) {
     problems.push(
-      "NEXT_PUBLIC_SITE_URL is not set — actions/auth.ts's emailRedirectTo falls back to it when the origin request header is absent, and without either, a signup/reset email's link goes nowhere."
+      "Neither NEXT_PUBLIC_SITE_URL nor VERCEL_PROJECT_PRODUCTION_URL is set — actions/auth.ts's emailRedirectTo falls back to one of them when the origin request header is absent, and without either, a signup/reset email's link goes nowhere. On a standard Vercel import, VERCEL_PROJECT_PRODUCTION_URL is injected automatically unless 'Automatically expose System Environment Variables' has been turned off for this project — set NEXT_PUBLIC_SITE_URL by hand in that case."
     );
   }
 

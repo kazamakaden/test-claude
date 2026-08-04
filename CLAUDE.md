@@ -837,6 +837,35 @@ real, checked-reachable book — all three seeded documents now have
 `flipbook_url = null`. `docs/add-ebook.md` was rewritten around the in-app
 flow, demoting the Table Editor to an admin-only fallback.
 
+**Vercel production build was broken since `d6143a7` — found and fixed.**
+That commit's `lib/env-guard.ts` started requiring `NEXT_PUBLIC_SITE_URL` at
+`next.config.ts` load time whenever `VERCEL_ENV === "production"`, but
+README's "Deploying to Vercel" table and this file's own record of the
+project's env vars both still listed only the original three
+`NEXT_PUBLIC_*` vars — nothing ever told anyone to set the fourth. Every
+Production build since has thrown `Production deploy is missing required
+configuration: - NEXT_PUBLIC_SITE_URL is not set …` at the config-load step,
+before a single page could render. Not verified against the live Vercel
+dashboard this pass (no dashboard/CLI access from this session) — inferred
+from the guard's own logic plus CLAUDE.md's existing env-var record, not
+observed as a live failed deploy.
+
+Fixed with a fallback instead of a docs-only patch, so a stock Vercel import
+works with zero hand-set vars: new `lib/site-url.ts`'s
+`resolveConfiguredSiteUrl()` tries `NEXT_PUBLIC_SITE_URL` first, then
+Vercel's auto-injected `VERCEL_PROJECT_PRODUCTION_URL` (not `VERCEL_URL` —
+that's the ephemeral per-deployment hostname, not in Supabase's Auth
+URL-Configuration allow-list). Both `lib/env-guard.ts`'s build guard and
+`actions/auth.ts`'s `resolveOrigin()` now call it instead of reading
+`NEXT_PUBLIC_SITE_URL` directly, so the guard still fails closed if a
+project has "Automatically expose System Environment Variables" turned off
+and no explicit override set — it just stopped requiring a var Vercel
+already provides by default. README and `.env.example` updated to describe
+both accepted sources. `npx tsc --noEmit && npm run lint && npm run build`
+all pass clean; the guard's three branches (no source → throws,
+`VERCEL_PROJECT_PRODUCTION_URL` set → passes, explicit override → passes)
+were exercised directly against the compiled module rather than assumed.
+
 ### ❌ Remaining
 
 * **RLS policy performance (`auth_rls_initplan`, `multiple_permissive_policies`)**
