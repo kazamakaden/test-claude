@@ -9,6 +9,7 @@ import { WelcomeCard } from "@/components/dashboard/welcome-card";
 import { NotificationsCard } from "@/components/dashboard/notifications-card";
 import { UpcomingMeetingsCard } from "@/components/dashboard/upcoming-meetings-card";
 import { CalendarCard } from "@/components/dashboard/calendar-card";
+import { HolidayCard } from "@/components/dashboard/holiday-card";
 import { ActivityStatsCard } from "@/components/dashboard/activity-stats-card";
 import { DraftDocumentsCard } from "@/components/dashboard/draft-documents-card";
 import { RecentProjectsCard } from "@/components/dashboard/recent-projects-card";
@@ -68,6 +69,13 @@ export default async function DashboardPage({
           </Suspense>
         </CardBoundary>
       </div>
+
+      {/* Fills the xl third column beside the calendar's md:col-span-2; stacks below it at md and smaller. */}
+      <CardBoundary errorTitle={dict.dashboard.errorTitle} retryLabel={dict.dashboard.errorRetry}>
+        <Suspense fallback={<ListCardSkeleton />}>
+          <HolidayCard lang={lang} dict={dict} />
+        </Suspense>
+      </CardBoundary>
 
       <div className="md:col-span-2">
         <CardBoundary errorTitle={dict.dashboard.errorTitle} retryLabel={dict.dashboard.errorRetry}>

@@ -43,13 +43,17 @@ export interface ActivityCounts {
 }
 
 /**
- * Feeds both /calendar (full month view, needs location for the event list)
- * and the dashboard's calendar card (via a narrower CalendarEvent mapping in
- * services/dashboard.ts) — one query, two shapes.
+ * Feeds /calendar's full month view and the dashboard's calendar
+ * card/day-sheet — one query (services/activities.ts#getMonthActivities),
+ * one shape. `description`/`endsAt` exist for the dashboard's clickable-day
+ * sheet (needs enough to prefill an edit form); /calendar's MonthGrid/
+ * MonthEventList simply don't read them.
  */
 export interface MonthActivity {
   id: string;
   title: string;
+  description: string | null;
   startsAt: string;
+  endsAt: string | null;
   location: string | null;
 }

@@ -22,12 +22,6 @@ export interface Meeting {
   location: string;
 }
 
-export interface CalendarEvent {
-  id: string;
-  date: string;
-  title: string;
-}
-
 /** §10 activity statistics categories. */
 export interface ActivityStat {
   month: string;

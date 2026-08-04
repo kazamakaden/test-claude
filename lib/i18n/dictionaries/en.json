@@ -137,7 +137,40 @@
     "calendar": {
       "title": "Calendar",
       "description": "This month's events",
-      "today": "Today"
+      "today": "Today",
+      "noEventsOnDay": "No events on this day",
+      "addEvent": "Add event",
+      "edit": "Edit",
+      "delete": "Delete",
+      "titleLabel": "Event title",
+      "startTimeLabel": "Start time",
+      "endTimeLabel": "End time",
+      "locationLabel": "Location",
+      "descriptionLabel": "Description",
+      "cancel": "Cancel",
+      "add": "Add",
+      "adding": "Adding...",
+      "save": "Save",
+      "saving": "Saving...",
+      "created": "Event added",
+      "updated": "Changes saved",
+      "deleted": "Event deleted",
+      "deleteConfirmTitle": "Delete this event?",
+      "deleteConfirmDescription": "\"{title}\" will be permanently deleted and cannot be recovered.",
+      "confirmDelete": "Delete event",
+      "errors": {
+        "invalidDate": "Invalid date",
+        "invalidTime": "Invalid time",
+        "titleRequired": "Please enter an event title",
+        "descriptionTooLong": "Description is too long",
+        "unknown": "Something went wrong. Please try again."
+      }
+    },
+    "holidays": {
+      "title": "Holiday Calendar",
+      "description": "Thai public holidays",
+      "empty": "No holiday data found",
+      "emptyCta": "View full calendar"
     },
     "activityStats": {
       "title": "Activity Statistics",

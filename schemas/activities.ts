@@ -39,3 +39,40 @@ export function parseActivitiesSearchParams(
     page: single(searchParams.page) ?? "1",
   });
 }
+
+/**
+ * Dashboard calendar day-sheet write path (activity:manage — aft_teacher/
+ * admin, 0011). Deliberately minimal compared to the full `activities`
+ * table: department/club/academic_year stay unset from this quick-add
+ * form (nullable columns, same as the full workflow leaves them for an
+ * org-wide event) — a richer creation flow can add them later without a
+ * schema change. `date` + `startTime` arrive as separate form fields (the
+ * grid cell picks the date, a <input type="time"> picks the time) and are
+ * combined into `starts_at` server-side in services/activities.ts, never
+ * trusting a client-composed timestamp string.
+ */
+const activityDateField = z.iso.date({ message: "invalidDate" });
+const activityTimeField = z
+  .string()
+  .trim()
+  .regex(/^([01]\d|2[0-3]):[0-5]\d$/, { message: "invalidTime" });
+
+export const createActivitySchema = z.object({
+  title: z.string().trim().min(1, { message: "titleRequired" }).max(200),
+  date: activityDateField,
+  startTime: activityTimeField,
+  endTime: activityTimeField.nullable().catch(null),
+  location: z.string().trim().max(200).nullable().catch(null),
+  // No .catch() — an over-length description must surface descriptionTooLong
+  // to the caller, not be silently discarded (the same class of bug already
+  // fixed once for schemas/members.ts's studentId field).
+  description: z.string().trim().max(2000, { message: "descriptionTooLong" }).nullable(),
+});
+export type CreateActivityInput = z.infer<typeof createActivitySchema>;
+
+export const updateActivitySchema = createActivitySchema.extend({
+  id: z.uuid(),
+});
+export type UpdateActivityInput = z.infer<typeof updateActivitySchema>;
+
+export const deleteActivitySchema = z.object({ id: z.uuid() });
