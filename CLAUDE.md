@@ -720,6 +720,71 @@ advisories, and adding CSP headers. Both are real, but both are the kind of
 change where a rushed, unverified attempt is worse than the problem it
 fixes — see ❌ Remaining for why and what a correct fix would need.
 
+**§11 Projects workflow and §12/§17 Documents digital-signature workflow —
+both fully built (commits `03f19e4`/`8260e14`), documented here only now
+because this file was never updated alongside that pass. Recovered by
+reading the actual code/migrations/git history in this pass, not because it
+was built in this pass — flagging that distinction plainly rather than
+implying otherwise.**
+
+**Projects (§11)**: `Draft → Teacher Review → Admin Approval → Official`,
+built directly on the existing `projects` table's `status` enum rather than
+a separate `project_drafts` table — a deliberate deviation from §20's literal
+table list, the same "one table, a status column, not a second draft table"
+shape `document_drafts` already uses for the parallel half of this pattern.
+`/projects/new` (create), `/projects/[id]` (detail), `/projects` (the
+owner's own list), and `/projects/review` (the reviewer queues) are real
+pages, not `PageShell` stubs — `services/projects.ts`, `actions/projects.ts`,
+`schemas/projects.ts`, `components/projects/*`. `/projects/review` shows two
+independently-paginated/sorted queues (teacher-review, admin-approval),
+gated per-queue on `project:recommend`/`project:approve` respectively via
+`requireAnyPermission`. `0016_project_document_workflow_tables.sql` adds a
+`rejected_reason` column; `0017_project_document_workflow_rls.sql` adds the
+owner/teacher RLS policies this needed (previously only admin/aft_teacher
+could touch these tables at all). Illegal status jumps (e.g. `draft` straight
+to `admin_approval`, skipping review) are blocked by a dedicated trigger,
+`enforce_project_status_transition()` (0016) — RLS policies alone cannot
+express "the OLD status must have been X" (a `WITH CHECK` clause only ever
+sees the NEW row, and Postgres OR-combines multiple permissive policies'
+`USING`/`WITH CHECK` clauses independently of each other), so a caller could
+otherwise mix one policy's permissive `USING` with a different policy's
+permissive `WITH CHECK` to skip a stage even though no single policy
+actually allows that exact transition — the trigger is what actually closes
+that gap, not RLS.
+
+**Documents (§12/§17)** additionally gets the full digital-signature step:
+`Draft → Sign → Pending Approval → Official`. Signing is
+`components/documents/signature-flow.tsx` + `signature-pad.tsx`
+(`react-signature-canvas`, the Phase-1-deferred dependency finally landing
+here) implementing the exact §17 sequence — draw → preview → confirm → type
+"ยืนยัน" → save — at `/documents/manage/[id]/sign`, re-checking server-side
+that the caller is the document's owner and it's still `status = 'draft'`
+before rendering the form at all. The save itself calls a new
+`sign_document()` Postgres function (0016, `security invoker` — explicitly
+not `security definer`, since this is a transaction wrapper around two
+statements that must still run under the caller's own RLS privileges, not a
+privilege escalation) that atomically inserts into a new `signature_records`
+table (one of the four tables §20/§30.10 had deferred; `document_id`,
+`signer_id`, `signature_data` as a plain text column holding the canvas's
+`toDataURL()` PNG — no Supabase Storage bucket needed for a value this
+small) and flips `documents.status` from `draft` to `signed`, in that
+order specifically (inserting the signature first is required by
+`signature_records`'s own RLS insert policy, which requires the parent
+document to still read `status = 'draft'` at insert time — updating status
+first would make the insert fail its own check). The same
+old-status-vs-new-status trigger pattern as Projects
+(`enforce_document_status_transition()`, 0016) blocks skipping the sign step
+by combining `documents_update_own_draft`'s permissive `USING` with a
+different policy's permissive `WITH CHECK` for `pending_approval`.
+
+**Live-verification status unknown, not re-verified in this pass**: because
+this work was never logged here, there is no record of whether the original
+pass ran this project's usual live-proof discipline (role-matrix RLS checks,
+a real signature round-trip against the hosted Supabase project) against it.
+Treat it as code-reviewed-and-present, not as proven live, until a pass
+confirms it against the real database the way `0005`/`0008`/`0011` are
+already proven above.
+
 **Sign-up flow replaced: `pending` role + post-signup admin approval,
 superseding the `0010`–`0012` pre-approval allow-list above.** The old
 design required a numeric-local-part (§14 student-ID) address to already be
@@ -931,8 +996,200 @@ desktop avatar.** Three small UX/security fixes to the auth layer:
 `npx tsc --noEmit && npm run lint && npm run build` all pass clean for all
 three changes together.
 
+**Sign-in switched to Google OAuth only, with an emailed set-password step.**
+`/login` and `/signup` no longer carry an email/password form — `/login` is a
+single Google button, `/signup` is now just a `redirect()` to `/login`
+(dropped rather than deleted outright, so an old bookmark still lands
+somewhere useful). `actions/auth.ts` lost `signInWithPassword` and
+`signUpWithPassword` entirely, and `schemas/auth.ts` lost `signInSchema`/
+`signUpSchema` with them; `emailSchema`/`newPasswordField`/
+`resetRequestSchema`/`newPasswordSchema` all stay, still used by the reset/
+set-password path. Dead dictionary keys that only those two removed forms
+ever read (`passwordLabel`, `signUp`, `signingUp`, `signingIn`, `noAccount`,
+`haveAccount`, `checkEmailSignupDescription`, and the error keys
+`passwordRequired`/`invalidCredentials`/`signUpFailed`) were removed from
+both `th.json`/`en.json` rather than left orphaned.
+
+Two real constraints shaped the design, both found before writing any code
+rather than discovered mid-implementation:
+
+1. **Supabase sends no email after a Google sign-in** — Google already
+   proved the identity, so `email_confirmed_at` is set immediately and
+   nothing is mailed. The requested "send email → click link → set
+   password" step has to be triggered by the app itself, so it reuses the
+   *existing* password-recovery email (`requestPasswordReset` →
+   `/auth/reset` → `/reset-password`) rather than inventing a new one —
+   `/reset-password` already *is* the requested password+confirm screen.
+2. **This project's Turnstile is enforced at the Supabase project level**,
+   so a server-initiated `resetPasswordForEmail()` call with no captcha
+   token would be rejected outright (`captcha protection: request
+   disallowed` — the same failure already documented earlier in this file
+   for `signInWithPassword`). A token can only come from a real browser, so
+   the flow needs a small interstitial page, not a fully silent trigger.
+
+New `profiles.password_set boolean not null default false` column
+(`supabase/migrations/0030_profiles_password_set.sql`), backfilled `true`
+for any existing `auth.users` row with a real `encrypted_password` so
+pre-existing password accounts aren't routed through the new flow on their
+next sign-in. Given the explicit column-grant allow-list `0005` established
+for `profiles` (a table-level SELECT revoke, re-granted per-column), the
+migration re-grants `select (password_set)` in the same file — the exact
+trap that column-grant pattern exists to catch, checked for directly this
+time rather than found by a later live 403. **Accepted, not closed**:
+`profiles_update_own` (0002) lets a user flip their own `password_set`
+like any other self-editable column — the same trade-off already made for
+`full_name`/`avatar_url` (0025's header) — since doing so only costs that
+user their own password step and grants no privilege, it's a UX gate, not
+a security boundary, so no additional trigger was added.
+
+`app/[lang]/auth/callback/route.ts` now selects `password_set` alongside
+`role` and checks it ahead of the normal `pending`/`dashboard` landing:
+`password_set = false` sends a freshly-signed-in Google user to the new
+`/set-password` page instead. That page (`app/[lang]/(public)/set-password/`)
+reads the caller's own verified session email server-side — never a URL
+param — and its form is a thin wrapper around the *existing*
+`requestPasswordReset` Server Action (real captcha widget, hidden
+server-known email field, same uniform "check your email" response
+already used to guard against enumeration) rather than a new endpoint.
+`updatePassword` (`actions/auth.ts`) now reads `password_set` before
+updating it — to tell a first-time completion of this flow apart from an
+ordinary later password reset — sets it `true`, signs the session out, and
+redirects to `/login?notice=signupComplete` or `?notice=passwordUpdated`
+rather than straight into the app; `login/page.tsx` parses `?notice=` the
+same defensively-checked-against-dictionary-keys way it already parsed
+`?error=`. `redirectByRole()` (the helper both removed password actions
+used to call) was deleted as dead code once nothing called it anymore.
+
+**One trade-off stated plainly rather than silently accepted**: with
+`/login` reduced to a Google button only, the password set through this
+flow has no working sign-in path that consumes it — `/forgot-password` is
+its only consumer today (recovering a password that already can't log
+anyone in). Built this way because Google-only login *and* a real
+set-password step were both explicitly requested together; flagging it
+here so it isn't rediscovered as a surprise later.
+
+`npx tsc --noEmit && npm run lint && npm run build` all pass clean, plus a
+grep sweep confirming no leftover reference to any removed
+export/schema/dictionary key. Verified via `dev_role` cookie stub and
+`curl` (no live Supabase project in this session): `/login` renders no
+email/password inputs; `/signup` redirects to `/login`; a signed-in
+`/signup` hit chains `/signup → /login → /dashboard` without looping;
+`?notice=signupComplete` renders the Thai success text, an unknown
+`?notice=` value renders nothing; `/forgot-password` and `/reset-password`
+are unaffected. **Not verified live** (no Supabase credentials in this
+session, same limitation as the section above): a real Google sign-in
+actually reaching `/set-password` on a fresh account, the emailed link
+completing the round trip, and — the biggest real risk — whether the
+project's email volume can support this at all, since custom SMTP is still
+unconfigured per the ❌ Remaining item below and the default Supabase mailer
+caps out around 2 messages/hour.
+
+**Member management: add, edit, delete users from `/members`, plus password
+sign-in restored alongside Google.** `/members` previously offered exactly one
+management affordance — an icon-only pencil opening `MemberEditSheet`, gated
+on `member:approve`. Added: labelled **Edit**/**Delete** buttons per row, and
+an **Add user** button above the table — the last one specifically for
+someone who can't use Google OAuth.
+
+That collided directly with the just-shipped Google-only login above: an
+admin-created account would have had no way to sign in. Resolved by
+**restoring password sign-in alongside Google** rather than choosing one or
+the other — `signInWithPassword`/`signInSchema` (removed in the Google-only
+pass) came back in `actions/auth.ts`/`schemas/auth.ts`, but `redirectByRole()`
+did not; both call sites now end with the shared `signedInLandingTarget()`
+instead. The password form lives inside a native `<details>` disclosure on
+`/login` ("sign in with a password instead"), below the primary Google
+button — `<details>` needs no JavaScript to open, so the §30.9 JS-disabled
+guarantee holds for both paths independently. This also gives the
+set-password flow built for Google sign-in a second real purpose: an
+admin-added account already ships with a usable password from creation, no
+email round-trip needed for it specifically.
+
+New `lib/supabase/admin.ts` — the first service-role (`SUPABASE_SECRET_KEY`)
+client in application code (previously only `scripts/responsive-check.mjs`
+read that var). `server-only`, never `NEXT_PUBLIC_`-prefixed, exports
+`isSupabaseAdminConfigured` so the UI hides Add/Delete entirely rather than
+rendering buttons that can only fail when the key is absent.
+
+`services/members.ts#createMember` deliberately spans **two** clients: the
+admin client only for `auth.admin.createUser()` (RLS has no authority over
+the `auth` schema — there is no way to do this without it), then the
+**caller's own** cookie-scoped client for the `profiles` UPDATE, so
+`prevent_role_self_escalation` (0024) and `prevent_member_identity_change`
+(0025) — the same triggers that already govern `updateMember` — govern
+account creation too, rather than bypassing them with the admin client for
+that part as well. `handle_new_user()` (0023) already auto-inserts a
+`profiles` row for any new `auth.users` row, including one made via the
+Admin API, guessing a role/`student_id` from the email's local part with
+`password_set` defaulting false (0030); the UPDATE overwrites that guess
+with what the caller actually chose and sets `password_set = true`, since
+the account ships with a real password. **If the profile UPDATE fails, the
+just-created `auth.users` row is deleted** — a half-made account that could
+still sign in with a guessed role is worse than no account at all.
+
+`deleteMember` is **permanent** — `auth.admin.deleteUser()`, relying on
+`profiles.id`'s existing `on delete cascade` (`0001_auth.sql`) rather than a
+separate profiles delete. Two guards enforced **server-side** in
+`actions/members.ts#deleteMemberAction`, never trusting the confirm dialog:
+refuse to delete the caller's own account (compared against
+`supabase.auth.getUser()`, not anything the form sent), and refuse an admin
+target by re-reading that row's actual role from the database. Both checks
+run before the Admin API is ever touched.
+
+Both new actions gate on `member:manage` (admin-only), not `member:approve`
+(which `aft_teacher` also holds) — the same distinction
+`lib/auth/permissions.ts` already draws between editing an already-approved
+member and account-level management. Verified directly: `can(role,
+"member:manage")` is `true` only for `admin`, `can(role, "member:approve")`
+is `true` for `aft_teacher`/`admin`, exercised against the compiled
+permissions module for all six roles.
+
+One accessibility detail carried forward correctly this time: the edit
+trigger gained visible "Edit" text (previously icon-only) and its
+`aria-label` was updated to `"Edit {name}"` — the visible label text stays a
+prefix of the accessible name, avoiding the exact WCAG 2.5.3 "Label in Name"
+mismatch flagged in review of an earlier, unrelated change in this project
+(icon+name buttons where the visible text and `aria-label` diverged). The
+new delete trigger was built with the same rule from the start.
+
+`npx tsc --noEmit && npm run lint && npm run build` all pass clean.
+**Live-verification gap found and worth recording rather than hidden**:
+`/members` currently 500s in this dev session with no live Supabase
+project — `services/members.ts#getDepartments/getClubs/getFilterOptions`
+call `createClient()` unconditionally in a top-level `Promise.all()` with no
+Suspense/error boundary around it, and `createServerClient()` throws
+synchronously (not a caught query error) when the env vars are absent. This
+is **pre-existing** — confirmed via diff that this session's changes never
+touched those three functions' bodies — but it fully blocked live curl-based
+verification of the new role-gated buttons on this page, for every role,
+not just the ones added here. Not fixed in this pass (out of scope for
+member-management CRUD; the dashboard's per-card Suspense/`CardBoundary`
+pattern is the template a real fix should follow). Verified instead via
+`can()` exercised directly against the compiled permissions module (above)
+and careful reading of the gating JSX; the actual rendered page — Add
+button placement, Edit/Delete side-by-side, admin-row hiding — was **not**
+observed live and needs the same proof pass once a Supabase project is
+reachable. `/login`'s new `<details>` disclosure *was* verified live via
+curl: real `name="email"`/`name="password"` inputs present in the raw HTML,
+not just embedded dictionary JSON.
+
 ### ❌ Remaining
 
+* **`/members` crashes outright (500) when Supabase isn't configured** —
+  `services/members.ts`'s `getDepartments`/`getClubs`/`getFilterOptions` call
+  `createClient()` unconditionally, and `Promise.all(...)` in
+  `app/[lang]/(public)/members/page.tsx` awaits all three with no Suspense or
+  try/catch around them. `createServerClient()` throws synchronously (not a
+  query-level error the functions' own `if (error) return []` guards can
+  catch) when `NEXT_PUBLIC_SUPABASE_URL`/`NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
+  are absent, taking the whole page down for every role, guest through admin
+  — found while trying to verify the new member-management buttons above in
+  this session's credential-less dev environment. Confirmed pre-existing (this
+  session's diff never touches those three functions' bodies), not something
+  the member-management work introduced. A correct fix should follow the
+  dashboard's own established pattern (`services/dashboard.ts` +
+  per-card `<Suspense>`/`CardBoundary`, §30.7) rather than a one-off try/catch,
+  and needs its own verification pass once a Supabase project is reachable.
 * **RLS policy performance (`auth_rls_initplan`, `multiple_permissive_policies`)**
   — ~10 policies across `profiles`/`attendance`/`projects`/`documents`/
   `document_drafts`/`notifications` call `auth.uid()`/`current_role()`
@@ -968,12 +1225,16 @@ three changes together.
   and shipped unverified.
 * **Leaked password protection is off, Pro-plan-gated** — Supabase
   Authentication → Attack Protection confirms it, greyed out under "Only
-  available on Pro plan and above." Low real-world exposure today since the
-  app is magic-link-only and password sign-in is never exposed in the UI,
-  but the password grant type remains live at the Supabase API level
-  regardless (the demo accounts' passwords are real, "for API testing
-  only" per their own note above) — worth revisiting if the project ever
-  upgrades off the Free tier.
+  available on Pro plan and above." **This entry's earlier claim that
+  "password sign-in is never exposed in the UI" is now false and has been
+  corrected here rather than silently left wrong**: a password field is live
+  at `/login` (behind a `<details>` disclosure, alongside Google — added when
+  password sign-in was restored so admin-created accounts have a way in) and
+  every account an admin creates via `/members`'s "Add user" ships with a
+  real, immediately-usable password from creation. Real-world exposure is
+  therefore higher than when this bullet was first written, not the same.
+  Still not fixable without a paid-plan upgrade, which is a billing decision
+  for the user, not something to change unilaterally.
 * **Custom SMTP (Resend) needs to be manually reconfigured** — cleared as a
   side effect of the round-trip proof above (Authentication → Emails → SMTP
   Settings → toggle "Enable custom SMTP" → re-enter host `smtp.resend.com`,
@@ -982,15 +1243,53 @@ three changes together.
   won't actually send until `udontech.ac.th` also finishes Resend's DNS
   verification, which is still pending — check `resend._domainkey.udontech.ac.th`
   resolves before expecting it to work.
-* **The remaining four §20 tables / four §30.10 phases** — `project_drafts`
-  (Projects workflow), `qr_sessions` + `signature_records` (QR attendance,
-  most security-sensitive: GPS/device fingerprint), `audit_logs`. Plus
-  Documents digital-signature, Reports & global search, Notifications/web
-  push — none of those phases started; each is its own approved phase, in
-  that order. **§30.10's Activities phase is now partially consumed** — the
-  full §10 UI (search/filters/sort/pagination/statistics) landed above, built
-  directly against the existing `activities` table; only **realtime** (the
-  other half of that phase) remains outstanding.
+* **Correction to this section's own prior claim**: it used to say
+  "`project_drafts` (Projects workflow) ... Plus Documents digital-signature
+  ... none of those phases started." That was wrong by the time it was
+  read for this pass — both shipped in commits `03f19e4`/`8260e14`, just
+  never reflected here (see the Done-section entry above, added this pass
+  specifically to close that gap). Audited every remaining §30.10 phase
+  against the actual codebase (routes, migrations, package.json) rather than
+  trusting this file's own prior bullets, since one of them had already gone
+  stale silently:
+  * **QR attendance (§13)** — genuinely not started. No `qr_sessions`
+    migration, no `react-qr-scanner`-equivalent usage anywhere in the
+    codebase, no scan/confirm page. This is §30.10's own documented
+    most-security-sensitive phase (GPS, device fingerprint, duplicate
+    protection) — start here, not later, per that ordering.
+  * **`audit_logs`** — genuinely not started. No migration creates it, and
+    grepping the codebase for any write to a table by that name finds
+    nothing.
+  * **Reports & global search (§18/§30.10)** — genuinely not started.
+    `/reports` is still a bare `PageShell` with `emptyTitle={dict.common.comingSoon}`
+    and nothing else; there is no search input anywhere in `top-nav.tsx` and
+    no cross-entity (Members/Activities/Projects/Documents) query path. The
+    debounced-search pattern already proven on `/members` and `/activities`
+    (`hooks/use-debounced-value.ts`) is the natural building block once this
+    phase starts.
+  * **Notifications/web push (§16/§30.10)** — genuinely not started.
+    `/notifications` is the same bare `PageShell` placeholder; no service
+    worker, no `web-push` usage, nothing beyond the nav bell icon that
+    already exists for the in-app unread-dot UI.
+  * **`/profile` — a fifth placeholder page, not previously listed here at
+    all.** Also a bare `PageShell` "coming soon", despite being linked from
+    every signed-in role's top nav and avatar-menu dropdown. Found while
+    auditing routes for this correction — worth calling out on its own since
+    it wasn't a documented phase like the four above, just an overlooked
+    gap. The only profile-*adjacent* work that exists is the self-editable
+    `full_name`/`avatar_url` sync described earlier in this file (a
+    background sync on Google sign-in, not a page a user can visit to see
+    or edit their own data).
+  * **Projects workflow (§11) and Documents digital-signature (§12/§17) —
+    already done**, see the Done-section entry above. Not a remaining item;
+    listed here only to make the correction to this bullet's history
+    explicit rather than just quietly disappearing.
+  * **§30.10's Activities phase remains partially consumed** — unaffected by
+    this correction: the full §10 UI (search/filters/sort/pagination/
+    statistics) already shipped, built directly against the existing
+    `activities` table; only **realtime** (the other half of that phase)
+    remains outstanding. No realtime/`supabase.channel` usage found anywhere
+    in the codebase.
 * **`attendance` has zero rows** — by design (see Done above), but it means
   the §10 activity-statistics chart's "attendance" series will show 0 for
   every month until either real QR check-ins land or a future pass seeds it

@@ -21,15 +21,26 @@ export default async function LoginPage({
   }
 
   // Set by app/[lang]/auth/callback/route.ts when a redirect back here
-  // carries a reason — a non-college Google account, a failed OAuth
-  // handshake, or a magic-link exchange failure. Checked against
-  // dict.auth.errors' own keys rather than a hardcoded list, so a renamed
-  // or removed error key can't silently go undetected here.
-  const rawError = (await searchParams).error;
+  // carries a reason — a non-college Google account or a failed OAuth
+  // handshake. Checked against dict.auth.errors' own keys rather than a
+  // hardcoded list, so a renamed or removed error key can't silently go
+  // undetected here.
+  const sp = await searchParams;
+  const rawError = sp.error;
   const errorValue = Array.isArray(rawError) ? rawError[0] : rawError;
   const initialErrorKey =
     errorValue && errorValue in dict.auth.errors
       ? (errorValue as keyof typeof dict.auth.errors)
+      : undefined;
+
+  // Set by actions/auth.ts's updatePassword() after the set-password flow
+  // completes — same defensive check-against-dictionary-keys pattern as
+  // initialErrorKey above.
+  const rawNotice = sp.notice;
+  const noticeValue = Array.isArray(rawNotice) ? rawNotice[0] : rawNotice;
+  const initialNoticeKey =
+    noticeValue && noticeValue in dict.auth.notices
+      ? (noticeValue as keyof typeof dict.auth.notices)
       : undefined;
 
   return (
@@ -39,7 +50,12 @@ export default async function LoginPage({
           {dict.nav.login}
         </h1>
       </div>
-      <LoginForm lang={lang} dict={dict} initialErrorKey={initialErrorKey} />
+      <LoginForm
+        lang={lang}
+        dict={dict}
+        initialErrorKey={initialErrorKey}
+        initialNoticeKey={initialNoticeKey}
+      />
     </div>
   );
 }

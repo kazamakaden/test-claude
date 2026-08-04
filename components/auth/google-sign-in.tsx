@@ -15,9 +15,11 @@ function GoogleSubmitButton({ label }: { label: string }) {
 }
 
 /**
- * Shared by the login and signup forms — same button, same "or" divider,
- * bound to a real form action (not an onClick handler) so it still works,
- * as a real redirect-driving POST, with JavaScript disabled.
+ * The single sign-in entry point (login is Google-only) — bound to a real
+ * form action (not an onClick handler) so it still works, as a real
+ * redirect-driving POST, with JavaScript disabled. `dividerLabel` is
+ * optional: pass it only when something else renders below this button —
+ * omitting it skips the divider instead of leaving it orphaned.
  */
 export function GoogleSignIn({
   lang,
@@ -26,7 +28,7 @@ export function GoogleSignIn({
 }: {
   lang: Locale;
   label: string;
-  dividerLabel: string;
+  dividerLabel?: string;
 }) {
   return (
     <div className="flex flex-col gap-4">
@@ -34,11 +36,13 @@ export function GoogleSignIn({
         <GoogleSubmitButton label={label} />
       </form>
 
-      <div className="flex items-center gap-3 text-xs text-muted-foreground">
-        <div className="h-px flex-1 bg-border" aria-hidden />
-        {dividerLabel}
-        <div className="h-px flex-1 bg-border" aria-hidden />
-      </div>
+      {dividerLabel ? (
+        <div className="flex items-center gap-3 text-xs text-muted-foreground">
+          <div className="h-px flex-1 bg-border" aria-hidden />
+          {dividerLabel}
+          <div className="h-px flex-1 bg-border" aria-hidden />
+        </div>
+      ) : null}
     </div>
   );
 }

@@ -11,6 +11,7 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { CardEmpty } from "@/components/dashboard/card-states";
 import { MemberEditSheet } from "@/components/members/member-edit-sheet";
+import { MemberDeleteDialog } from "@/components/members/member-delete-dialog";
 import type { Club, Department, Member, MemberFilters, MemberSortColumn } from "@/types/members";
 import type { Locale } from "@/lib/i18n/config";
 import type { Dictionary } from "@/types/i18n";
@@ -47,6 +48,7 @@ export function MembersTable({
   departments,
   clubs,
   canEdit,
+  canManage,
   actorRole,
   lang,
   dict,
@@ -57,8 +59,10 @@ export function MembersTable({
   searchParams: URLSearchParams;
   departments: Department[];
   clubs: Club[];
-  /** Whether the viewer holds member:approve — gates the actions column entirely. */
+  /** Whether the viewer holds member:approve — shows the Edit action. */
   canEdit: boolean;
+  /** Whether the viewer holds member:manage (admin-only) — shows Delete; the actions column itself is gated on canEdit || canManage. */
+  canManage: boolean;
   actorRole: Role;
   lang: Locale;
   dict: Dictionary;
@@ -99,7 +103,7 @@ export function MembersTable({
           })}
           <TableHead>{d.columnDepartment}</TableHead>
           <TableHead>{d.columnClub}</TableHead>
-          {canEdit ? <TableHead>{d.columnActions}</TableHead> : null}
+          {canEdit || canManage ? <TableHead>{d.columnActions}</TableHead> : null}
         </TableRow>
       </TableHeader>
       <TableBody>
@@ -121,23 +125,31 @@ export function MembersTable({
             <TableCell className="text-muted-foreground">{m.academicYear ?? "—"}</TableCell>
             <TableCell className="text-muted-foreground">{m.departmentName ?? "—"}</TableCell>
             <TableCell className="text-muted-foreground">{m.clubName ?? "—"}</TableCell>
-            {canEdit ? (
+            {canEdit || canManage ? (
               <TableCell>
                 {/* "admin" is deliberately never an assignable role (same
                     reasoning as approve-user-card.tsx) — the role Select
                     has no matching option for it, so an admin row can't be
-                    edited through this sheet at all. Hide the trigger
-                    rather than open a sheet with a role field that can
-                    never validate. */}
+                    edited through this sheet at all, and deleteMemberAction
+                    refuses an admin target server-side regardless. Hide
+                    both triggers on an admin row rather than open an
+                    action that can never succeed. */}
                 {m.role !== "admin" ? (
-                  <MemberEditSheet
-                    member={m}
-                    departments={departments}
-                    clubs={clubs}
-                    actorRole={actorRole}
-                    lang={lang}
-                    dict={dict}
-                  />
+                  <div className="flex items-center gap-1">
+                    {canEdit ? (
+                      <MemberEditSheet
+                        member={m}
+                        departments={departments}
+                        clubs={clubs}
+                        actorRole={actorRole}
+                        lang={lang}
+                        dict={dict}
+                      />
+                    ) : null}
+                    {canManage ? (
+                      <MemberDeleteDialog memberId={m.id} memberName={m.fullName} lang={lang} dict={dict} />
+                    ) : null}
+                  </div>
                 ) : null}
               </TableCell>
             ) : null}

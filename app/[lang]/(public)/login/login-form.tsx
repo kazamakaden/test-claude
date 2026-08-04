@@ -24,20 +24,23 @@ function SubmitButton({ label, pendingLabel }: { label: string; pendingLabel: st
 }
 
 /**
- * Submits via the form's native `action` (useActionState) rather than a
- * client-invoked RPC, so it still posts and gets a real server-validated
- * result with JavaScript disabled (§30.9). GoogleSignIn above is a separate
- * plain form for the same reason — it's a real POST that redirects to
- * Google, not an onClick handler, so it also works without JS.
+ * Google is the primary, first-position sign-in action. Password sign-in is
+ * a secondary path — for an account an admin created directly (Members ->
+ * Add user) for someone who can't use Google OAuth — tucked behind a native
+ * <details> disclosure rather than a second page, since it needs no JS to
+ * open and its form is a real POST via useActionState (§30.9's
+ * JS-disabled guarantee holds for both paths independently).
  */
 export function LoginForm({
   lang,
   dict,
   initialErrorKey,
+  initialNoticeKey,
 }: {
   lang: Locale;
   dict: Dictionary;
   initialErrorKey?: keyof Dictionary["auth"]["errors"];
+  initialNoticeKey?: keyof Dictionary["auth"]["notices"];
 }) {
   const [state, formAction] = useActionState<SignInResult | null, FormData>(
     signInWithPassword,
@@ -45,8 +48,7 @@ export function LoginForm({
   );
   const turnstileRef = useRef<TurnstileInstance>(null);
 
-  const errorMessage =
-    state && !state.ok ? dict.auth.errors[state.messageKey] : undefined;
+  const errorMessage = state && !state.ok ? dict.auth.errors[state.messageKey] : undefined;
 
   useEffect(() => {
     if (errorMessage) {
@@ -57,64 +59,64 @@ export function LoginForm({
     }
   }, [errorMessage]);
 
-  // One-time toast for a reason carried back from the OAuth callback route
-  // (?error=... in the URL) — not tied to `state`, since it didn't come
-  // from this form's own submission.
+  // One-time toasts for a reason carried back via the URL (?error= from the
+  // OAuth callback route, ?notice= after completing the set-password flow)
+  // — not tied to any local form state, since neither came from a submission
+  // on this page.
   useEffect(() => {
     if (initialErrorKey) toast.error(dict.auth.errors[initialErrorKey]);
+    if (initialNoticeKey) toast.success(dict.auth.notices[initialNoticeKey]);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (
     <div className="flex flex-col gap-4">
-      <GoogleSignIn lang={lang} label={dict.auth.googleSignIn} dividerLabel={dict.auth.orDivider} />
+      <div className="rounded-xl border border-border bg-card p-6 shadow-sm">
+        <GoogleSignIn lang={lang} label={dict.auth.googleSignIn} />
+      </div>
 
-      <form
-        action={formAction}
-        className="flex flex-col gap-4 rounded-xl border border-border bg-card p-6 shadow-sm"
-      >
-        <input type="hidden" name="lang" value={lang} />
+      <details className="group rounded-xl border border-border bg-card">
+        <summary className="cursor-pointer list-none select-none px-6 py-4 text-sm font-medium text-foreground [&::-webkit-details-marker]:hidden">
+          {dict.auth.signInWithPassword}
+        </summary>
 
-        <FormField name="email" invalid={Boolean(errorMessage)}>
-          <FormLabel>{dict.auth.emailLabel}</FormLabel>
-          <Input
-            name="email"
-            type="email"
-            required
-            autoComplete="email"
-            placeholder={dict.auth.emailPlaceholder}
-          />
-        </FormField>
+        <form action={formAction} className="flex flex-col gap-4 border-t border-border p-6">
+          <input type="hidden" name="lang" value={lang} />
 
-        <FormField name="password" invalid={Boolean(errorMessage)}>
-          <FormLabel>{dict.auth.passwordLabel}</FormLabel>
-          <Input name="password" type="password" required autoComplete="current-password" />
-          <FormError>{errorMessage}</FormError>
-        </FormField>
+          <FormField name="email" invalid={Boolean(errorMessage)}>
+            <FormLabel>{dict.auth.emailLabel}</FormLabel>
+            <Input
+              name="email"
+              type="email"
+              required
+              autoComplete="email"
+              placeholder={dict.auth.emailPlaceholder}
+            />
+          </FormField>
 
-        <div className="text-right text-sm">
-          <Link href={`/${lang}/forgot-password`} className="text-primary hover:underline">
-            {dict.auth.forgotPassword}
-          </Link>
-        </div>
+          <FormField name="password" invalid={Boolean(errorMessage)}>
+            <FormLabel>{dict.auth.passwordLabel}</FormLabel>
+            <Input name="password" type="password" required autoComplete="current-password" />
+            <FormError>{errorMessage}</FormError>
+          </FormField>
 
-        {isTurnstileConfigured ? (
-          <Turnstile
-            ref={turnstileRef}
-            siteKey={turnstileSiteKey}
-            options={{ appearance: "always" }}
-          />
-        ) : null}
+          <div className="text-right text-sm">
+            <Link href={`/${lang}/forgot-password`} className="text-primary hover:underline">
+              {dict.auth.forgotPassword}
+            </Link>
+          </div>
 
-        <SubmitButton label={dict.auth.signIn} pendingLabel={dict.auth.signingIn} />
-      </form>
+          {isTurnstileConfigured ? (
+            <Turnstile
+              ref={turnstileRef}
+              siteKey={turnstileSiteKey}
+              options={{ appearance: "always" }}
+            />
+          ) : null}
 
-      <p className="text-center text-sm text-muted-foreground">
-        {dict.auth.noAccount}{" "}
-        <Link href={`/${lang}/signup`} className="text-primary hover:underline">
-          {dict.auth.signUp}
-        </Link>
-      </p>
+          <SubmitButton label={dict.auth.signIn} pendingLabel={dict.auth.signingIn} />
+        </form>
+      </details>
     </div>
   );
 }

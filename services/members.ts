@@ -1,8 +1,9 @@
 import "server-only";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import type { Club, Department, Member, MemberFilters, MembersResult } from "@/types/members";
 import type { Role } from "@/types/auth";
-import { PER_PAGE_SIZE } from "@/schemas/members";
+import { PER_PAGE_SIZE, type CreateMemberInput } from "@/schemas/members";
 
 /**
  * §9 → snake_case column mapping. Whitelisted in schemas/members.ts so an
@@ -183,6 +184,90 @@ export async function updateMember(input: {
   // false "member updated" toast, matching the pattern services/books.ts
   // already uses for updateBook/deleteBook/publishBook/unpublishBook.
   if (!data) return { ok: false, error: "not found or not allowed" };
+  return { ok: true };
+}
+
+/**
+ * §1: admin-only "add user" for someone who can't use Google OAuth.
+ * Deliberately two clients: the admin (service-role) client ONLY for
+ * auth.admin.createUser — RLS has no authority over the auth schema, so
+ * there's no way to do this without it — then the CALLER's own cookie-
+ * scoped client for the profiles UPDATE, so RLS and the same
+ * prevent_role_self_escalation / prevent_member_identity_change triggers
+ * that govern updateMember above also govern account creation, rather than
+ * bypassing them with the admin client for that part too.
+ *
+ * handle_new_user() (0023) already inserts a profiles row for any new
+ * auth.users row — including one made via the Admin API — with a role/
+ * student_id it guesses from the email's local part and password_set
+ * defaulting false (0030). This UPDATE overwrites that guess with what the
+ * caller actually chose, and sets password_set = true since the account
+ * ships with a real, immediately-usable password.
+ */
+export async function createMember(
+  input: CreateMemberInput
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const admin = createAdminClient();
+  const { data: created, error: createError } = await admin.auth.admin.createUser({
+    email: input.email,
+    password: input.password,
+    email_confirm: true,
+  });
+
+  if (createError || !created.user) {
+    if (createError?.code === "email_exists") {
+      return { ok: false, error: "emailExists" };
+    }
+    return { ok: false, error: createError?.message ?? "unknown" };
+  }
+
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("profiles")
+    .update({
+      role: input.role,
+      department_id: input.departmentId,
+      club_id: input.clubId,
+      class_name: input.className,
+      student_id: input.studentId,
+      full_name: input.fullName,
+      password_set: true,
+    })
+    .eq("id", created.user.id)
+    .select("id")
+    .maybeSingle();
+
+  if (error || !data) {
+    // A half-made account — auth.users exists but its profile never got
+    // the caller's chosen role/identity fields — is worse than no account
+    // at all, since it could still sign in with whatever handle_new_user()
+    // guessed. Roll it back rather than leave it behind.
+    await admin.auth.admin.deleteUser(created.user.id);
+
+    if (error?.code === "23505" && error.message.includes("profiles_student_id_key")) {
+      return { ok: false, error: "studentIdTaken" };
+    }
+    return { ok: false, error: "unknown" };
+  }
+
+  return { ok: true };
+}
+
+/**
+ * §1: admin-only permanent delete. auth.admin.deleteUser removes the
+ * auth.users row; profiles.id's `on delete cascade` (0001_auth.sql) takes
+ * the profile with it — no separate profiles delete needed. Self-delete and
+ * admin-row protection are enforced by the caller (actions/members.ts),
+ * re-reading the target's actual role server-side rather than trusting the
+ * form — this function does exactly what it's told.
+ */
+export async function deleteMember(id: string): Promise<{ ok: true } | { ok: false; error: string }> {
+  const admin = createAdminClient();
+  const { error } = await admin.auth.admin.deleteUser(id);
+
+  if (error) {
+    return { ok: false, error: error.message };
+  }
   return { ok: true };
 }
 
