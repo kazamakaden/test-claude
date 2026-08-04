@@ -1,6 +1,7 @@
 import "server-only";
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
+import { isSupabaseConfigured } from "@/lib/supabase/env";
 import type { Database } from "@/types/database";
 
 /**
@@ -31,4 +32,20 @@ export async function createClient() {
       },
     }
   );
+}
+
+/**
+ * Same client as createClient(), but returns null instead of throwing when
+ * Supabase isn't configured. createServerClient() throws synchronously on a
+ * missing URL/key — fine for a write path that must have a real client, but
+ * fatal for a read-only "list" service meant to fail soft to an empty
+ * result (services/books.ts#listBooks/getBookYears intend exactly that via
+ * their own `if (error || !data) return []` guards, but never get the
+ * chance to run because the throw happens before any query does). Callers
+ * that use this must already handle a null client the same way they handle
+ * a query error.
+ */
+export async function tryCreateClient() {
+  if (!isSupabaseConfigured) return null;
+  return createClient();
 }
