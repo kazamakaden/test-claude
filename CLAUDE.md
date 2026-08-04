@@ -1303,6 +1303,35 @@ names, `npx tsc --noEmit && npm run lint && npm run build` all pass clean,
 and no other code path calls `exchangeCodeForSession` a second time for the
 same request.
 
+**Real root cause of the live sign-in failure identified afterward — a
+second live Vercel domain missing from Supabase's own redirect allow-list,
+not the retry-race the code fix above targets.** Follow-up live report:
+signing in from `https://test-claude-ka-600a.vercel.app` (this project's
+second working production URL — see "Login was completely broken on a
+second live production URL" above, previously fixed for Cloudflare
+Turnstile only) landed on `http://localhost:3000/?code=<uuid>` — a dead
+local address with a stranded, never-exchanged code. That query shape (no
+`/th/auth/callback` in the path at all) is Supabase's Auth server falling
+back to its configured **Site URL** because the requested `redirectTo`
+(`https://test-claude-ka-600a.vercel.app/th/auth/callback`, correctly built
+by `resolveOrigin()` from the request's own `Origin` header) didn't match
+anything in Authentication → URL Configuration → Redirect URLs — only
+`https://test-claude-swart-delta.vercel.app/**` had ever been confirmed
+registered there (the Turnstile-domain fix only touched Cloudflare's
+hostname list, a completely separate allow-list, never Supabase's). Site
+URL itself was still Supabase's out-of-the-box default,
+`http://localhost:3000`, never updated to a real domain — explaining the
+exact dead address observed. Fixed by the user directly in the Supabase
+dashboard (not a code change, not something this session could do without
+dashboard access): added `https://test-claude-ka-600a.vercel.app/**` to
+Redirect URLs alongside the existing entries, and updated Site URL off its
+`localhost:3000` default. Confirmed working by the user afterward. The
+`exchangeCodeForSession` retry-guard fix above is still correct and worth
+keeping — it closes a real, distinct failure mode (a genuinely retried
+callback request) — but it was not what caused *this* particular reported
+failure, and is still unverified against a live retry specifically, only
+against the mechanism the error name describes.
+
 ### ❌ Remaining
 
 * **RLS policy performance (`auth_rls_initplan`, `multiple_permissive_policies`)**
