@@ -3,12 +3,7 @@
 import { redirect } from "next/navigation";
 import { headers } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
-import {
-  signInSchema,
-  signUpSchema,
-  resetRequestSchema,
-  newPasswordSchema,
-} from "@/schemas/auth";
+import { resetRequestSchema, newPasswordSchema } from "@/schemas/auth";
 import { assertTurnstileSafeForProduction, isTurnstileConfigured } from "@/lib/turnstile";
 import { resolveConfiguredSiteUrl } from "@/lib/site-url";
 import { defaultLocale, isLocale, type Locale } from "@/lib/i18n/config";
@@ -17,23 +12,18 @@ type AuthErrorKey =
   | "invalidEmail"
   | "personalDomain"
   | "wrongDomain"
-  | "passwordRequired"
   | "passwordTooShort"
   | "passwordTooLong"
   | "passwordNeedsLowercase"
   | "passwordNeedsUppercase"
   | "passwordNeedsSymbol"
   | "passwordMismatch"
-  | "invalidCredentials"
-  | "signUpFailed"
   | "resetFailed"
   | "updateFailed"
   | "sessionExpired"
   | "captchaFailed"
   | "oauthFailed";
 
-export type SignInResult = { ok: true } | { ok: false; messageKey: AuthErrorKey };
-export type SignUpResult = { ok: true } | { ok: false; messageKey: AuthErrorKey };
 export type ResetRequestResult = { ok: true } | { ok: false; messageKey: AuthErrorKey };
 export type UpdatePasswordResult = { ok: true } | { ok: false; messageKey: AuthErrorKey };
 
@@ -41,7 +31,6 @@ const FIELD_ERROR_KEYS = new Set<AuthErrorKey>([
   "invalidEmail",
   "personalDomain",
   "wrongDomain",
-  "passwordRequired",
   "passwordTooShort",
   "passwordTooLong",
   "passwordNeedsLowercase",
@@ -85,128 +74,6 @@ async function resolveOrigin(): Promise<string> {
 
   const host = headerList.get("host");
   return host ? `https://${host}` : "";
-}
-
-async function redirectByRole(lang: Locale): Promise<never> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) redirect(`/${lang}/login`);
-
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("role")
-    .eq("id", user.id)
-    .single();
-
-  redirect(`/${lang}/${profile?.role === "pending" ? "pending" : "dashboard"}`);
-}
-
-/**
- * Bound directly to the login form's `action` attribute (useActionState),
- * so submission works with JavaScript disabled — a real POST, not a
- * client-invoked RPC. `lang` travels as a hidden field for the same reason.
- *
- * Re-validates server-side with the same schema the client form uses (never
- * trust client validation alone — §19, §30.5, and the §30.9 "submit with JS
- * disabled" check all require this).
- *
- * Every failure — unknown email, wrong password, unconfirmed account —
- * collapses into the single `invalidCredentials` key. Distinguishing them
- * would let an attacker enumerate registered @udontech.ac.th addresses.
- */
-export async function signInWithPassword(
-  _prevState: SignInResult | null,
-  formData: FormData
-): Promise<SignInResult> {
-  assertTurnstileSafeForProduction();
-
-  const lang = getLang(formData);
-
-  const parsed = signInSchema.safeParse({
-    email: formData.get("email"),
-    password: formData.get("password"),
-  });
-
-  if (!parsed.success) {
-    const rawKey = parsed.error.issues[0]?.message;
-    return { ok: false, messageKey: fieldErrorKey(rawKey, "invalidEmail") };
-  }
-
-  const captchaToken = readCaptchaToken(formData);
-  if (isTurnstileConfigured && !captchaToken) {
-    return { ok: false, messageKey: "captchaFailed" };
-  }
-
-  const supabase = await createClient();
-  const { error } = await supabase.auth.signInWithPassword({
-    email: parsed.data.email,
-    password: parsed.data.password,
-    options: captchaToken ? { captchaToken } : undefined,
-  });
-
-  if (error) {
-    return { ok: false, messageKey: "invalidCredentials" };
-  }
-
-  return redirectByRole(lang);
-}
-
-/**
- * Same enumeration guard as signIn: the returned result never distinguishes
- * "email already registered" from "email successfully sent" — both produce
- * the same "check your email" panel client-side.
- */
-export async function signUpWithPassword(
-  _prevState: SignUpResult | null,
-  formData: FormData
-): Promise<SignUpResult> {
-  assertTurnstileSafeForProduction();
-
-  const lang = getLang(formData);
-
-  const parsed = signUpSchema.safeParse({
-    email: formData.get("email"),
-    password: formData.get("password"),
-    confirmPassword: formData.get("confirmPassword"),
-  });
-
-  if (!parsed.success) {
-    const rawKey = parsed.error.issues[0]?.message;
-    return { ok: false, messageKey: fieldErrorKey(rawKey, "invalidEmail") };
-  }
-
-  const captchaToken = readCaptchaToken(formData);
-  if (isTurnstileConfigured && !captchaToken) {
-    return { ok: false, messageKey: "captchaFailed" };
-  }
-
-  const origin = await resolveOrigin();
-  const supabase = await createClient();
-
-  const { error } = await supabase.auth.signUp({
-    email: parsed.data.email,
-    password: parsed.data.password,
-    options: {
-      emailRedirectTo: `${origin}/${lang}/auth/callback`,
-      ...(captchaToken ? { captchaToken } : {}),
-    },
-  });
-
-  if (error) {
-    // The user-facing response deliberately stays the generic signUpFailed
-    // key (an enumeration guard — see the JSDoc above), but that collapses
-    // "address already registered", "SMTP misconfigured", and "rate
-    // limited" into one indistinguishable message. Logging the real code
-    // server-side is what makes those distinguishable in Vercel logs
-    // without weakening the client-facing guarantee.
-    console.error("[signUpWithPassword]", error.code, error.message);
-    return { ok: false, messageKey: "signUpFailed" };
-  }
-
-  return { ok: true };
 }
 
 /** Uniform response regardless of whether the address is registered — same enumeration guard. */
@@ -281,24 +148,39 @@ export async function updatePassword(
     return { ok: false, messageKey: "sessionExpired" };
   }
 
+  // Read password_set BEFORE updating it, so the redirect can tell a
+  // first-time completion of the Google-sign-in set-password flow apart
+  // from an ordinary later password reset.
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("password_set")
+    .eq("id", user.id)
+    .single();
+  const isFirstTimeSetup = !profile?.password_set;
+
   const { error } = await supabase.auth.updateUser({ password: parsed.data.password });
   if (error) {
     return { ok: false, messageKey: "updateFailed" };
   }
 
-  return redirectByRole(lang);
+  await supabase.from("profiles").update({ password_set: true }).eq("id", user.id);
+
+  // Signing out here (rather than continuing straight to /dashboard) is
+  // what puts the user back on /login to complete the flow this was built
+  // for: Google sign-in -> set password -> "you're done, now sign in."
+  await supabase.auth.signOut();
+  redirect(`/${lang}/login?notice=${isFirstTimeSetup ? "signupComplete" : "passwordUpdated"}`);
 }
 
 /**
- * Google OAuth, restricted to the same @udontech.ac.th domain as password
- * sign-in. `hd` is a UI hint to Google's account picker only — it is NOT
- * enforcement and a user can bypass it by picking a different account than
- * the one it suggests. The actual boundary is profiles.email's CHECK
- * constraint (0001), which a non-college address fails at signup, plus the
- * explicit re-check in the callback route as defence in depth. Bound to the
- * login/signup form's `action` (not an onClick handler) so it still works —
- * as a real redirect-driving POST — with JavaScript disabled, same
- * reasoning as the password actions above.
+ * The single sign-in/sign-up entry point — restricted to @udontech.ac.th.
+ * `hd` is a UI hint to Google's account picker only — it is NOT enforcement
+ * and a user can bypass it by picking a different account than the one it
+ * suggests. The actual boundary is profiles.email's CHECK constraint
+ * (0001), which a non-college address fails at signup, plus the explicit
+ * re-check in the callback route as defence in depth. Bound to the login
+ * form's `action` (not an onClick handler) so it still works — as a real
+ * redirect-driving POST — with JavaScript disabled.
  */
 export async function signInWithGoogle(lang: Locale) {
   const origin = await resolveOrigin();

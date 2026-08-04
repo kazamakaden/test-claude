@@ -4,11 +4,11 @@ import { signedInLandingTarget } from "@/lib/auth/require-role";
 import { isLocale, defaultLocale } from "@/lib/i18n/config";
 
 /**
- * Signup-confirmation and Google OAuth landing point (password recovery
- * has its own route, app/[lang]/auth/reset/route.ts, since a recovery code
- * must land on /reset-password rather than here). The redirect target is
- * fixed at /dashboard or /pending — never reflects a caller-supplied `next`
- * param (that would be an open redirect).
+ * Google OAuth landing point (password recovery has its own route,
+ * app/[lang]/auth/reset/route.ts, since a recovery code must land on
+ * /reset-password rather than here). The redirect target is fixed at
+ * /set-password, /dashboard, or /pending — never reflects a caller-supplied
+ * `next` param (that would be an open redirect).
  */
 export async function GET(request: NextRequest, { params }: { params: Promise<{ lang: string }> }) {
   const { lang: rawLang } = await params;
@@ -45,7 +45,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       // waiting page instead of a dashboard requirePermission() would just
       // bounce them out of anyway.
       const { data: profile } = user
-        ? await supabase.from("profiles").select("role").eq("id", user.id).single()
+        ? await supabase.from("profiles").select("role, password_set").eq("id", user.id).single()
         : { data: null };
 
       // 0023's handle_new_user() only copies Google's name/photo at signup
@@ -67,6 +67,16 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
             })
             .eq("id", user.id);
         }
+      }
+
+      // Google OAuth is the only sign-in path now, and Supabase never emails
+      // a Google user (the identity is already verified) — so a brand-new
+      // account has no password at all until it goes through the
+      // set-password flow below. Checked ahead of the normal
+      // dashboard/pending landing, since an account can't meaningfully use
+      // the app's password-based recovery path without one yet.
+      if (user && profile && !profile.password_set) {
+        return NextResponse.redirect(new URL(`/${lang}/set-password`, request.url));
       }
 
       const target = signedInLandingTarget(profile?.role ?? "guest", lang);

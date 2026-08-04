@@ -26,17 +26,6 @@ export const emailSchema = z
     ctx.addIssue({ code: "custom", message: "wrongDomain" });
   });
 
-/**
- * Sign-in deliberately carries no strength rules — an account created
- * before a policy change must still be able to log in with whatever
- * password it already has.
- */
-export const signInSchema = z.object({
-  email: emailSchema,
-  password: z.string().min(1, { message: "passwordRequired" }),
-});
-export type SignInInput = z.infer<typeof signInSchema>;
-
 // GoTrue hashes with bcrypt, which silently truncates past 72 bytes — the
 // max is real, not arbitrary. §7's strength rule (upper + lower + symbol)
 // is layered on after length: actions/auth.ts surfaces only
@@ -49,18 +38,6 @@ const newPasswordField = z
   .regex(/[a-z]/, { message: "passwordNeedsLowercase" })
   .regex(/[A-Z]/, { message: "passwordNeedsUppercase" })
   .regex(/[^A-Za-z0-9]/, { message: "passwordNeedsSymbol" });
-
-export const signUpSchema = z
-  .object({
-    email: emailSchema,
-    password: newPasswordField,
-    confirmPassword: z.string(),
-  })
-  .refine((data) => data.password === data.confirmPassword, {
-    message: "passwordMismatch",
-    path: ["confirmPassword"],
-  });
-export type SignUpInput = z.infer<typeof signUpSchema>;
 
 export const resetRequestSchema = z.object({
   email: emailSchema,

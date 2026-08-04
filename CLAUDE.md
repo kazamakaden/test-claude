@@ -931,6 +931,94 @@ desktop avatar.** Three small UX/security fixes to the auth layer:
 `npx tsc --noEmit && npm run lint && npm run build` all pass clean for all
 three changes together.
 
+**Sign-in switched to Google OAuth only, with an emailed set-password step.**
+`/login` and `/signup` no longer carry an email/password form — `/login` is a
+single Google button, `/signup` is now just a `redirect()` to `/login`
+(dropped rather than deleted outright, so an old bookmark still lands
+somewhere useful). `actions/auth.ts` lost `signInWithPassword` and
+`signUpWithPassword` entirely, and `schemas/auth.ts` lost `signInSchema`/
+`signUpSchema` with them; `emailSchema`/`newPasswordField`/
+`resetRequestSchema`/`newPasswordSchema` all stay, still used by the reset/
+set-password path. Dead dictionary keys that only those two removed forms
+ever read (`passwordLabel`, `signUp`, `signingUp`, `signingIn`, `noAccount`,
+`haveAccount`, `checkEmailSignupDescription`, and the error keys
+`passwordRequired`/`invalidCredentials`/`signUpFailed`) were removed from
+both `th.json`/`en.json` rather than left orphaned.
+
+Two real constraints shaped the design, both found before writing any code
+rather than discovered mid-implementation:
+
+1. **Supabase sends no email after a Google sign-in** — Google already
+   proved the identity, so `email_confirmed_at` is set immediately and
+   nothing is mailed. The requested "send email → click link → set
+   password" step has to be triggered by the app itself, so it reuses the
+   *existing* password-recovery email (`requestPasswordReset` →
+   `/auth/reset` → `/reset-password`) rather than inventing a new one —
+   `/reset-password` already *is* the requested password+confirm screen.
+2. **This project's Turnstile is enforced at the Supabase project level**,
+   so a server-initiated `resetPasswordForEmail()` call with no captcha
+   token would be rejected outright (`captcha protection: request
+   disallowed` — the same failure already documented earlier in this file
+   for `signInWithPassword`). A token can only come from a real browser, so
+   the flow needs a small interstitial page, not a fully silent trigger.
+
+New `profiles.password_set boolean not null default false` column
+(`supabase/migrations/0030_profiles_password_set.sql`), backfilled `true`
+for any existing `auth.users` row with a real `encrypted_password` so
+pre-existing password accounts aren't routed through the new flow on their
+next sign-in. Given the explicit column-grant allow-list `0005` established
+for `profiles` (a table-level SELECT revoke, re-granted per-column), the
+migration re-grants `select (password_set)` in the same file — the exact
+trap that column-grant pattern exists to catch, checked for directly this
+time rather than found by a later live 403. **Accepted, not closed**:
+`profiles_update_own` (0002) lets a user flip their own `password_set`
+like any other self-editable column — the same trade-off already made for
+`full_name`/`avatar_url` (0025's header) — since doing so only costs that
+user their own password step and grants no privilege, it's a UX gate, not
+a security boundary, so no additional trigger was added.
+
+`app/[lang]/auth/callback/route.ts` now selects `password_set` alongside
+`role` and checks it ahead of the normal `pending`/`dashboard` landing:
+`password_set = false` sends a freshly-signed-in Google user to the new
+`/set-password` page instead. That page (`app/[lang]/(public)/set-password/`)
+reads the caller's own verified session email server-side — never a URL
+param — and its form is a thin wrapper around the *existing*
+`requestPasswordReset` Server Action (real captcha widget, hidden
+server-known email field, same uniform "check your email" response
+already used to guard against enumeration) rather than a new endpoint.
+`updatePassword` (`actions/auth.ts`) now reads `password_set` before
+updating it — to tell a first-time completion of this flow apart from an
+ordinary later password reset — sets it `true`, signs the session out, and
+redirects to `/login?notice=signupComplete` or `?notice=passwordUpdated`
+rather than straight into the app; `login/page.tsx` parses `?notice=` the
+same defensively-checked-against-dictionary-keys way it already parsed
+`?error=`. `redirectByRole()` (the helper both removed password actions
+used to call) was deleted as dead code once nothing called it anymore.
+
+**One trade-off stated plainly rather than silently accepted**: with
+`/login` reduced to a Google button only, the password set through this
+flow has no working sign-in path that consumes it — `/forgot-password` is
+its only consumer today (recovering a password that already can't log
+anyone in). Built this way because Google-only login *and* a real
+set-password step were both explicitly requested together; flagging it
+here so it isn't rediscovered as a surprise later.
+
+`npx tsc --noEmit && npm run lint && npm run build` all pass clean, plus a
+grep sweep confirming no leftover reference to any removed
+export/schema/dictionary key. Verified via `dev_role` cookie stub and
+`curl` (no live Supabase project in this session): `/login` renders no
+email/password inputs; `/signup` redirects to `/login`; a signed-in
+`/signup` hit chains `/signup → /login → /dashboard` without looping;
+`?notice=signupComplete` renders the Thai success text, an unknown
+`?notice=` value renders nothing; `/forgot-password` and `/reset-password`
+are unaffected. **Not verified live** (no Supabase credentials in this
+session, same limitation as the section above): a real Google sign-in
+actually reaching `/set-password` on a fresh account, the emailed link
+completing the round trip, and — the biggest real risk — whether the
+project's email volume can support this at all, since custom SMTP is still
+unconfigured per the ❌ Remaining item below and the default Supabase mailer
+caps out around 2 messages/hour.
+
 ### ❌ Remaining
 
 * **RLS policy performance (`auth_rls_initplan`, `multiple_permissive_policies`)**
