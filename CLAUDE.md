@@ -1265,7 +1265,43 @@ at `0021`, and `books`/`0027`-`0029` is exactly what `/documents` reads) may
 never have been applied to the live project; separately, the 12-hour session
 cap (`lib/auth/session-timeout.ts`) redirects an expired signed-in session to
 `/login?error=sessionTimedOut` on every navigation, which can read as "the
-page won't open" if not recognized as that specific redirect.
+page won't open" if not recognized as that specific redirect. **Confirmed
+live, same pass**: the user hit production `test-claude-swart-delta.vercel.app/th/documents`
+directly and got Next's bare "Application error" screen with `Digest:
+2646013012` — this is the exact failure mode this fix targets, observed
+from the live site rather than assumed. Since this fix was not yet merged
+to `master` at the time (Vercel deploys production from `master`, and this
+work landed on `claude/check-updates-naming-brczuk` first), that digest is
+expected to be the *old* crash, not a new one — merging is what actually
+puts the fix in front of it.
+
+**A second, unrelated bug found and fixed in the same pass: intermittent
+Google sign-in failure, `flow_state_already_used`.** Reported live: signing
+in sometimes works, sometimes lands on `/?error=invalid_request&error_code=flow_state_already_used`.
+That query-param shape is Supabase's own GoTrue server redirecting to its
+configured Site URL — meaning the request never reached this app's
+`app/[lang]/auth/callback/route.ts` at all; Supabase itself rejected a
+second attempt to redeem an already-consumed one-time PKCE code before
+handing control back. `exchangeCodeForSession(code)` can only succeed once
+per `code`; a second delivery of the same callback request — a slow network
+or an intermediary retrying a slow GET, a stale/replayed navigation — fails
+with exactly this error even though the *first* delivery already succeeded
+and set a valid session cookie.
+
+Fixed by checking for an existing session (`supabase.auth.getUser()`)
+*before* ever touching `code`: if the request already carries a valid
+session (the retry/replay case), the exchange is skipped entirely and the
+handler falls straight through to the same profile-lookup/redirect logic a
+fresh exchange would have reached — turning a visible error into a silent
+no-op success. The domain check, the Google name/avatar re-sync, and the
+`password_set` → `/set-password` branch are all unchanged, just no longer
+nested inside the old `if (!error) { ... }` block now that `user` is
+resolved once up front. Not verified against the live failure directly —
+this session cannot reach the live Supabase project (see above) — but the
+fix directly closes the one-time-code-reuse mechanism `flow_state_already_used`
+names, `npx tsc --noEmit && npm run lint && npm run build` all pass clean,
+and no other code path calls `exchangeCodeForSession` a second time for the
+same request.
 
 ### ❌ Remaining
 
