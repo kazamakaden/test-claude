@@ -10,6 +10,7 @@ import {
   newPasswordSchema,
 } from "@/schemas/auth";
 import { assertTurnstileSafeForProduction, isTurnstileConfigured } from "@/lib/turnstile";
+import { resolveConfiguredSiteUrl } from "@/lib/site-url";
 import { defaultLocale, isLocale, type Locale } from "@/lib/i18n/config";
 
 type AuthErrorKey =
@@ -69,8 +70,9 @@ function readCaptchaToken(formData: FormData): string | null {
  * Without a fallback, `${origin}/...` silently becomes the literal string
  * "null/th/auth/callback" and a signup/reset email's link goes nowhere —
  * indistinguishable from "email not sending" to the person who clicks it.
- * NEXT_PUBLIC_SITE_URL is the explicit fallback (.env.example); if that's
- * also unset, fall back to the request's own Host header rather than
+ * lib/site-url.ts's resolveConfiguredSiteUrl() is the explicit fallback
+ * (NEXT_PUBLIC_SITE_URL, or Vercel's auto-injected production URL); if
+ * neither is set, fall back to the request's own Host header rather than
  * emitting a known-broken URL.
  */
 async function resolveOrigin(): Promise<string> {
@@ -78,7 +80,7 @@ async function resolveOrigin(): Promise<string> {
   const origin = headerList.get("origin");
   if (origin) return origin;
 
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL;
+  const siteUrl = resolveConfiguredSiteUrl();
   if (siteUrl) return siteUrl;
 
   const host = headerList.get("host");

@@ -53,6 +53,7 @@ export function UserMenu({
   }
 
   const initials = getInitials(fullName);
+  const displayName = fullName ?? email?.split("@")[0] ?? null;
 
   return (
     <div className="flex items-center gap-1">
@@ -61,9 +62,8 @@ export function UserMenu({
           render={
             <Button
               variant="ghost"
-              size="icon"
               aria-label={dict.nav.profile}
-              className="rounded-full"
+              className="h-auto rounded-full px-2 py-1"
             />
           }
         >
@@ -71,6 +71,11 @@ export function UserMenu({
             <AvatarImage src={avatarUrl ?? undefined} referrerPolicy="no-referrer" />
             <AvatarFallback>{initials ?? <User className="size-4" />}</AvatarFallback>
           </Avatar>
+          {displayName ? (
+            <span className="max-w-[10rem] truncate text-sm font-medium text-foreground">
+              {displayName}
+            </span>
+          ) : null}
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
           {fullName || email ? (

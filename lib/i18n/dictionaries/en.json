@@ -90,7 +90,8 @@
       "sessionExpired": "This link has expired or already been used. Please request a new one.",
       "captchaFailed": "Please complete the verification check and try again.",
       "oauthFailed": "Couldn't sign in with Google. Please try again.",
-      "auth": "Sign-in failed. Please try again."
+      "auth": "Sign-in failed. Please try again.",
+      "sessionTimedOut": "Your session expired after 12 hours. Please sign in again."
     },
     "orDivider": "or",
     "googleSignIn": "Sign in with Google"

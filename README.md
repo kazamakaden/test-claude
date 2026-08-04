@@ -342,6 +342,15 @@ Preview scope):
 | `NEXT_PUBLIC_SUPABASE_URL` | your Supabase project URL |
 | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | your Supabase publishable key |
 | `NEXT_PUBLIC_TURNSTILE_SITE_KEY` | a **real** Cloudflare Turnstile sitekey scoped to the deployment's hostname |
+| `NEXT_PUBLIC_SITE_URL` | optional on Vercel — see below |
+
+`NEXT_PUBLIC_SITE_URL` (`lib/site-url.ts`) doesn't need to be set by hand on
+Vercel: when a project's "Automatically expose System Environment Variables"
+setting is on (the default), Vercel injects `VERCEL_PROJECT_PRODUCTION_URL`
+itself, and the build guard and auth redirect logic both fall back to it. Set
+`NEXT_PUBLIC_SITE_URL` explicitly only if that setting is off, or for a custom
+domain, or for the self-hosted Linux target (CLAUDE.md §2), which has no
+Vercel env to fall back to.
 
 **Never put a Cloudflare testing sitekey (e.g. `1x00000000000000000000AA`) in
 a production environment.** It is a documented always-pass key; both the
@@ -392,6 +401,21 @@ project:
    redirects to `/th/pending` (every fresh signup) or `/th/dashboard` (once
    an admin has approved you — see "Sign-up rule" above). A forgotten
    password is recovered at `/th/forgot-password`.
+
+## Session timeout
+
+Every session is force-signed-out 12 hours after sign-in (`SESSION_MAX_AGE_MS`
+in `lib/auth/session-timeout.ts`), checked in `middleware.ts` against
+Supabase's server-verified `last_sign_in_at` on every request — a redirect to
+`/login?error=sessionTimedOut` with an explanatory message, not a silent
+bounce. This is a hard cap since sign-in, not an idle timer.
+
+For defence in depth, also set a matching **project-level** cap in Supabase
+dashboard → **Authentication → Sessions → Time-box user sessions** → `12`
+hours. That setting invalidates the refresh token itself at the auth server —
+stronger than the app-level check, which can only act once a request reaches
+this app's middleware. The app-level cap above works correctly without it;
+this is a manual dashboard step, not applied by any migration here.
 
 ## Demo accounts
 

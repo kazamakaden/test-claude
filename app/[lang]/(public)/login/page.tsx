@@ -1,4 +1,7 @@
+import { redirect } from "next/navigation";
 import { getDictionary } from "@/lib/i18n/get-dictionary";
+import { getRole } from "@/lib/auth/get-role";
+import { signedInLandingTarget } from "@/lib/auth/require-role";
 import type { Locale } from "@/lib/i18n/config";
 import { LoginForm } from "./login-form";
 
@@ -11,7 +14,11 @@ export default async function LoginPage({
 }) {
   const { lang: rawLang } = await params;
   const lang = rawLang as Locale;
-  const dict = await getDictionary(lang);
+  const [dict, role] = await Promise.all([getDictionary(lang), getRole()]);
+
+  if (role !== "guest") {
+    redirect(signedInLandingTarget(role, lang));
+  }
 
   // Set by app/[lang]/auth/callback/route.ts when a redirect back here
   // carries a reason — a non-college Google account, a failed OAuth
