@@ -123,9 +123,18 @@ export const permissionsByRole: Record<Role, readonly Permission[]> = {
   admin: adminPermissions,
 };
 
-/** Does `role` hold `permission`? Linear scan is fine — the matrix is tiny. */
+/**
+ * Does `role` hold `permission`? Linear scan is fine — the matrix is tiny.
+ *
+ * `role` is erased to a plain string at runtime (it comes straight off the
+ * database via getSessionProfile()), so a value this matrix doesn't know
+ * about — a schema/code skew, an enum value added by a migration this
+ * deployment hasn't caught up with yet — would otherwise throw reading
+ * `permissionsByRole[role]` as undefined. Fail closed to "no permissions"
+ * rather than crash the caller.
+ */
 export function can(role: Role, permission: Permission): boolean {
-  return permissionsByRole[role].includes(permission);
+  return (permissionsByRole[role] ?? []).includes(permission);
 }
 
 /**

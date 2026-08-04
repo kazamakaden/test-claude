@@ -1332,6 +1332,94 @@ callback request) — but it was not what caused *this* particular reported
 failure, and is still unverified against a live retry specifically, only
 against the mechanism the error name describes.
 
+**The `/documents`/`/members` error card was silent — fixed to name what
+actually broke, self-tested end to end.** Reported live: `/th/documents` on
+`test-claude-ka-600a.vercel.app` showed the error card ("ไม่สามารถโหลดข้อมูลได้")
+in *both* boundaries (filters and shelf) after uploading a book via a
+FlipHTML5 link. Traced every path in both subtrees by reading — `getBookYears`/
+`listBooks` both already go through `tryCreateClient()` with their own
+`if (error) return …` guards, `getSessionProfile()` fails closed to guest,
+`getSignedCoverUrl` guards its storage error, `0027_books.sql`'s `NOT NULL`/
+`CHECK` constraints rule out a bad-data crash in `BookCard` — and could not
+find the throw. It also didn't reproduce locally (`next build` + `next
+start` against a syntactically-valid placeholder Supabase URL/key rendered
+the normal empty state, zero error cards). The real defect turned out to be
+diagnostic, not functional: `CardBoundary` had no `componentDidCatch` and
+`CardError` showed no digest, so a live-only failure was fundamentally
+unobservable without redeploying instrumentation first — the same gap
+`app/[lang]/error.tsx` already closed for whole-route crashes, never
+extended to this per-card boundary.
+
+Fixed in `components/dashboard/card-boundary.tsx`/`card-states.tsx`:
+`componentDidCatch` logs to the server console (Vercel Runtime Logs will
+carry it), and `error.digest` is captured into state and rendered in
+`CardError` as "Error reference: …" — same convention as
+`app/[lang]/error.tsx`. Every existing `CardBoundary` consumer (the whole
+dashboard) gets this for free, not just Documents.
+
+**A second, more serious defect found in the same code while fixing the
+first**: `CardBoundary`'s `getDerivedStateFromError` caught *everything*
+thrown by its subtree, including Next's own control-flow signals —
+`redirect()`, `notFound()`, dynamic-rendering bailouts all throw internally
+and rely on propagating uncaught. A boundary that swallows those turns a
+working redirect into a permanent, silent error card instead of letting
+Next handle it — and would misfire in exactly the "both boundaries at once"
+shape this bug report described, since both `BooksFiltersSection` and
+`BooksResults` sit under the same `getRole()`/permission machinery. This
+project already learned this exact lesson once for `services/dashboard.ts`
+(documented above: "lets `requirePermission`'s `redirect()` propagate
+uncaught... must not be swallowed by a `.catch()`"), but `CardBoundary` —
+the one place in the codebase that catches errors from an arbitrary Server
+Component subtree — never got the same treatment. Fixed with
+`unstable_rethrow` (Next's own public API for exactly this, `next/navigation`),
+called first in `getDerivedStateFromError` before ever committing the error
+fallback.
+
+Closed the two remaining unguarded client constructions in the read path
+the same way as the previous pass: `BooksResults`' direct `createClient()`
+call and `services/books.ts#getSignedPdfUrl`/`getSignedCoverUrl` now use
+`tryCreateClient()` with a null guard. Also hardened `lib/auth/permissions.ts#can`:
+`permissionsByRole[role]` would throw on a role value the matrix doesn't
+recognize (a real risk given `role` is erased to a plain string at the
+database boundary and this project has already hit schema/deploy skew more
+than once) — now falls back to an empty permission list instead of
+crashing the caller.
+
+**Both fixes were proven working, not just written**, using the same
+self-test discipline `scripts/responsive-check.mjs` already established for
+this project — temporarily inject the exact failure, observe the fix catch
+it, then revert:
+1. Made `getBookYears()` throw, ran a real `next build` + `next start`.
+   Server console showed `⨯ Error: TEMP_SELF_TEST_getBookYears … digest:
+   '236722411'`. Loaded the page in a real headless Chrome tab over CDP
+   (the same raw-DevTools-Protocol technique `responsive-check.mjs` uses)
+   and read `document.body.innerText`: `"...ไม่สามารถโหลดข้อมูลได้\n\nลองใหม่อีกครั้ง\n\nError
+   reference: 236722411..."` — the exact same digest, connected end to end
+   for the first time. The shelf boundary (untouched by the injected throw)
+   correctly still rendered its normal empty state alongside it, confirming
+   the two boundaries fail independently as designed.
+2. Put a `redirect()` inside `BooksFiltersSection`, rebuilt, loaded in the
+   same real browser, and read `location.href` after settling: it had
+   actually navigated to the redirect target — confirming
+   `unstable_rethrow` really propagates the signal through the boundary
+   instead of silently eating it. Both temporary changes were reverted
+   immediately after capturing their result; `git diff` confirms no
+   self-test residue shipped.
+
+`npx tsc --noEmit && npm run lint && npm run build` all pass. Re-ran the
+previous pass's full regression: no-env-vars `/th/documents`, `/en/documents`,
+`/th/members`, `/en/members` all still **200** (not the pre-fix 500), and
+`npm run check:responsive` (72/72) passes clean including the new "Error
+reference" markup width.
+
+**Not closed by this pass**: this makes the failure name itself; it does
+not fix whatever is actually failing on `test-claude-ka-600a.vercel.app`
+today, since that cause is still unidentified and this session still cannot
+reach either the live site or the live Supabase project. The next production
+occurrence's Vercel Runtime Logs — or the digest now shown directly on the
+error card — should answer that immediately, unlike this report which had
+neither.
+
 ### ❌ Remaining
 
 * **RLS policy performance (`auth_rls_initplan`, `multiple_permissive_policies`)**
