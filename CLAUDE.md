@@ -720,6 +720,71 @@ advisories, and adding CSP headers. Both are real, but both are the kind of
 change where a rushed, unverified attempt is worse than the problem it
 fixes — see ❌ Remaining for why and what a correct fix would need.
 
+**§11 Projects workflow and §12/§17 Documents digital-signature workflow —
+both fully built (commits `03f19e4`/`8260e14`), documented here only now
+because this file was never updated alongside that pass. Recovered by
+reading the actual code/migrations/git history in this pass, not because it
+was built in this pass — flagging that distinction plainly rather than
+implying otherwise.**
+
+**Projects (§11)**: `Draft → Teacher Review → Admin Approval → Official`,
+built directly on the existing `projects` table's `status` enum rather than
+a separate `project_drafts` table — a deliberate deviation from §20's literal
+table list, the same "one table, a status column, not a second draft table"
+shape `document_drafts` already uses for the parallel half of this pattern.
+`/projects/new` (create), `/projects/[id]` (detail), `/projects` (the
+owner's own list), and `/projects/review` (the reviewer queues) are real
+pages, not `PageShell` stubs — `services/projects.ts`, `actions/projects.ts`,
+`schemas/projects.ts`, `components/projects/*`. `/projects/review` shows two
+independently-paginated/sorted queues (teacher-review, admin-approval),
+gated per-queue on `project:recommend`/`project:approve` respectively via
+`requireAnyPermission`. `0016_project_document_workflow_tables.sql` adds a
+`rejected_reason` column; `0017_project_document_workflow_rls.sql` adds the
+owner/teacher RLS policies this needed (previously only admin/aft_teacher
+could touch these tables at all). Illegal status jumps (e.g. `draft` straight
+to `admin_approval`, skipping review) are blocked by a dedicated trigger,
+`enforce_project_status_transition()` (0016) — RLS policies alone cannot
+express "the OLD status must have been X" (a `WITH CHECK` clause only ever
+sees the NEW row, and Postgres OR-combines multiple permissive policies'
+`USING`/`WITH CHECK` clauses independently of each other), so a caller could
+otherwise mix one policy's permissive `USING` with a different policy's
+permissive `WITH CHECK` to skip a stage even though no single policy
+actually allows that exact transition — the trigger is what actually closes
+that gap, not RLS.
+
+**Documents (§12/§17)** additionally gets the full digital-signature step:
+`Draft → Sign → Pending Approval → Official`. Signing is
+`components/documents/signature-flow.tsx` + `signature-pad.tsx`
+(`react-signature-canvas`, the Phase-1-deferred dependency finally landing
+here) implementing the exact §17 sequence — draw → preview → confirm → type
+"ยืนยัน" → save — at `/documents/manage/[id]/sign`, re-checking server-side
+that the caller is the document's owner and it's still `status = 'draft'`
+before rendering the form at all. The save itself calls a new
+`sign_document()` Postgres function (0016, `security invoker` — explicitly
+not `security definer`, since this is a transaction wrapper around two
+statements that must still run under the caller's own RLS privileges, not a
+privilege escalation) that atomically inserts into a new `signature_records`
+table (one of the four tables §20/§30.10 had deferred; `document_id`,
+`signer_id`, `signature_data` as a plain text column holding the canvas's
+`toDataURL()` PNG — no Supabase Storage bucket needed for a value this
+small) and flips `documents.status` from `draft` to `signed`, in that
+order specifically (inserting the signature first is required by
+`signature_records`'s own RLS insert policy, which requires the parent
+document to still read `status = 'draft'` at insert time — updating status
+first would make the insert fail its own check). The same
+old-status-vs-new-status trigger pattern as Projects
+(`enforce_document_status_transition()`, 0016) blocks skipping the sign step
+by combining `documents_update_own_draft`'s permissive `USING` with a
+different policy's permissive `WITH CHECK` for `pending_approval`.
+
+**Live-verification status unknown, not re-verified in this pass**: because
+this work was never logged here, there is no record of whether the original
+pass ran this project's usual live-proof discipline (role-matrix RLS checks,
+a real signature round-trip against the hosted Supabase project) against it.
+Treat it as code-reviewed-and-present, not as proven live, until a pass
+confirms it against the real database the way `0005`/`0008`/`0011` are
+already proven above.
+
 **Sign-up flow replaced: `pending` role + post-signup admin approval,
 superseding the `0010`–`0012` pre-approval allow-list above.** The old
 design required a numeric-local-part (§14 student-ID) address to already be
@@ -1160,12 +1225,16 @@ not just embedded dictionary JSON.
   and shipped unverified.
 * **Leaked password protection is off, Pro-plan-gated** — Supabase
   Authentication → Attack Protection confirms it, greyed out under "Only
-  available on Pro plan and above." Low real-world exposure today since the
-  app is magic-link-only and password sign-in is never exposed in the UI,
-  but the password grant type remains live at the Supabase API level
-  regardless (the demo accounts' passwords are real, "for API testing
-  only" per their own note above) — worth revisiting if the project ever
-  upgrades off the Free tier.
+  available on Pro plan and above." **This entry's earlier claim that
+  "password sign-in is never exposed in the UI" is now false and has been
+  corrected here rather than silently left wrong**: a password field is live
+  at `/login` (behind a `<details>` disclosure, alongside Google — added when
+  password sign-in was restored so admin-created accounts have a way in) and
+  every account an admin creates via `/members`'s "Add user" ships with a
+  real, immediately-usable password from creation. Real-world exposure is
+  therefore higher than when this bullet was first written, not the same.
+  Still not fixable without a paid-plan upgrade, which is a billing decision
+  for the user, not something to change unilaterally.
 * **Custom SMTP (Resend) needs to be manually reconfigured** — cleared as a
   side effect of the round-trip proof above (Authentication → Emails → SMTP
   Settings → toggle "Enable custom SMTP" → re-enter host `smtp.resend.com`,
@@ -1174,15 +1243,53 @@ not just embedded dictionary JSON.
   won't actually send until `udontech.ac.th` also finishes Resend's DNS
   verification, which is still pending — check `resend._domainkey.udontech.ac.th`
   resolves before expecting it to work.
-* **The remaining four §20 tables / four §30.10 phases** — `project_drafts`
-  (Projects workflow), `qr_sessions` + `signature_records` (QR attendance,
-  most security-sensitive: GPS/device fingerprint), `audit_logs`. Plus
-  Documents digital-signature, Reports & global search, Notifications/web
-  push — none of those phases started; each is its own approved phase, in
-  that order. **§30.10's Activities phase is now partially consumed** — the
-  full §10 UI (search/filters/sort/pagination/statistics) landed above, built
-  directly against the existing `activities` table; only **realtime** (the
-  other half of that phase) remains outstanding.
+* **Correction to this section's own prior claim**: it used to say
+  "`project_drafts` (Projects workflow) ... Plus Documents digital-signature
+  ... none of those phases started." That was wrong by the time it was
+  read for this pass — both shipped in commits `03f19e4`/`8260e14`, just
+  never reflected here (see the Done-section entry above, added this pass
+  specifically to close that gap). Audited every remaining §30.10 phase
+  against the actual codebase (routes, migrations, package.json) rather than
+  trusting this file's own prior bullets, since one of them had already gone
+  stale silently:
+  * **QR attendance (§13)** — genuinely not started. No `qr_sessions`
+    migration, no `react-qr-scanner`-equivalent usage anywhere in the
+    codebase, no scan/confirm page. This is §30.10's own documented
+    most-security-sensitive phase (GPS, device fingerprint, duplicate
+    protection) — start here, not later, per that ordering.
+  * **`audit_logs`** — genuinely not started. No migration creates it, and
+    grepping the codebase for any write to a table by that name finds
+    nothing.
+  * **Reports & global search (§18/§30.10)** — genuinely not started.
+    `/reports` is still a bare `PageShell` with `emptyTitle={dict.common.comingSoon}`
+    and nothing else; there is no search input anywhere in `top-nav.tsx` and
+    no cross-entity (Members/Activities/Projects/Documents) query path. The
+    debounced-search pattern already proven on `/members` and `/activities`
+    (`hooks/use-debounced-value.ts`) is the natural building block once this
+    phase starts.
+  * **Notifications/web push (§16/§30.10)** — genuinely not started.
+    `/notifications` is the same bare `PageShell` placeholder; no service
+    worker, no `web-push` usage, nothing beyond the nav bell icon that
+    already exists for the in-app unread-dot UI.
+  * **`/profile` — a fifth placeholder page, not previously listed here at
+    all.** Also a bare `PageShell` "coming soon", despite being linked from
+    every signed-in role's top nav and avatar-menu dropdown. Found while
+    auditing routes for this correction — worth calling out on its own since
+    it wasn't a documented phase like the four above, just an overlooked
+    gap. The only profile-*adjacent* work that exists is the self-editable
+    `full_name`/`avatar_url` sync described earlier in this file (a
+    background sync on Google sign-in, not a page a user can visit to see
+    or edit their own data).
+  * **Projects workflow (§11) and Documents digital-signature (§12/§17) —
+    already done**, see the Done-section entry above. Not a remaining item;
+    listed here only to make the correction to this bullet's history
+    explicit rather than just quietly disappearing.
+  * **§30.10's Activities phase remains partially consumed** — unaffected by
+    this correction: the full §10 UI (search/filters/sort/pagination/
+    statistics) already shipped, built directly against the existing
+    `activities` table; only **realtime** (the other half of that phase)
+    remains outstanding. No realtime/`supabase.channel` usage found anywhere
+    in the codebase.
 * **`attendance` has zero rows** — by design (see Done above), but it means
   the §10 activity-statistics chart's "attendance" series will show 0 for
   every month until either real QR check-ins land or a future pass seeds it
