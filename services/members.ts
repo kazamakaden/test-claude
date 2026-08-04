@@ -1,5 +1,5 @@
 import "server-only";
-import { createClient } from "@/lib/supabase/server";
+import { createClient, tryCreateClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { Club, Department, Member, MemberFilters, MembersResult } from "@/types/members";
 import type { Role } from "@/types/auth";
@@ -49,7 +49,8 @@ export async function getMembers(
   filters: MemberFilters,
   options: { includeEmail?: boolean } = {}
 ): Promise<MembersResult> {
-  const supabase = await createClient();
+  const supabase = await tryCreateClient();
+  if (!supabase) return { rows: [], total: 0 };
   const start = (filters.page - 1) * PER_PAGE_SIZE;
 
   if (options.includeEmail) {
@@ -272,7 +273,8 @@ export async function deleteMember(id: string): Promise<{ ok: true } | { ok: fal
 }
 
 export async function getDepartments(): Promise<Department[]> {
-  const supabase = await createClient();
+  const supabase = await tryCreateClient();
+  if (!supabase) return [];
   const { data, error } = await supabase
     .from("departments")
     .select("id, code, name_th, name_en")
@@ -289,7 +291,8 @@ export async function getDepartments(): Promise<Department[]> {
 }
 
 export async function getClubs(): Promise<Club[]> {
-  const supabase = await createClient();
+  const supabase = await tryCreateClient();
+  if (!supabase) return [];
   const { data, error } = await supabase
     .from("clubs")
     .select("id, name_th, name_en")
@@ -306,7 +309,8 @@ export async function getClubs(): Promise<Club[]> {
 
 /** Distinct year/class values for the filter dropdowns. */
 export async function getFilterOptions(): Promise<{ years: number[]; classNames: string[] }> {
-  const supabase = await createClient();
+  const supabase = await tryCreateClient();
+  if (!supabase) return { years: [], classNames: [] };
   const { data, error } = await supabase
     .from("profiles")
     .select("academic_year, class_name");

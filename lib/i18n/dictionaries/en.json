@@ -30,6 +30,8 @@
     "comingSoon": "Coming soon",
     "comingSoonDescription": "This feature will be available in a later phase.",
     "devRole": "Role (dev mode)",
+    "errorTitle": "Couldn't load this data",
+    "errorRetry": "Try again",
     "pagination": {
       "summary": "Showing {start}–{end} of {total}",
       "previousPage": "Previous page",

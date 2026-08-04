@@ -1171,25 +1171,104 @@ button placement, Edit/Delete side-by-side, admin-row hiding — was **not**
 observed live and needs the same proof pass once a Supabase project is
 reachable. `/login`'s new `<details>` disclosure *was* verified live via
 curl: real `name="email"`/`name="password"` inputs present in the raw HTML,
-not just embedded dictionary JSON.
+not just embedded dictionary JSON. **Fixed in the next pass, see below.**
+
+**`/documents` and `/members` no longer die on a failing dependency; the app
+gained its first route-level error boundaries.** Reported live: the
+Documents page "no go page" after the site loads. Reproduced locally rather
+than guessed — with Supabase env vars unset (the exact live-network
+constraint this session has always had), `curl`-ing `/th/documents` returned
+a bare **500**, traced to `getBookYears()` → `createClient()` →
+`createServerClient()` throwing *synchronously* from inside the page's
+top-level `Promise.all()`, above its own `<Suspense>` boundary — so nothing
+downstream ever got a chance to catch it. Same shape, same root cause as the
+`/members` defect this file already flagged above. A second finding while
+tracing it: the whole app had exactly **one** error boundary anywhere
+(`(app)/dashboard/error.tsx`) — no `[lang]/error.tsx`, no
+`app/global-error.tsx`, no `[lang]/not-found.tsx` — so any uncaught server
+throw on any other route rendered Next's bare, unstyled "Application error"
+screen with zero indication of what broke.
+
+Fixed two ways, not one, since a route boundary alone would only stop the
+crash from looking broken, not stop it from happening:
+
+1. **New `lib/supabase/server.ts#tryCreateClient()`** — same client as
+   `createClient()`, but returns `null` instead of throwing when
+   `isSupabaseConfigured` is false, so a read-only "list" service can
+   actually reach its own `if (error || !data) return []` guard instead of
+   dying before the query ever runs. Applied to the functions that already
+   *intended* to fail soft and just couldn't: `services/books.ts`'s
+   `listBooks`/`getBookYears` and `services/members.ts`'s
+   `getMembers`/`getDepartments`/`getClubs`/`getFilterOptions` (closing the
+   `/members` ❌ item above — not a separate future pass). Write paths
+   (`createBook`, `updateMember`, etc.) deliberately keep using
+   `createClient()` unchanged — a write with no real client *should* throw.
+2. **`app/[lang]/(public)/documents/page.tsx`** — `getBookYears()` moved out
+   of the page's fatal top-level `Promise.all` into its own async child
+   (`BooksFiltersSection`), wrapped in `<Suspense>` + the existing
+   `components/dashboard/card-boundary.tsx` (`CardBoundary`) — the same
+   §30.7 pattern the dashboard already established, reused rather than
+   reinvented. The existing `BooksResults` (which also calls `createClient()`
+   directly and `supabase.auth.getUser()`) got the same `CardBoundary`
+   treatment. New `components/books/books-filters-skeleton.tsx` gives that
+   boundary's own loading state, matching the existing
+   `BooksShelfSkeleton`. New shared `dict.common.errorTitle`/`errorRetry` keys
+   (both `th.json`/`en.json`) feed `CardBoundary`, rather than duplicating
+   `dashboard.errorTitle`/`errorRetry` into a second dictionary section.
+
+Three new route-level boundaries close the gap the investigation found, all
+intentionally untranslated for the same documented reason
+`(app)/dashboard/error.tsx` already is — `error.tsx`/`not-found.tsx`/
+`global-error.tsx` receive no route params, so there's no `lang` to load a
+dictionary with: `app/[lang]/error.tsx` (every localized route),
+`app/global-error.tsx` (root-layout throws, which `[lang]/error.tsx` can't
+reach — must render its own `<html>`/`<body>`), `app/[lang]/not-found.tsx`
+(styled 404, replacing Next's default — `notFound()` is already called by
+the book-detail page). `[lang]/error.tsx` also surfaces `error.digest` in
+small muted text — the one handle Vercel's production logs give back onto a
+stripped client-side error message, so the next live occurrence is
+diagnosable by digest instead of re-derived from scratch the way this one
+was.
+
+**Regression-tested against the exact failure captured above**: with
+Supabase env vars unset, `curl`-ing `/th/documents`, `/en/documents`,
+`/th/members`, `/en/members` now all return **200** (was 500 for documents;
+`/members` was already the known ❌ 500 above) — page heading and filter bar
+render for real (checked in the raw HTML, not just inferred from the status
+code), with an error card in place of the shelf/table. No dev-server error
+log entry at all — `services/members.ts`'s three functions now fail soft to
+empty results as they always intended to, rather than throwing. Re-checked
+with Supabase env vars *set* (this session's live network policy blocks the
+real project, so a syntactically-valid placeholder URL/key was used to
+reach `createServerClient()`'s own connection-time behavior, not an actual
+query result) across three ways: `next dev`, a real `next build` + `next
+start` (closer to the Vercel runtime than dev mode), and a direct RSC
+client-navigation fetch (`curl -H 'RSC: 1' '.../th/documents?_rsc=...'`) —
+all 200, zero new error-log entries, confirming no behavior change for the
+configured case. `npm run check:responsive` (72 combinations: 3 breakpoints
+× 2 themes × 12 public pages, run against the unset-env-vars condition so
+the new error-card markup itself gets checked) passed clean, including both
+changed pages. `npx tsc --noEmit && npm run lint && npm run build` all pass.
+
+**Not closed by this pass, stated plainly rather than assumed**: this fix
+guarantees the page renders and names what broke — it does not by itself
+prove *which* dependency was actually failing on the live site, since this
+session cannot reach either the live deployment or the live Supabase project
+(both blocked by this session's network policy, confirmed via a `403` on
+`CONNECT` to the Vercel domain and a timeout to the Supabase one, not
+assumed). Once deployed, the error card's presence or absence — and the
+`error.digest` shown when it does appear, cross-referenced against Vercel's
+runtime logs — is what actually answers that. Two concrete candidates worth
+checking directly, both consistent with the reported "happens while signed
+in": migrations `0022`–`0030` (this file's own live-application record stops
+at `0021`, and `books`/`0027`-`0029` is exactly what `/documents` reads) may
+never have been applied to the live project; separately, the 12-hour session
+cap (`lib/auth/session-timeout.ts`) redirects an expired signed-in session to
+`/login?error=sessionTimedOut` on every navigation, which can read as "the
+page won't open" if not recognized as that specific redirect.
 
 ### ❌ Remaining
 
-* **`/members` crashes outright (500) when Supabase isn't configured** —
-  `services/members.ts`'s `getDepartments`/`getClubs`/`getFilterOptions` call
-  `createClient()` unconditionally, and `Promise.all(...)` in
-  `app/[lang]/(public)/members/page.tsx` awaits all three with no Suspense or
-  try/catch around them. `createServerClient()` throws synchronously (not a
-  query-level error the functions' own `if (error) return []` guards can
-  catch) when `NEXT_PUBLIC_SUPABASE_URL`/`NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
-  are absent, taking the whole page down for every role, guest through admin
-  — found while trying to verify the new member-management buttons above in
-  this session's credential-less dev environment. Confirmed pre-existing (this
-  session's diff never touches those three functions' bodies), not something
-  the member-management work introduced. A correct fix should follow the
-  dashboard's own established pattern (`services/dashboard.ts` +
-  per-card `<Suspense>`/`CardBoundary`, §30.7) rather than a one-off try/catch,
-  and needs its own verification pass once a Supabase project is reachable.
 * **RLS policy performance (`auth_rls_initplan`, `multiple_permissive_policies`)**
   — ~10 policies across `profiles`/`attendance`/`projects`/`documents`/
   `document_drafts`/`notifications` call `auth.uid()`/`current_role()`

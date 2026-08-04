@@ -1,5 +1,5 @@
 import "server-only";
-import { createClient } from "@/lib/supabase/server";
+import { createClient, tryCreateClient } from "@/lib/supabase/server";
 import { BOOKS_PER_PAGE_SIZE } from "@/schemas/books";
 import type { CreateBookInput, UpdateBookInput } from "@/schemas/books";
 import type { BookDetail, BookFilters, BookSummary, BooksResult } from "@/types/books";
@@ -21,7 +21,8 @@ const BOOK_SUMMARY_COLUMNS =
  * drafts, staff gets everything.
  */
 export async function listBooks(filters: BookFilters): Promise<BooksResult> {
-  const supabase = await createClient();
+  const supabase = await tryCreateClient();
+  if (!supabase) return { rows: [], total: 0 };
   const start = (filters.page - 1) * BOOKS_PER_PAGE_SIZE;
 
   let query = supabase.from("books").select(BOOK_SUMMARY_COLUMNS, { count: "exact" });
@@ -214,7 +215,8 @@ export async function unpublishBook(id: string): Promise<{ ok: true } | { ok: fa
 
 /** Distinct academic years for the shelf filter dropdown — only among books this viewer can actually see (RLS-scoped, same as the query it mirrors). */
 export async function getBookYears(): Promise<number[]> {
-  const supabase = await createClient();
+  const supabase = await tryCreateClient();
+  if (!supabase) return [];
   const { data, error } = await supabase.from("books").select("academic_year");
 
   if (error || !data) return [];

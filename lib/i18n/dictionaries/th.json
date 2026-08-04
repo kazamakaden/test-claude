@@ -30,6 +30,8 @@
     "comingSoon": "อยู่ระหว่างพัฒนา",
     "comingSoonDescription": "ฟีเจอร์นี้จะเปิดให้ใช้งานในเฟสถัดไป",
     "devRole": "บทบาท (โหมดพัฒนา)",
+    "errorTitle": "ไม่สามารถโหลดข้อมูลได้",
+    "errorRetry": "ลองใหม่อีกครั้ง",
     "pagination": {
       "summary": "แสดง {start}–{end} จาก {total} รายการ",
       "previousPage": "หน้าก่อนหน้า",
