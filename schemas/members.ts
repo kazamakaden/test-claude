@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { roles } from "@/types/auth";
+import { emailSchema, newPasswordField } from "@/schemas/auth";
 
 const PER_PAGE = 10;
 
@@ -81,3 +82,31 @@ export const updateMemberSchema = z.object({
 });
 
 export type UpdateMemberInput = z.infer<typeof updateMemberSchema>;
+
+/**
+ * Admin-only (actions/members.ts gates this on member:manage, not
+ * member:approve) — for a member who can't use Google OAuth. Reuses
+ * emailSchema/newPasswordField from schemas/auth.ts rather than
+ * redefining the §7 domain/strength rules a second time. aft_teacher is
+ * assignable here (unlike updateMemberSchema's server-side actor
+ * narrowing) because only an admin ever reaches this schema in the first
+ * place.
+ */
+export const createMemberSchema = z.object({
+  email: emailSchema,
+  password: newPasswordField,
+  role: z.enum(assignableRoles, { message: "invalidRole" }),
+  departmentId: z.uuid().nullable().catch(null),
+  clubId: z.uuid().nullable().catch(null),
+  // Same no-.catch() reasoning as updateMemberSchema above — a malformed
+  // value must surface as an error, not be silently discarded to null.
+  studentId: z
+    .string()
+    .trim()
+    .regex(/^[0-9]{11,}$/, { message: "invalidStudentId" })
+    .nullable(),
+  className: z.string().trim().max(50, { message: "classNameTooLong" }).nullable(),
+  fullName: z.string().trim().max(100, { message: "fullNameTooLong" }).nullable(),
+});
+
+export type CreateMemberInput = z.infer<typeof createMemberSchema>;

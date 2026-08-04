@@ -1019,8 +1019,112 @@ project's email volume can support this at all, since custom SMTP is still
 unconfigured per the ❌ Remaining item below and the default Supabase mailer
 caps out around 2 messages/hour.
 
+**Member management: add, edit, delete users from `/members`, plus password
+sign-in restored alongside Google.** `/members` previously offered exactly one
+management affordance — an icon-only pencil opening `MemberEditSheet`, gated
+on `member:approve`. Added: labelled **Edit**/**Delete** buttons per row, and
+an **Add user** button above the table — the last one specifically for
+someone who can't use Google OAuth.
+
+That collided directly with the just-shipped Google-only login above: an
+admin-created account would have had no way to sign in. Resolved by
+**restoring password sign-in alongside Google** rather than choosing one or
+the other — `signInWithPassword`/`signInSchema` (removed in the Google-only
+pass) came back in `actions/auth.ts`/`schemas/auth.ts`, but `redirectByRole()`
+did not; both call sites now end with the shared `signedInLandingTarget()`
+instead. The password form lives inside a native `<details>` disclosure on
+`/login` ("sign in with a password instead"), below the primary Google
+button — `<details>` needs no JavaScript to open, so the §30.9 JS-disabled
+guarantee holds for both paths independently. This also gives the
+set-password flow built for Google sign-in a second real purpose: an
+admin-added account already ships with a usable password from creation, no
+email round-trip needed for it specifically.
+
+New `lib/supabase/admin.ts` — the first service-role (`SUPABASE_SECRET_KEY`)
+client in application code (previously only `scripts/responsive-check.mjs`
+read that var). `server-only`, never `NEXT_PUBLIC_`-prefixed, exports
+`isSupabaseAdminConfigured` so the UI hides Add/Delete entirely rather than
+rendering buttons that can only fail when the key is absent.
+
+`services/members.ts#createMember` deliberately spans **two** clients: the
+admin client only for `auth.admin.createUser()` (RLS has no authority over
+the `auth` schema — there is no way to do this without it), then the
+**caller's own** cookie-scoped client for the `profiles` UPDATE, so
+`prevent_role_self_escalation` (0024) and `prevent_member_identity_change`
+(0025) — the same triggers that already govern `updateMember` — govern
+account creation too, rather than bypassing them with the admin client for
+that part as well. `handle_new_user()` (0023) already auto-inserts a
+`profiles` row for any new `auth.users` row, including one made via the
+Admin API, guessing a role/`student_id` from the email's local part with
+`password_set` defaulting false (0030); the UPDATE overwrites that guess
+with what the caller actually chose and sets `password_set = true`, since
+the account ships with a real password. **If the profile UPDATE fails, the
+just-created `auth.users` row is deleted** — a half-made account that could
+still sign in with a guessed role is worse than no account at all.
+
+`deleteMember` is **permanent** — `auth.admin.deleteUser()`, relying on
+`profiles.id`'s existing `on delete cascade` (`0001_auth.sql`) rather than a
+separate profiles delete. Two guards enforced **server-side** in
+`actions/members.ts#deleteMemberAction`, never trusting the confirm dialog:
+refuse to delete the caller's own account (compared against
+`supabase.auth.getUser()`, not anything the form sent), and refuse an admin
+target by re-reading that row's actual role from the database. Both checks
+run before the Admin API is ever touched.
+
+Both new actions gate on `member:manage` (admin-only), not `member:approve`
+(which `aft_teacher` also holds) — the same distinction
+`lib/auth/permissions.ts` already draws between editing an already-approved
+member and account-level management. Verified directly: `can(role,
+"member:manage")` is `true` only for `admin`, `can(role, "member:approve")`
+is `true` for `aft_teacher`/`admin`, exercised against the compiled
+permissions module for all six roles.
+
+One accessibility detail carried forward correctly this time: the edit
+trigger gained visible "Edit" text (previously icon-only) and its
+`aria-label` was updated to `"Edit {name}"` — the visible label text stays a
+prefix of the accessible name, avoiding the exact WCAG 2.5.3 "Label in Name"
+mismatch flagged in review of an earlier, unrelated change in this project
+(icon+name buttons where the visible text and `aria-label` diverged). The
+new delete trigger was built with the same rule from the start.
+
+`npx tsc --noEmit && npm run lint && npm run build` all pass clean.
+**Live-verification gap found and worth recording rather than hidden**:
+`/members` currently 500s in this dev session with no live Supabase
+project — `services/members.ts#getDepartments/getClubs/getFilterOptions`
+call `createClient()` unconditionally in a top-level `Promise.all()` with no
+Suspense/error boundary around it, and `createServerClient()` throws
+synchronously (not a caught query error) when the env vars are absent. This
+is **pre-existing** — confirmed via diff that this session's changes never
+touched those three functions' bodies — but it fully blocked live curl-based
+verification of the new role-gated buttons on this page, for every role,
+not just the ones added here. Not fixed in this pass (out of scope for
+member-management CRUD; the dashboard's per-card Suspense/`CardBoundary`
+pattern is the template a real fix should follow). Verified instead via
+`can()` exercised directly against the compiled permissions module (above)
+and careful reading of the gating JSX; the actual rendered page — Add
+button placement, Edit/Delete side-by-side, admin-row hiding — was **not**
+observed live and needs the same proof pass once a Supabase project is
+reachable. `/login`'s new `<details>` disclosure *was* verified live via
+curl: real `name="email"`/`name="password"` inputs present in the raw HTML,
+not just embedded dictionary JSON.
+
 ### ❌ Remaining
 
+* **`/members` crashes outright (500) when Supabase isn't configured** —
+  `services/members.ts`'s `getDepartments`/`getClubs`/`getFilterOptions` call
+  `createClient()` unconditionally, and `Promise.all(...)` in
+  `app/[lang]/(public)/members/page.tsx` awaits all three with no Suspense or
+  try/catch around them. `createServerClient()` throws synchronously (not a
+  query-level error the functions' own `if (error) return []` guards can
+  catch) when `NEXT_PUBLIC_SUPABASE_URL`/`NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
+  are absent, taking the whole page down for every role, guest through admin
+  — found while trying to verify the new member-management buttons above in
+  this session's credential-less dev environment. Confirmed pre-existing (this
+  session's diff never touches those three functions' bodies), not something
+  the member-management work introduced. A correct fix should follow the
+  dashboard's own established pattern (`services/dashboard.ts` +
+  per-card `<Suspense>`/`CardBoundary`, §30.7) rather than a one-off try/catch,
+  and needs its own verification pass once a Supabase project is reachable.
 * **RLS policy performance (`auth_rls_initplan`, `multiple_permissive_policies`)**
   — ~10 policies across `profiles`/`attendance`/`projects`/`documents`/
   `document_drafts`/`notifications` call `auth.uid()`/`current_role()`

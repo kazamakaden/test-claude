@@ -9,6 +9,7 @@ import { parseMembersSearchParams, PER_PAGE_SIZE } from "@/schemas/members";
 import { getClubs, getDepartments, getFilterOptions, getMembers } from "@/services/members";
 import { MembersFilters } from "@/components/members/members-filters";
 import { MembersTable } from "@/components/members/members-table";
+import { MemberCreateSheet } from "@/components/members/member-create-sheet";
 import { Pagination } from "@/components/table/pagination";
 import { MembersTableSkeleton } from "@/components/members/members-table-skeleton";
 
@@ -36,6 +37,7 @@ async function MembersResults({
   // the service (services/members.ts stays role-agnostic by design).
   const includeEmail = can(role, "workspace:access");
   const canEdit = can(role, "member:approve");
+  const canManage = can(role, "member:manage");
   const { rows, total } = await getMembers(filters, { includeEmail });
 
   return (
@@ -48,6 +50,7 @@ async function MembersResults({
         departments={departments}
         clubs={clubs}
         canEdit={canEdit}
+        canManage={canManage}
         actorRole={role}
         lang={lang}
         dict={dict}
@@ -90,14 +93,20 @@ export default async function MembersPage({
     ) as [string, string][]
   );
   const suspenseKey = JSON.stringify(filters);
+  const canManage = can(role, "member:manage");
 
   return (
     <div className="mx-auto flex max-w-7xl flex-col gap-6 px-4 py-8 sm:px-6 lg:px-8">
-      <div className="flex flex-col gap-1">
-        <h1 className="text-gradient-brand font-heading text-2xl font-semibold tracking-tight">
-          {dict.nav.members}
-        </h1>
-        <p className="text-sm text-muted-foreground">{dict.members.description}</p>
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div className="flex flex-col gap-1">
+          <h1 className="text-gradient-brand font-heading text-2xl font-semibold tracking-tight">
+            {dict.nav.members}
+          </h1>
+          <p className="text-sm text-muted-foreground">{dict.members.description}</p>
+        </div>
+        {canManage ? (
+          <MemberCreateSheet departments={departments} clubs={clubs} lang={lang} dict={dict} />
+        ) : null}
       </div>
 
       <MembersFilters

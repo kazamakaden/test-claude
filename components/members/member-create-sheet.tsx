@@ -3,10 +3,10 @@
 import { useActionState, useEffect, useState } from "react";
 import { useFormStatus } from "react-dom";
 import { toast } from "sonner";
-import { Pencil } from "lucide-react";
+import { UserPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { FormField, FormLabel, FormDescription, FormError } from "@/components/ui/form";
+import { FormField, FormLabel, FormDescription } from "@/components/ui/form";
 import {
   Select,
   SelectContent,
@@ -20,28 +20,25 @@ import {
   SheetContent,
   SheetHeader,
   SheetTitle,
+  SheetDescription,
   SheetFooter,
 } from "@/components/ui/sheet";
-import { updateMemberAction, type UpdateMemberResult } from "@/actions/members";
+import { PasswordStrengthField } from "@/components/auth/password-strength";
+import { createMemberAction, type CreateMemberResult } from "@/actions/members";
 import type { Locale } from "@/lib/i18n/config";
 import type { Dictionary } from "@/types/i18n";
-import type { Role } from "@/types/auth";
-import type { Club, Department, Member } from "@/types/members";
+import type { Club, Department } from "@/types/members";
 
 const NO_DEPARTMENT = "__none__";
 const NO_CLUB = "__none__";
-// Same construction as components/approvals/approve-user-card.tsx's
-// ASSIGNABLE_ROLES — granting aft_teacher itself stays admin-only
-// (prevent_role_self_escalation, 0024), so a non-admin actor never even
-// sees it as a choice.
+// Unlike member-edit-sheet.tsx's assignableRoles, this is not narrowed by
+// actor role — createMemberAction is gated on member:manage, which only
+// admin holds, so aft_teacher is always a legal choice here.
 const ASSIGNABLE_ROLES = ["student", "teacher", "aft_teacher"] as const;
 
-// useFormStatus only reports the correct pending state for a DOM descendant
-// of the <form> it tracks — a `form="id"`-wired button outside the tree
-// does not qualify. Rendered inside <form> below, in the (non-scrolling)
-// footer area of a flex column, so the fields above it can scroll on their
-// own without needing a second <form>.
-function SaveButton({ label, pendingLabel }: { label: string; pendingLabel: string }) {
+// See the identical note in member-edit-sheet.tsx: useFormStatus only
+// tracks the <form> it's a DOM descendant of.
+function CreateButton({ label, pendingLabel }: { label: string; pendingLabel: string }) {
   const { pending } = useFormStatus();
   return (
     <Button type="submit" disabled={pending}>
@@ -50,88 +47,96 @@ function SaveButton({ label, pendingLabel }: { label: string; pendingLabel: stri
   );
 }
 
-export function MemberEditSheet({
-  member,
+/**
+ * §1: "Add user" — for someone who can't use Google OAuth. Admin-only
+ * (gated server-side in createMemberAction on member:manage); the button
+ * that renders this trigger is itself gated the same way in
+ * members-table.tsx, but the action re-checks regardless (§19).
+ */
+export function MemberCreateSheet({
   departments,
   clubs,
-  actorRole,
   lang,
   dict,
 }: {
-  member: Member;
   departments: Department[];
   clubs: Club[];
-  actorRole: Role;
   lang: Locale;
   dict: Dictionary;
 }) {
   const [open, setOpen] = useState(false);
-  const [state, formAction] = useActionState<UpdateMemberResult | null, FormData>(
-    updateMemberAction,
+  const [state, formAction] = useActionState<CreateMemberResult | null, FormData>(
+    createMemberAction,
     null
   );
-  const d = dict.members.edit;
+  const d = dict.members.create;
   const roleOptions = dict.roles;
-  const assignableRoles =
-    actorRole === "admin" ? ASSIGNABLE_ROLES : ASSIGNABLE_ROLES.filter((r) => r !== "aft_teacher");
 
   const errorMessage = state && !state.ok ? d.errors[state.messageKey] : undefined;
 
   useEffect(() => {
     if (errorMessage) toast.error(errorMessage);
     if (state?.ok) {
-      toast.success(d.saved);
+      toast.success(d.created);
       setOpen(false);
     }
-  }, [errorMessage, state, d.saved]);
+  }, [errorMessage, state, d.created]);
 
   return (
     <Sheet open={open} onOpenChange={setOpen}>
-      <SheetTrigger
-        render={
-          <Button variant="ghost" size="sm" aria-label={`${d.editButton} ${member.fullName}`} />
-        }
-      >
-        <Pencil className="size-4" aria-hidden />
-        {d.editButton}
+      <SheetTrigger render={<Button size="sm" />}>
+        <UserPlus className="size-4" aria-hidden />
+        {dict.members.addButton}
       </SheetTrigger>
       <SheetContent>
         <SheetHeader>
           <SheetTitle>{d.title}</SheetTitle>
+          <SheetDescription>{d.description}</SheetDescription>
         </SheetHeader>
 
         <form action={formAction} className="flex flex-1 flex-col overflow-hidden">
           <input type="hidden" name="lang" value={lang} />
-          <input type="hidden" name="id" value={member.id} />
 
           <div className="flex flex-1 flex-col gap-4 overflow-y-auto px-4">
-            <FormField name="fullName">
-              <FormLabel>{d.fullNameLabel}</FormLabel>
-              <Input name="fullName" defaultValue={member.fullName} maxLength={100} />
+            <FormField name="email" invalid={Boolean(errorMessage)}>
+              <FormLabel>{d.emailLabel}</FormLabel>
+              <Input name="email" type="email" required autoComplete="off" placeholder={d.emailPlaceholder} />
             </FormField>
 
-            <FormField name="role" invalid={Boolean(errorMessage)}>
+            <PasswordStrengthField
+              name="password"
+              label={d.passwordLabel}
+              invalid={Boolean(errorMessage)}
+              errorMessage={errorMessage}
+              dict={dict}
+            />
+
+            <FormField name="fullName">
+              <FormLabel>{d.fullNameLabel}</FormLabel>
+              <Input name="fullName" maxLength={100} />
+            </FormField>
+
+            <FormField name="role">
               <FormLabel>{d.roleLabel}</FormLabel>
-              <Select name="role" defaultValue={member.role}>
+              <Select name="role" defaultValue="student">
                 <SelectTrigger aria-label={d.roleLabel}>
                   <SelectValue placeholder={d.roleLabel}>
                     {(value: string) => roleOptions[value as keyof typeof roleOptions]}
                   </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
-                  {assignableRoles.map((role) => (
+                  {ASSIGNABLE_ROLES.map((role) => (
                     <SelectItem key={role} value={role}>
                       {roleOptions[role]}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
-              <FormError>{errorMessage}</FormError>
             </FormField>
 
             <FormField name="departmentId">
               <FormLabel>{d.departmentLabel}</FormLabel>
-              <Select name="departmentId" defaultValue={member.departmentId ?? NO_DEPARTMENT}>
+              <Select name="departmentId" defaultValue={NO_DEPARTMENT}>
                 <SelectTrigger aria-label={d.departmentLabel}>
                   <SelectValue placeholder={d.departmentLabel}>
                     {(value: string) =>
@@ -154,7 +159,7 @@ export function MemberEditSheet({
 
             <FormField name="clubId">
               <FormLabel>{d.clubLabel}</FormLabel>
-              <Select name="clubId" defaultValue={member.clubId ?? NO_CLUB}>
+              <Select name="clubId" defaultValue={NO_CLUB}>
                 <SelectTrigger aria-label={d.clubLabel}>
                   <SelectValue placeholder={d.clubLabel}>
                     {(value: string) =>
@@ -175,18 +180,18 @@ export function MemberEditSheet({
 
             <FormField name="className">
               <FormLabel>{d.classLabel}</FormLabel>
-              <Input name="className" defaultValue={member.className ?? ""} maxLength={50} />
+              <Input name="className" maxLength={50} />
             </FormField>
 
-            <FormField name="studentId" invalid={Boolean(errorMessage)}>
+            <FormField name="studentId">
               <FormLabel>{d.studentIdLabel}</FormLabel>
-              <Input name="studentId" defaultValue={member.studentId ?? ""} maxLength={20} />
+              <Input name="studentId" maxLength={20} />
               <FormDescription>{d.studentIdHint}</FormDescription>
             </FormField>
           </div>
 
           <SheetFooter>
-            <SaveButton label={d.save} pendingLabel={d.saving} />
+            <CreateButton label={d.create} pendingLabel={d.creating} />
           </SheetFooter>
         </form>
       </SheetContent>

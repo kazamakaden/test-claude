@@ -3,27 +3,31 @@
 import { redirect } from "next/navigation";
 import { headers } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
-import { resetRequestSchema, newPasswordSchema } from "@/schemas/auth";
+import { signInSchema, resetRequestSchema, newPasswordSchema } from "@/schemas/auth";
 import { assertTurnstileSafeForProduction, isTurnstileConfigured } from "@/lib/turnstile";
 import { resolveConfiguredSiteUrl } from "@/lib/site-url";
+import { signedInLandingTarget } from "@/lib/auth/require-role";
 import { defaultLocale, isLocale, type Locale } from "@/lib/i18n/config";
 
 type AuthErrorKey =
   | "invalidEmail"
   | "personalDomain"
   | "wrongDomain"
+  | "passwordRequired"
   | "passwordTooShort"
   | "passwordTooLong"
   | "passwordNeedsLowercase"
   | "passwordNeedsUppercase"
   | "passwordNeedsSymbol"
   | "passwordMismatch"
+  | "invalidCredentials"
   | "resetFailed"
   | "updateFailed"
   | "sessionExpired"
   | "captchaFailed"
   | "oauthFailed";
 
+export type SignInResult = { ok: true } | { ok: false; messageKey: AuthErrorKey };
 export type ResetRequestResult = { ok: true } | { ok: false; messageKey: AuthErrorKey };
 export type UpdatePasswordResult = { ok: true } | { ok: false; messageKey: AuthErrorKey };
 
@@ -31,6 +35,7 @@ const FIELD_ERROR_KEYS = new Set<AuthErrorKey>([
   "invalidEmail",
   "personalDomain",
   "wrongDomain",
+  "passwordRequired",
   "passwordTooShort",
   "passwordTooLong",
   "passwordNeedsLowercase",
@@ -74,6 +79,63 @@ async function resolveOrigin(): Promise<string> {
 
   const host = headerList.get("host");
   return host ? `https://${host}` : "";
+}
+
+/**
+ * Bound directly to the login form's password-disclosure `action`
+ * attribute (useActionState), so submission works with JavaScript disabled
+ * — a real POST, not a client-invoked RPC. `lang` travels as a hidden
+ * field for the same reason.
+ *
+ * Re-validates server-side with the same schema the client form uses (never
+ * trust client validation alone — §19, §30.5, and the §30.9 "submit with JS
+ * disabled" check all require this).
+ *
+ * Every failure — unknown email, wrong password, unconfirmed account —
+ * collapses into the single `invalidCredentials` key. Distinguishing them
+ * would let an attacker enumerate registered @udontech.ac.th addresses.
+ */
+export async function signInWithPassword(
+  _prevState: SignInResult | null,
+  formData: FormData
+): Promise<SignInResult> {
+  assertTurnstileSafeForProduction();
+
+  const lang = getLang(formData);
+
+  const parsed = signInSchema.safeParse({
+    email: formData.get("email"),
+    password: formData.get("password"),
+  });
+
+  if (!parsed.success) {
+    const rawKey = parsed.error.issues[0]?.message;
+    return { ok: false, messageKey: fieldErrorKey(rawKey, "invalidEmail") };
+  }
+
+  const captchaToken = readCaptchaToken(formData);
+  if (isTurnstileConfigured && !captchaToken) {
+    return { ok: false, messageKey: "captchaFailed" };
+  }
+
+  const supabase = await createClient();
+  const { data, error } = await supabase.auth.signInWithPassword({
+    email: parsed.data.email,
+    password: parsed.data.password,
+    options: captchaToken ? { captchaToken } : undefined,
+  });
+
+  if (error || !data.user) {
+    return { ok: false, messageKey: "invalidCredentials" };
+  }
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("role")
+    .eq("id", data.user.id)
+    .single();
+
+  redirect(signedInLandingTarget(profile?.role ?? "guest", lang));
 }
 
 /** Uniform response regardless of whether the address is registered — same enumeration guard. */

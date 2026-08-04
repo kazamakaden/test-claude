@@ -26,12 +26,26 @@ export const emailSchema = z
     ctx.addIssue({ code: "custom", message: "wrongDomain" });
   });
 
+/**
+ * Sign-in deliberately carries no strength rules — an account created
+ * before a policy change must still be able to log in with whatever
+ * password it already has.
+ */
+export const signInSchema = z.object({
+  email: emailSchema,
+  password: z.string().min(1, { message: "passwordRequired" }),
+});
+export type SignInInput = z.infer<typeof signInSchema>;
+
 // GoTrue hashes with bcrypt, which silently truncates past 72 bytes — the
 // max is real, not arbitrary. §7's strength rule (upper + lower + symbol)
 // is layered on after length: actions/auth.ts surfaces only
 // `issues[0].message`, so length has to fail first or a 3-character
 // password reports "needs a symbol" instead of "too short".
-const newPasswordField = z
+// Exported: schemas/members.ts's createMemberSchema reuses it for the
+// admin-set-password field on the "add user" form, rather than redefining
+// the §7 strength rule a second time.
+export const newPasswordField = z
   .string()
   .min(8, { message: "passwordTooShort" })
   .max(72, { message: "passwordTooLong" })
