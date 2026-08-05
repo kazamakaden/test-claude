@@ -1680,6 +1680,76 @@ their next navigation and they reappear in `/approvals`; revoke is refused
 for the caller's own account and for an admin target even when called
 directly, not just hidden in the UI.
 
+**Dashboard "ปฏิทิน" + "ปฏิทินวันหยุด" merged into one card; the holiday list
+now fills the card instead of scrolling in a fixed 320px window.** Reported
+from a real screenshot of the deployed dashboard: the two §8 calendar
+sections sat in separate `<Card>`s of mismatched height — the holiday list
+was capped at `max-h-80` (320px) with a permanent scrollbar and a large empty
+region below it, while each row wrapped Thai holiday names onto three lines
+because the date span was `shrink-0` and never yielded width.
+
+Both `CalendarCard` and `HolidayCard` stopped rendering their own `<Card>`
+and became plain sections (still each keeping its own `CardBoundary` +
+`Suspense`, preserving §30.7's one-failing-card-cant-sink-the-grid property);
+`dashboard/page.tsx` now mounts one shared `<Card>` with a two-column
+`CardContent` grid at `xl` (`xl:grid-cols-3`, calendar `xl:col-span-2`).
+
+The one non-obvious problem: the holiday column has to fill the *calendar's*
+height and scroll past it, without its own (dozens of holidays, spanning
+years — `getHolidays()` is deliberately uncapped) intrinsic height dragging
+the row taller. Fix: at `xl` the holiday section goes `absolute inset-0`
+inside a `relative` grid cell, contributing zero intrinsic height, so the row
+height is set purely by the calendar column; the `<ul>` inside it becomes
+`flex-1 min-h-0 overflow-y-auto` to exactly fill that height and scroll
+beyond it. Below `xl` everything stays static with the original `max-h-80`,
+so mobile — which the report said already looked right — is unchanged.
+Verified directly, not assumed: real viewport emulation over CDP (the same
+technique `scripts/responsive-check.mjs` uses) measured the two columns at
+`xl` landing at **exactly equal height** (e.g. 759px = 759px at both 1280 and
+1440), confirming the calendar drives the row and the holiday section
+matches it rather than stretching it.
+
+Each holiday row also changed from `flex justify-between` (name squeezed
+against a `shrink-0` date) to a stacked `flex-col` — name on its own line,
+date beneath it — so a long Thai holiday name gets the column's full width.
+Self-tested with a temporary 40-row synthetic dataset (long names, multiple
+months) injected into `getHolidays()`: below `xl` the list stayed capped at
+320px and scrolled (`clientHeight: 320`, `scrolls: true`) — proving mobile
+truly didn't change; at `xl` the list filled to the calendar's height and
+still scrolled once genuinely full (`clientHeight: 697`, `scrollHeight:
+2368`). Screenshotted in both themes at 1280px and confirmed visually: names
+render on one full-width line, no three-line wrapping, no empty space below
+the list. The synthetic dataset was fully reverted afterward (`git diff`
+confirmed clean).
+
+Also re-ran this project's existing CardBoundary self-test discipline against
+the merged layout specifically, since merging two cards into one grid cell is
+exactly the kind of change that could silently reintroduce shared failure:
+temporarily threw inside `getHolidays()` and confirmed the calendar heading
+and all day buttons still rendered (holiday column alone showed its error
+card); temporarily threw inside `getMonthActivities()` and confirmed the
+inverse — holiday section still rendered its normal state, only the calendar
+column errored. Both reverted; `git diff` confirmed no residue.
+
+No new dictionary keys, no new components, no new dependencies —
+`dashboard.calendar.*`/`dashboard.holidays.*` headings are preserved
+verbatim, `CardTitle`/`CardDescription` (plain styled divs, no `CardHeader`
+dependency) are reused directly inside each section. `dashboard-skeletons.tsx`
+was deliberately not touched — `ListCardSkeleton` is shared by five other
+cards. `npx tsc --noEmit && npm run lint && npm run build` all pass clean;
+`npm run check:responsive` (72/72 public pages) stays clean — the dashboard
+itself is authenticated and outside that script's unauthenticated-mode
+coverage, so it was verified separately via the `dev_role` cookie stub and
+the CDP viewport-emulation technique above, not by that script.
+
+**Not verified live**: this session has no reachable Supabase project or
+deployment, so real holiday data (Google's ICS feed is blocked by this
+session's network policy) and real activity events were never actually
+rendered together in this layout — only the synthetic self-test data above.
+The structural proof (equal-height columns, correct scroll caps at every
+breakpoint, isolation under injected failures) is solid; confirm the visual
+result once live data is reachable.
+
 ### ❌ Remaining
 
 * **RLS policy performance (`auth_rls_initplan`, `multiple_permissive_policies`)**
