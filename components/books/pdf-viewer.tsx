@@ -1,4 +1,5 @@
 import { FileWarning } from "lucide-react";
+import { BookNotAttached } from "@/components/books/book-not-attached";
 import { getSignedPdfUrl } from "@/services/books";
 import type { Dictionary } from "@/types/i18n";
 
@@ -18,18 +19,13 @@ export async function PdfViewer({
   pdfPath: string | null;
   dict: Dictionary;
 }) {
-  const d = dict.documents;
   const signedUrl = pdfPath ? await getSignedPdfUrl(pdfPath) : null;
 
   if (!signedUrl) {
-    return (
-      <div className="flex flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-border bg-card px-6 py-20 text-center shadow-sm">
-        <FileWarning className="size-10 text-muted-foreground" aria-hidden />
-        <p className="font-heading text-base font-medium text-foreground">{d.notAttached}</p>
-        <p className="max-w-sm text-sm text-muted-foreground">{d.notAttachedDescription}</p>
-      </div>
-    );
+    return <BookNotAttached icon={FileWarning} dict={dict} />;
   }
+
+  const d = dict.documents;
 
   return (
     <div className="flex flex-col overflow-hidden rounded-xl border border-border bg-card shadow-sm">

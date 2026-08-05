@@ -12,6 +12,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { CardEmpty } from "@/components/dashboard/card-states";
 import { MemberEditSheet } from "@/components/members/member-edit-sheet";
 import { MemberDeleteDialog } from "@/components/members/member-delete-dialog";
+import { MemberRevokeDialog } from "@/components/members/member-revoke-dialog";
 import type { Club, Department, Member, MemberFilters, MemberSortColumn } from "@/types/members";
 import type { Locale } from "@/lib/i18n/config";
 import type { Dictionary } from "@/types/i18n";
@@ -145,6 +146,9 @@ export function MembersTable({
                         lang={lang}
                         dict={dict}
                       />
+                    ) : null}
+                    {canEdit ? (
+                      <MemberRevokeDialog memberId={m.id} memberName={m.fullName} lang={lang} dict={dict} />
                     ) : null}
                     {canManage ? (
                       <MemberDeleteDialog memberId={m.id} memberName={m.fullName} lang={lang} dict={dict} />

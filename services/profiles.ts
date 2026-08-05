@@ -69,3 +69,41 @@ export async function setProfileRole(
   }
   return { ok: true };
 }
+
+/**
+ * Sends an already-approved member back to `pending` — the "stop approve"
+ * counterpart to setProfileRole, deliberately a separate narrow function
+ * rather than widening setProfileRole to accept `role: "pending"`:
+ * setProfileRole's `Exclude<..., "pending">` is a real guard on the approve
+ * path, and its `department_id: departmentId` write would clear the
+ * member's department on every call, which is wrong for a revoke that
+ * should touch nothing else. `prevent_role_self_escalation` (0002/0024)
+ * already blocks self-revoke (`new.id = auth.uid()` raises) and protects
+ * `admin` rows (an `old.role = 'admin'` update requires an admin actor) —
+ * the action calling this still re-checks both server-side rather than
+ * relying on the trigger alone (§19: never trust a single layer).
+ *
+ * `.select("id").maybeSingle()` — unlike setProfileRole, a zero-row result
+ * (RLS silently denied the row, or `id` doesn't exist) must not read back
+ * as `{ ok: true }`; same discipline as services/members.ts#updateMember.
+ */
+export async function revokeProfileApproval(
+  id: string
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("profiles")
+    .update({ role: "pending" })
+    .eq("id", id)
+    .select("id")
+    .maybeSingle();
+
+  if (error) {
+    if (error.message.includes("insufficient privilege") || error.message.includes("cannot change your own role")) {
+      return { ok: false, error: "forbiddenRole" };
+    }
+    return { ok: false, error: error.message };
+  }
+  if (!data) return { ok: false, error: "not found or not allowed" };
+  return { ok: true };
+}

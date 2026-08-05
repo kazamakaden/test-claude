@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { format } from "date-fns";
 import { th, enUS } from "date-fns/locale";
-import { ArrowLeft, Trash2 } from "lucide-react";
+import { ArrowLeft, FileWarning, Trash2 } from "lucide-react";
 import { getDictionary } from "@/lib/i18n/get-dictionary";
 import { getRole } from "@/lib/auth/get-role";
 import { can } from "@/lib/auth/permissions";
@@ -12,6 +12,8 @@ import { parseBookId } from "@/schemas/books";
 import { resolveBookSource, SEASON_LABELS_TH, SEASON_LABELS_EN } from "@/lib/books";
 import { FlipbookViewer } from "@/components/documents/flipbook-viewer";
 import { PdfViewer } from "@/components/books/pdf-viewer";
+import { PdfDownloadLink } from "@/components/books/pdf-download-link";
+import { BookNotAttached } from "@/components/books/book-not-attached";
 import { BookEditForm } from "@/components/books/book-edit-form";
 import { PublishControls } from "@/components/books/publish-controls";
 import { DeleteBookButton } from "@/components/books/delete-book-button";
@@ -52,6 +54,7 @@ export default async function BookDetailPage({
   const locale = lang === "th" ? th : enUS;
   const seasonLabels = lang === "th" ? SEASON_LABELS_TH : SEASON_LABELS_EN;
   const source = resolveBookSource(book);
+  const showEditor = canEdit && viewerId !== null;
 
   return (
     <div className="mx-auto flex max-w-4xl flex-col gap-6 px-4 py-8 sm:px-6 lg:px-8">
@@ -107,13 +110,23 @@ export default async function BookDetailPage({
         ) : null}
       </div>
 
-      {canEdit && viewerId ? (
-        <BookEditForm book={book} ownerId={viewerId} lang={lang} dict={dict} />
-      ) : source.kind === "flipbook" ? (
+      {showEditor && source.kind !== "none" ? (
+        <h2 className="font-heading text-sm font-medium text-muted-foreground">{d.readBook}</h2>
+      ) : null}
+
+      {source.kind === "flipbook" ? (
         <FlipbookViewer title={book.title} flipbookUrl={book.flipbookUrl} dict={dict} />
-      ) : (
+      ) : source.kind === "pdf" ? (
         <PdfViewer title={book.title} pdfPath={book.pdfPath} dict={dict} />
+      ) : showEditor ? null : (
+        <BookNotAttached icon={FileWarning} dict={dict} />
       )}
+
+      {source.kind === "flipbook" && book.pdfPath ? (
+        <PdfDownloadLink pdfPath={book.pdfPath} dict={dict} />
+      ) : null}
+
+      {canEdit && viewerId ? <BookEditForm book={book} ownerId={viewerId} lang={lang} dict={dict} /> : null}
     </div>
   );
 }
