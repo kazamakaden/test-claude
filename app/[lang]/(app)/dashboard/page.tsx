@@ -4,6 +4,7 @@ import { getRole } from "@/lib/auth/get-role";
 import { can } from "@/lib/auth/permissions";
 import type { Locale } from "@/lib/i18n/config";
 import type { Dictionary } from "@/types/i18n";
+import { Card, CardContent } from "@/components/ui/card";
 import { CardBoundary } from "@/components/dashboard/card-boundary";
 import { WelcomeCard } from "@/components/dashboard/welcome-card";
 import { NotificationsCard } from "@/components/dashboard/notifications-card";
@@ -62,20 +63,29 @@ export default async function DashboardPage({
         </Suspense>
       </CardBoundary>
 
-      <div className="md:col-span-2">
-        <CardBoundary errorTitle={dict.dashboard.errorTitle} retryLabel={dict.dashboard.errorRetry}>
-          <Suspense fallback={<CalendarCardSkeleton />}>
-            <CalendarCard lang={lang} dict={dict} />
-          </Suspense>
-        </CardBoundary>
+      {/* Calendar + Thai holidays share one card: the holiday column fills the
+          calendar's height and scrolls past it (see holiday-card.tsx), rather
+          than the two subjects sitting in separate cards of mismatched height. */}
+      <div className="md:col-span-2 xl:col-span-3">
+        <Card>
+          <CardContent className="grid gap-6 xl:grid-cols-3">
+            <div className="xl:col-span-2">
+              <CardBoundary errorTitle={dict.dashboard.errorTitle} retryLabel={dict.dashboard.errorRetry}>
+                <Suspense fallback={<CalendarCardSkeleton />}>
+                  <CalendarCard lang={lang} dict={dict} />
+                </Suspense>
+              </CardBoundary>
+            </div>
+            <div className="relative">
+              <CardBoundary errorTitle={dict.dashboard.errorTitle} retryLabel={dict.dashboard.errorRetry}>
+                <Suspense fallback={<ListCardSkeleton />}>
+                  <HolidayCard lang={lang} dict={dict} />
+                </Suspense>
+              </CardBoundary>
+            </div>
+          </CardContent>
+        </Card>
       </div>
-
-      {/* Fills the xl third column beside the calendar's md:col-span-2; stacks below it at md and smaller. */}
-      <CardBoundary errorTitle={dict.dashboard.errorTitle} retryLabel={dict.dashboard.errorRetry}>
-        <Suspense fallback={<ListCardSkeleton />}>
-          <HolidayCard lang={lang} dict={dict} />
-        </Suspense>
-      </CardBoundary>
 
       <div className="md:col-span-2">
         <CardBoundary errorTitle={dict.dashboard.errorTitle} retryLabel={dict.dashboard.errorRetry}>
