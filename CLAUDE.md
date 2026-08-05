@@ -1577,6 +1577,109 @@ Confirm after this deploys: sign in as the real book owner or staff, load
 `/documents`, and check the shelf renders books (with a working delete
 button) instead of the error card.
 
+**Book detail page now shows the file to the person who uploaded it, and
+approved members can be sent back to `pending`.** Two independent gaps
+reported after the crash fix above landed.
+
+*Book reader vs. edit form.* `app/[lang]/(public)/documents/[id]/page.tsx`
+rendered the reader and the edit form as **mutually exclusive** branches of
+one ternary — `canEdit && viewerId ? <BookEditForm/> : <reader/>`, with
+`canEdit = isStaff || (isOwner && book.status === "draft")`. Concretely: an
+owner mid-draft, and **every staff member on every book regardless of
+status**, saw only the metadata form and could never see the actual PDF or
+flipbook they were supposed to be reviewing before publishing it. The
+storage RLS already allowed it (`books_storage_select_authenticated`,
+`0029_books_storage.sql`, lets staff mint a signed URL for any draft) — this
+was purely the page's own UI branch. Fixed by splitting the ternary: the
+reader renders first when a file is attached, the edit form renders below it
+whenever the viewer can edit, and the "no book attached" warning is
+suppressed specifically when the viewer can edit *and* nothing is attached
+yet (the fresh-draft case `createBookAction` redirects straight into), so a
+brand-new book opens on the upload form instead of an alarming empty state.
+A secondary gap in the same block — a book with **both** a FlipHTML5 URL and
+a PDF made the PDF unreachable, since `resolveBookSource` picks the flipbook
+as primary and the page never checked `pdfPath` on its own — closed with a
+new `PdfDownloadLink` secondary link. The identical "not attached" empty
+state duplicated between `pdf-viewer.tsx` and `flipbook-viewer.tsx` was
+extracted to `components/books/book-not-attached.tsx` in the process, rather
+than adding a third copy.
+
+*Revoking approval.* Confirmed the §14 signup split needs no change —
+numeric local part → `pending` (blocked, needs approval), named → `teacher`
+immediately (`0023_handle_new_user_role_split.sql`) — a random student
+genuinely cannot reach the app without an admin/aft_teacher approving them
+at `/approvals` first. What was missing was the reverse: once approved,
+there was no way to take access back short of permanently deleting the
+account. Grepped `revoke|unapprove|reject` across the whole app first to
+confirm — every hit was the unrelated project/document rejection workflow;
+nothing anywhere wrote `role = 'pending'`.
+
+**No migration was needed.** Traced `prevent_role_self_escalation`
+(`0024_member_approval_authority.sql`) by hand for `old.role='student' →
+new.role='pending'` with an admin/aft_teacher actor: it falls straight
+through every guard to `if actor in ('admin','aft_teacher') then return new`
+— there never was a downgrade guard, only an upgrade one. Two properties
+come free from that same trigger and are relied on rather than
+re-implemented: self-revoke is already blocked (`new.id = auth.uid()`
+raises) and admin rows are already protected (`old.role = 'admin'` requires
+an admin actor). The only things blocking a revoke were app-layer TS/Zod
+exclusions on `setProfileRole`/`updateMember`.
+
+New `revokeProfileApproval(id)` (`services/profiles.ts`) — deliberately a
+*separate* narrow function from `setProfileRole`, not a widened version of
+it: `setProfileRole`'s `.update({ role, department_id: departmentId })`
+would have wiped the member's department on every revoke, and it lacks
+`.select().maybeSingle()`, so a blocked/zero-row update would read back as a
+false `{ ok: true }`. The new function updates `role` alone and treats a
+zero-row result as a real failure, matching `updateMember`'s existing
+discipline. New `revokeMemberAction(lang, id)` (`actions/members.ts`, beside
+`deleteMemberAction`) gates on `member:approve` (admin + aft_teacher — the
+same tier that can approve, not the stricter `member:manage` delete uses),
+and re-checks both guards server-side exactly like `deleteMemberAction`
+does: refuses self-revoke via `supabase.auth.getUser()`, and refuses an
+`admin` target by re-reading that row's role from the database rather than
+trusting the form. `revalidatePath`s both `/members` and `/approvals`, since
+a revoked row disappears from one list and reappears in the other — neither
+existing action revalidated both.
+
+Surfaced from `/members` (not `/approvals`, which only ever lists `role =
+'pending'` rows, i.e. people already un-approved) via a new
+`MemberRevokeDialog`, modeled directly on the existing
+`MemberDeleteDialog` (`AlertDialog` + `useTransition` + toast), mounted in
+`members-table.tsx` next to Edit/Delete, shown whenever the viewer holds
+`member:approve` — `services/members.ts#getMembers` already excludes
+`role = 'pending'` rows from this table (`.neq("role", "pending")`), so
+every row shown here is a safe revoke target with no extra state check
+needed. New `members.revoke.*` dictionary keys added to **both**
+`th.json`/`en.json`.
+
+**Wording note, stated plainly rather than glossed over**: revoking sets
+`role = 'pending'`; the person can still *authenticate* (Google/password
+still work) but every `requirePermission`-guarded route bounces them to
+`/pending` on their next request, so they cannot reach any part of the app,
+and they reappear in `/approvals` for re-approval. A true
+"cannot-authenticate-at-all" block would need Supabase's `banned_until` via
+the Admin API — deliberately not built, since permanent delete
+(`deleteMemberAction`, already existing, admin-only) already covers that
+case, and a deleted person signing up again correctly re-lands at `pending`
+through `handle_new_user()` — verified by reading the trigger, not
+re-implemented.
+
+`npx tsc --noEmit && npm run lint && npm run build` all pass clean.
+`npm run check:responsive` (72/72, public pages, including `/th/documents`
+and `/th/members`) stays clean.
+
+**Not verified live**: this session still cannot reach the deployed site or
+the live Supabase project (`curl` to both hosts times out; the Supabase MCP
+connector disconnected mid-session), so neither change was exercised against
+a real signed-in owner/staff session or a real member row. Confirm after
+deploy: staff opening a published *and* a draft book both see the file above
+the edit form; a fresh `/books/new` draft opens on the upload form with no
+warning; revoking a member from `/members` bounces them to `/pending` on
+their next navigation and they reappear in `/approvals`; revoke is refused
+for the caller's own account and for an admin target even when called
+directly, not just hidden in the UI.
+
 ### ❌ Remaining
 
 * **RLS policy performance (`auth_rls_initplan`, `multiple_permissive_policies`)**

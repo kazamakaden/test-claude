@@ -300,6 +300,19 @@
         "unknown": "Something went wrong. Please try again."
       }
     },
+    "revoke": {
+      "revokeButton": "Stop approve",
+      "title": "Stop approving this member?",
+      "description": "\"{name}\" will be sent back to pending and lose access until an administrator approves them again. This does not delete their account.",
+      "cancel": "Cancel",
+      "confirmRevoke": "Stop approve",
+      "revoked": "Member's approval was revoked",
+      "errors": {
+        "selfRevoke": "You cannot revoke your own approval",
+        "adminRevoke": "Administrator accounts cannot be revoked",
+        "unknown": "Something went wrong. Please try again."
+      }
+    },
     "edit": {
       "title": "Edit member",
       "editButton": "Edit",

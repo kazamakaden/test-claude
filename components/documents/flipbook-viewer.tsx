@@ -1,4 +1,5 @@
 import { BookX } from "lucide-react";
+import { BookNotAttached } from "@/components/books/book-not-attached";
 import { isFlipHtml5EmbedUrl, toFlipHtml5EmbedUrl } from "@/lib/fliphtml5";
 import type { Dictionary } from "@/types/i18n";
 
@@ -18,17 +19,10 @@ export function FlipbookViewer({
   flipbookUrl: string | null;
   dict: Dictionary;
 }) {
-  const d = dict.documents;
   const embedUrl = flipbookUrl && isFlipHtml5EmbedUrl(flipbookUrl) ? toFlipHtml5EmbedUrl(flipbookUrl) : null;
 
   if (!embedUrl) {
-    return (
-      <div className="flex flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-border bg-card px-6 py-20 text-center shadow-sm">
-        <BookX className="size-10 text-muted-foreground" aria-hidden />
-        <p className="font-heading text-base font-medium text-foreground">{d.notAttached}</p>
-        <p className="max-w-sm text-sm text-muted-foreground">{d.notAttachedDescription}</p>
-      </div>
-    );
+    return <BookNotAttached icon={BookX} dict={dict} />;
   }
 
   return (
