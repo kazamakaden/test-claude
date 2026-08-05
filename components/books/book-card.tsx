@@ -55,14 +55,11 @@ export async function BookCard({
           title={book.title}
           lang={lang}
           dict={dict}
+          stopTriggerPropagation
           trigger={
             <button
               type="button"
               aria-label={`${d.deleteConfirmTitle} ${book.title}`}
-              onClick={(event) => {
-                event.preventDefault();
-                event.stopPropagation();
-              }}
               className="absolute top-2 right-2 z-10 flex size-6 items-center justify-center rounded-full bg-card/90 text-muted-foreground opacity-0 shadow-sm outline-none transition-opacity hover:text-destructive focus-visible:opacity-100 focus-visible:ring-3 focus-visible:ring-ring/50 group-hover:opacity-100"
             >
               <X className="size-3.5" aria-hidden />

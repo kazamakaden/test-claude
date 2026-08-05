@@ -26,6 +26,15 @@ export function DeleteBookButton({
   trigger,
   /** Set on the detail page (deleting the very book being viewed); the shelf card leaves it unset and lets revalidatePath refresh the grid in place. */
   redirectTo,
+  /**
+   * The shelf card's trigger sits inside a card-wide <Link> to the book
+   * detail page — clicking it must not also navigate there. This has to be
+   * a plain boolean, not an onClick function passed in via `trigger`: the
+   * caller (book-card.tsx) is an async Server Component, and a function
+   * can never cross the Server->Client prop boundary this component's
+   * "use client" directive draws — that was the actual bug (see CLAUDE.md).
+   */
+  stopTriggerPropagation,
 }: {
   bookId: string;
   title: string;
@@ -33,6 +42,7 @@ export function DeleteBookButton({
   dict: Dictionary;
   trigger: ReactElement;
   redirectTo?: string;
+  stopTriggerPropagation?: boolean;
 }) {
   const d = dict.documents;
   const [, startTransition] = useTransition();
@@ -52,7 +62,17 @@ export function DeleteBookButton({
 
   return (
     <AlertDialog>
-      <AlertDialogTrigger render={trigger} />
+      <AlertDialogTrigger
+        render={trigger}
+        onClick={
+          stopTriggerPropagation
+            ? (event) => {
+                event.preventDefault();
+                event.stopPropagation();
+              }
+            : undefined
+        }
+      />
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>{d.deleteConfirmTitle}</AlertDialogTitle>

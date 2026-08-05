@@ -1525,6 +1525,58 @@ not silently passed) — checked separately via the dev-role cookie stub and
 the same real-viewport-emulation CDP technique: 375/768/1280, `admin` role,
 zero horizontal overflow at any width.
 
+**The persistent `/documents` production crash (digest `2646013012`, seen
+across many separate reports and several unrelated fix passes) is now
+actually root-caused and fixed — the digest was misleading, not stale.**
+Every earlier pass ruled out Supabase/RLS (confirmed clean via
+`get_logs`/`execute_sql` — every query for `/documents` returns `200` with
+well-formed rows) and improved the *failure handling* around this route
+(`tryCreateClient`, `CardBoundary` digest surfacing, `unstable_rethrow`), but
+none of that touched the actual defect, because it isn't a data or RLS
+problem at all. The real cause, obtained directly from a Vercel Runtime Logs
+line the user pulled up (matching the same digest): **"Event handlers cannot
+be passed to Client Component props"**, thrown for a `<button
+onClick={...}>`.
+
+`components/books/book-card.tsx` (`BookCard`) is an **async Server
+Component** — every book in the shelf renders through it. When `canDelete`
+is true (a real signed-in owner or staff member viewing a real book —
+exactly the condition this session's static-only review, with no reachable
+Supabase project, could never trigger locally), it built a `<button
+onClick={(event) => { event.preventDefault(); event.stopPropagation(); }}>`
+JSX element **in the Server Component** and passed it as the `trigger` prop
+into `DeleteBookButton` (`"use client"`). A function cannot cross that
+Server → Client serialization boundary — React throws mid-render the moment
+it tries to serialize the RSC payload, which is exactly why the page's outer
+HTTP status stayed `200` (the static shell around it is fine) while the
+shelf's own `CardBoundary` caught the throw and rendered the error card,
+with the identical digest every single time regardless of which book, which
+build, or which live database state — because the bug is structural, not
+data-dependent, and was present continuously since this trigger button was
+first written, never actually fixed by any of the several passes that
+worked around its symptoms instead.
+
+Fixed by moving the `onClick` out of the Server Component entirely:
+`book-card.tsx`'s trigger `<button>` now carries only serializable props
+(`type`/`aria-label`/`className`/`children`); `delete-book-button.tsx` gained
+a `stopTriggerPropagation?: boolean` prop and applies the
+preventDefault/stopPropagation `onClick` directly on `AlertDialogTrigger`
+itself — which is already inside the client component, so the handler is
+constructed client-side and never needs to be serialized across the
+boundary. The detail-page call site (`app/[lang]/(public)/documents/[id]/page.tsx`)
+was unaffected — its trigger (a plain `<Button variant="destructive">`) never
+carried an inline `onClick`, so only the shelf card had this defect.
+`npx tsc --noEmit && npm run lint && npm run build` all pass clean.
+
+**Not verified live**: this session still cannot reach the deployed site or
+the live Supabase project directly (confirmed again this pass — direct
+`curl` to both hosts times out), so the fix is verified by exactly matching
+the reported error's mechanism and removing the only place it could occur,
+not by reproducing the crash and watching it disappear in a real browser.
+Confirm after this deploys: sign in as the real book owner or staff, load
+`/documents`, and check the shelf renders books (with a working delete
+button) instead of the error card.
+
 ### ❌ Remaining
 
 * **RLS policy performance (`auth_rls_initplan`, `multiple_permissive_policies`)**
