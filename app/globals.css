@@ -140,6 +140,30 @@
   }
   html {
     @apply font-sans;
+    font-size: 100%;
+  }
+  /*
+   * Task 5: Settings > font size (lib/font-size.ts). Percentages, not px —
+   * a px root font-size would silently override the visitor's own browser
+   * font-size preference, a WCAG 1.4.4 regression; a percentage composes
+   * with it instead. Tailwind v4's spacing/sizing scale is rem-based
+   * throughout, so this one variable scales type, spacing and radii
+   * together across the whole app. Breakpoints do NOT shift: rem inside a
+   * media query resolves against the browser's initial root font-size per
+   * spec, not this override, so sm:/lg: still fire at the same viewport
+   * widths — capped at 125% (not something more dramatic) specifically so
+   * bigger content inside an unchanged mobile layout branch doesn't
+   * reintroduce the 768px overflow class of bug scripts/responsive-check.mjs
+   * already caught once.
+   */
+  html[data-font-size="sm"] {
+    font-size: 87.5%;
+  }
+  html[data-font-size="lg"] {
+    font-size: 112.5%;
+  }
+  html[data-font-size="xl"] {
+    font-size: 125%;
   }
 }
 

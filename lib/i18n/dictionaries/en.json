@@ -9,6 +9,7 @@
     "projects": "Projects",
     "activities": "Activities",
     "documents": "Documents",
+    "aft11": "11 Good 11 Skilled — AFT",
     "members": "Members",
     "reports": "Reports",
     "announcements": "Announcements",
@@ -459,6 +460,8 @@
     "deleted": "Book deleted",
     "pdfInlineUnsupported": "Your browser can't display this PDF inline — please open it in a new tab.",
     "openInNewTab": "Open PDF in a new tab",
+    "download": "Download",
+    "downloadPdf": "Download PDF",
     "manage": {
       "title": "Manage my documents",
       "description": "Create and track your documents, from draft through to publication.",
@@ -559,6 +562,101 @@
       "title": "Review documents",
       "description": "Documents awaiting approval",
       "empty": "Nothing awaiting review"
+    }
+  },
+  "aft11": {
+    "title": "11 Good 11 Skilled — AFT",
+    "empty": "No content yet",
+    "emptyDescription": "An administrator or อาจารย์ อวท. can add content below.",
+    "editor": {
+      "title": "Edit content",
+      "titleThLabel": "Title (Thai)",
+      "titleEnLabel": "Title (English)",
+      "bodyThLabel": "Body (Thai)",
+      "bodyEnLabel": "Body (English)",
+      "enFallbackHint": "Leave blank to fall back to the Thai text",
+      "save": "Save",
+      "saving": "Saving...",
+      "saved": "Changes saved",
+      "errors": {
+        "titleRequired": "Please enter a title",
+        "titleTooLong": "Title is too long",
+        "bodyTooLong": "Body is too long",
+        "unknown": "Something went wrong. Please try again."
+      }
+    }
+  },
+  "profile": {
+    "title": "Profile",
+    "description": "Your account information",
+    "readOnlyNote": "Only an administrator or อาจารย์ อวท. can change these, via the Members page.",
+    "notSet": "Not set",
+    "fullNameLabel": "Full name",
+    "emailLabel": "Email",
+    "roleLabel": "Role",
+    "studentIdLabel": "Student ID",
+    "academicYearLabel": "Academic year",
+    "classLabel": "Class",
+    "departmentLabel": "Department",
+    "clubLabel": "Club",
+    "save": "Save",
+    "saving": "Saving...",
+    "saved": "Changes saved",
+    "signOut": "Sign out",
+    "errors": {
+      "fullNameRequired": "Please enter your full name",
+      "fullNameTooLong": "Name is too long",
+      "unknown": "Something went wrong. Please try again."
+    }
+  },
+  "settings": {
+    "title": "Settings",
+    "description": "Manage your password, font size, and notifications",
+    "password": {
+      "title": "Change password",
+      "description": "Set a new password for your account",
+      "setTitle": "Set a password",
+      "setDescription": "This account doesn't have a password yet. Set one to use as an alternative sign-in method.",
+      "submit": "Change password",
+      "setSubmit": "Set password",
+      "submitting": "Saving...",
+      "updated": "Password changed. Any other signed-in devices have been signed out.",
+      "errors": {
+        "passwordTooShort": "Password is too short (minimum 8 characters)",
+        "passwordTooLong": "Password is too long",
+        "passwordNeedsLowercase": "Password needs a lowercase letter",
+        "passwordNeedsUppercase": "Password needs an uppercase letter",
+        "passwordNeedsSymbol": "Password needs a symbol",
+        "passwordMismatch": "Passwords don't match",
+        "sessionExpired": "Your session has expired. Please sign in again.",
+        "updateFailed": "Couldn't change the password. Please try again.",
+        "unknown": "Something went wrong. Please try again."
+      }
+    },
+    "fontSize": {
+      "title": "Font size",
+      "description": "Scale text and layout across the whole site",
+      "preview": "Preview text at this size",
+      "options": {
+        "sm": "Small",
+        "base": "Default",
+        "lg": "Large",
+        "xl": "Extra large"
+      }
+    },
+    "push": {
+      "title": "Web push notifications",
+      "description": "Get notified even when the site isn't open",
+      "toggleLabel": "Enable push notifications",
+      "enabled": "Enabled",
+      "disabled": "Disabled",
+      "unsupported": "This browser doesn't support push notifications",
+      "permissionDenied": "Notifications are blocked. Enable them in your browser's site settings.",
+      "errors": {
+        "subscribeFailed": "Couldn't enable notifications",
+        "saveFailed": "Couldn't save the notification subscription",
+        "unknown": "Something went wrong. Please try again."
+      }
     }
   },
   "approvals": {

@@ -42,3 +42,11 @@ export function assertDeployEnvConfigured(): void {
     );
   }
 }
+
+// Deliberately NOT checking NEXT_PUBLIC_VAPID_PUBLIC_KEY/VAPID_PRIVATE_KEY
+// here. Unlike Supabase/Turnstile/site-URL, the app is not broken without
+// them — lib/push.ts#isPushConfigured hides the Settings web-push toggle
+// entirely when the public key is unset, so a missing key degrades to "no
+// push option shown," not a runtime failure. Failing the build over it
+// would be wrong for what is meant to be a progressive enhancement. Do not
+// "fix" this omission without re-reading this comment.

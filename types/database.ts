@@ -1,10 +1,19 @@
 /**
  * Generated from the live project (hmkciwgzbdszsgnbeakc) via
- * `generate_typescript_types` after migrations 0001–0029 were applied live
- * (2026-08-03/04). Genuinely regenerated each time a migration adds/removes
- * a column or table — do not hand-patch this file; the discipline that
- * broke down before (a hand-patched type drifting from the live schema) is
- * exactly what this note exists to prevent happening again.
+ * `generate_typescript_types` after migrations 0001–0030 were applied live
+ * (2026-08-03/04, 0030 applied 2026-08-09). Genuinely regenerated each time
+ * a migration adds/removes a column or table — do not hand-patch this file;
+ * the discipline that broke down before (a hand-patched type drifting from
+ * the live schema) is exactly what this note exists to prevent happening
+ * again.
+ *
+ * `profiles.password_set` (0030) was written to the repo's migration file
+ * long before it was actually applied to this project — discovered and
+ * fixed live in this pass: `services/members.ts#createMember`'s post-create
+ * profile UPDATE was failing with `42703 undefined column` against the real
+ * schema, which tripped its own rollback and silently deleted every account
+ * "Add user" created. Applied now; selectable by `authenticated` per the
+ * 0030 grant, same allow-list pattern as every other profiles column below.
  *
  * Regenerate with:
  *
@@ -310,6 +319,47 @@ export type Database = {
         }
         Relationships: []
       }
+      content_blocks: {
+        Row: {
+          body_en: string | null
+          body_th: string
+          created_at: string
+          slug: string
+          title_en: string | null
+          title_th: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          body_en?: string | null
+          body_th?: string
+          created_at?: string
+          slug: string
+          title_en?: string | null
+          title_th: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          body_en?: string | null
+          body_th?: string
+          created_at?: string
+          slug?: string
+          title_en?: string | null
+          title_th?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "content_blocks_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       departments: {
         Row: {
           code: string
@@ -572,6 +622,47 @@ export type Database = {
           {
             foreignKeyName: "projects_owner_id_fkey"
             columns: ["owner_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      push_subscriptions: {
+        Row: {
+          auth_key: string
+          created_at: string
+          endpoint: string
+          id: string
+          p256dh_key: string
+          updated_at: string
+          user_agent: string | null
+          user_id: string
+        }
+        Insert: {
+          auth_key: string
+          created_at?: string
+          endpoint: string
+          id?: string
+          p256dh_key: string
+          updated_at?: string
+          user_agent?: string | null
+          user_id: string
+        }
+        Update: {
+          auth_key?: string
+          created_at?: string
+          endpoint?: string
+          id?: string
+          p256dh_key?: string
+          updated_at?: string
+          user_agent?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "push_subscriptions_user_id_fkey"
+            columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]

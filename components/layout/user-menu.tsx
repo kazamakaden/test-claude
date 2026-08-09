@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { LogOut, Settings, User } from "lucide-react";
-import { toast } from "sonner";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -15,7 +14,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { LanguageToggle } from "@/components/layout/language-toggle";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
-import { signOut } from "@/actions/auth";
+import { useSignOut } from "@/hooks/use-sign-out";
+import { useSettingsDialog } from "@/components/settings/settings-dialog-provider";
 import { getInitials } from "@/lib/utils";
 import type { Locale } from "@/lib/i18n/config";
 import type { Role } from "@/types/auth";
@@ -36,6 +36,12 @@ export function UserMenu({
   email: string | null;
   dict: Dictionary;
 }) {
+  // Hooks must run unconditionally on every render of this component
+  // instance — both are cheap no-ops for the guest branch below, which
+  // never renders anything that calls handleSignOut/openSettings.
+  const { handleSignOut } = useSignOut(lang);
+  const { openSettings } = useSettingsDialog();
+
   if (role === "guest") {
     return (
       <div className="flex items-center gap-1">
@@ -93,17 +99,12 @@ export function UserMenu({
             <User />
             {dict.nav.profile}
           </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => toast.info(dict.common.comingSoon)}>
+          <DropdownMenuItem onClick={openSettings}>
             <Settings />
             {dict.common.settings}
           </DropdownMenuItem>
           <DropdownMenuSeparator />
-          <DropdownMenuItem
-            variant="destructive"
-            onClick={() => {
-              void signOut(lang);
-            }}
-          >
+          <DropdownMenuItem variant="destructive" onClick={handleSignOut}>
             <LogOut />
             {dict.common.signOut}
           </DropdownMenuItem>

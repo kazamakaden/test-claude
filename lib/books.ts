@@ -49,3 +49,17 @@ export function deriveAcademicYearAndSeason(date: Date): { academicYear: number;
   if (month >= 1 && month <= 3) return { academicYear: buddhistYear - 1, season: 2 };
   return { academicYear: buddhistYear - 1, season: 3 };
 }
+
+/**
+ * Task 6: a stable, safe filename for a book's downloaded PDF. Strips
+ * characters that are legal in a book title (this project's titles are
+ * often Thai) but not in a Content-Disposition filename — quotes and
+ * control/path characters specifically, since those are what could corrupt
+ * the header or smuggle a path segment, not Thai script itself, which is a
+ * legitimate filename character on every OS this app targets (§2: Windows
+ * dev, Linux prod).
+ */
+export function bookPdfFilename(title: string): string {
+  const safeTitle = title.replace(/["\\/:*?<>|\x00-\x1f]/g, "").trim();
+  return `${safeTitle || "document"}.pdf`;
+}

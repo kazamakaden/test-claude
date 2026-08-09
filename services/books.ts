@@ -229,11 +229,24 @@ export async function getBookYears(): Promise<number[]> {
  * service-role key, which this codebase never puts in a request path. TTL
  * matches components/documents' precedent of "regenerated per render", not
  * cached.
+ *
+ * `downloadAs` (task 6): a plain HTML `download` attribute is silently
+ * ignored on a cross-origin URL, and Supabase Storage is always a
+ * different origin from the app — so the only way to make a PDF actually
+ * download instead of navigate is Storage's own `?download=` query param,
+ * which makes the response carry `Content-Disposition: attachment`.
+ * Passing a filename here (rather than `true`) is what names the saved
+ * file instead of leaving it as the opaque storage object id. The token
+ * signs the *path*, not the query string, so the same signed URL would
+ * still work without `download` too — this is purely a response-header
+ * toggle, not a second permission check.
  */
-export async function getSignedPdfUrl(path: string): Promise<string | null> {
+export async function getSignedPdfUrl(path: string, downloadAs?: string): Promise<string | null> {
   const supabase = await tryCreateClient();
   if (!supabase) return null;
-  const { data, error } = await supabase.storage.from("books").createSignedUrl(path, 3600);
+  const { data, error } = await supabase.storage
+    .from("books")
+    .createSignedUrl(path, 3600, downloadAs ? { download: downloadAs } : undefined);
   if (error || !data) return null;
   return data.signedUrl;
 }

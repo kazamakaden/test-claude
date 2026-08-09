@@ -45,6 +45,12 @@ export const permissions = [
   "project:approve",
   "document:approve",
   "activity:manage",
+  /**
+   * Task 2: staff-editable public page copy (e.g. "11 ดี 11 เก่ง อวท.") —
+   * distinct from activity:manage/document:approve, which are each scoped
+   * to one content type; this is the general "edit site content" grant.
+   */
+  "content:manage",
 
   /**
    * §1: อวท. teacher can approve a pending signup and assign it a role
@@ -104,6 +110,7 @@ const aftTeacherPermissions = [
   "project:approve",
   "document:approve",
   "activity:manage",
+  "content:manage",
   "member:approve",
 ] as const satisfies readonly Permission[];
 
@@ -183,6 +190,10 @@ export function can(role: Role, permission: Permission): boolean {
  *   project:approve         projects UPDATE status -> 'official', aft_teacher + admin
  *   document:approve        documents UPDATE status -> 'official', aft_teacher + admin
  *   activity:manage         activities INSERT/UPDATE, aft_teacher + admin
+ *   content:manage          content_blocks UPDATE, aft_teacher + admin
+ *                           (0031/0032 — public page copy, e.g. "11 ดี 11
+ *                           เก่ง อวท."; no INSERT/DELETE policy, the row set
+ *                           is fixed by migration seed)
  *   member:approve          profiles UPDATE role/department_id/class_name/
  *                           club_id/student_id — aft_teacher + admin, both
  *                           subject to prevent_role_self_escalation and

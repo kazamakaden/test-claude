@@ -33,7 +33,15 @@ export default async function AppLayout({
   return (
     <>
       <SkipToContent label={dict.common.skipToContent} />
-      <TopNav lang={lang} role={role} fullName={profile.fullName} avatarUrl={profile.avatarUrl} email={profile.email} dict={dict} />
+      <TopNav
+        lang={lang}
+        role={role}
+        fullName={profile.fullName}
+        avatarUrl={profile.avatarUrl}
+        email={profile.email}
+        passwordSet={profile.passwordSet}
+        dict={dict}
+      />
       <main id="main" className="flex-1">
         {children}
       </main>

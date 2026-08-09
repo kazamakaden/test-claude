@@ -1,9 +1,11 @@
 import type { Metadata, Viewport } from "next";
+import { cookies } from "next/headers";
 import { Geist_Mono, IBM_Plex_Sans_Thai, Inter } from "next/font/google";
 import { Toaster } from "@/components/ui/sonner";
 import { ThemeProvider } from "@/components/theme-provider";
 import { getDictionary } from "@/lib/i18n/get-dictionary";
 import { locales, type Locale } from "@/lib/i18n/config";
+import { FONT_SIZE_COOKIE, resolveFontSize } from "@/lib/font-size";
 import "../globals.css";
 
 const inter = Inter({
@@ -65,11 +67,13 @@ export default async function RootLayout({
 }>) {
   const { lang: rawLang } = await params;
   const lang = rawLang as Locale;
+  const fontSize = resolveFontSize((await cookies()).get(FONT_SIZE_COOKIE)?.value);
 
   return (
     <html
       lang={lang}
       suppressHydrationWarning
+      data-font-size={fontSize}
       className={`${inter.variable} ${ibmPlexSansThai.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
