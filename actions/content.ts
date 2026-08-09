@@ -5,7 +5,7 @@ import { requirePermission } from "@/lib/auth/require-role";
 import { createClient } from "@/lib/supabase/server";
 import { updateContentBlockSchema } from "@/schemas/content";
 import { updateContentBlock } from "@/services/content";
-import { isLocale, defaultLocale, type Locale } from "@/lib/i18n/config";
+import { readLang } from "@/lib/i18n/config";
 
 type ContentBlockErrorKey = "titleRequired" | "titleTooLong" | "bodyTooLong" | "unknown";
 
@@ -14,11 +14,6 @@ function isContentBlockErrorKey(value: string | undefined): value is ContentBloc
 }
 
 export type ContentBlockFormResult = { ok: true } | { ok: false; messageKey: ContentBlockErrorKey };
-
-function readLang(formData: FormData): Locale {
-  const raw = formData.get("lang");
-  return typeof raw === "string" && isLocale(raw) ? raw : defaultLocale;
-}
 
 /**
  * Task 2 content-block edit. Gated on content:manage (aft_teacher/admin,

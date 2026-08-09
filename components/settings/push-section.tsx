@@ -39,7 +39,15 @@ export function PushSection({ lang, dict }: { lang: Locale; dict: Dictionary }) 
       return;
     }
 
-    navigator.serviceWorker.ready
+    // register(), not `.ready` — `.ready` only resolves once an ACTIVE
+    // worker exists for the scope and never rejects, so on a fresh origin
+    // with no prior registration it would hang forever and the toggle
+    // would stay disabled with no explanation. register() is idempotent
+    // (a second call for the same scope/script just returns the existing
+    // registration) and pushManager is usable on the returned registration
+    // immediately, before the worker reaches "active".
+    navigator.serviceWorker
+      .register("/sw.js")
       .then((registration) => registration.pushManager.getSubscription())
       .then((subscription) => {
         setSubscribed(Boolean(subscription));
@@ -96,7 +104,11 @@ export function PushSection({ lang, dict }: { lang: Locale; dict: Dictionary }) 
       }
 
       try {
-        const registration = await navigator.serviceWorker.ready;
+        // register(), not `.ready` — same reasoning as the mount effect
+        // above; by the time this branch is reachable a subscription (and
+        // therefore a registration) already exists, but `.ready` is still
+        // the wrong primitive to depend on here.
+        const registration = await navigator.serviceWorker.register("/sw.js");
         const subscription = await registration.pushManager.getSubscription();
         if (subscription) {
           await deletePushSubscriptionAction(lang, subscription.endpoint);

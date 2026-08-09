@@ -1,6 +1,6 @@
 import { User } from "lucide-react";
 import { requirePermission } from "@/lib/auth/require-role";
-import { createClient } from "@/lib/supabase/server";
+import { tryCreateClient } from "@/lib/supabase/server";
 import { getOwnProfile } from "@/services/profiles";
 import { getDictionary } from "@/lib/i18n/get-dictionary";
 import { PageShell } from "@/components/layout/page-shell";
@@ -24,10 +24,12 @@ export default async function ProfilePage({ params }: { params: Promise<{ lang: 
 
   await requirePermission("profile:read", lang);
 
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  // tryCreateClient(), not createClient() — createClient() throws
+  // synchronously when Supabase isn't configured, which this page's own
+  // top-level await would let escape as an unhandled 500 (the exact crash
+  // class already fixed for /documents and /members, see CLAUDE.md).
+  const supabase = await tryCreateClient();
+  const user = supabase ? (await supabase.auth.getUser()).data.user : null;
 
   const [dict, profile] = await Promise.all([getDictionary(lang), user ? getOwnProfile(user.id) : null]);
   const d = dict.profile;

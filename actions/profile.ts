@@ -5,7 +5,7 @@ import { requirePermission } from "@/lib/auth/require-role";
 import { createClient } from "@/lib/supabase/server";
 import { updateOwnProfileSchema } from "@/schemas/profile";
 import { updateOwnProfile } from "@/services/profiles";
-import { isLocale, defaultLocale, type Locale } from "@/lib/i18n/config";
+import { readLang } from "@/lib/i18n/config";
 
 type ProfileErrorKey = "fullNameRequired" | "fullNameTooLong" | "unknown";
 
@@ -14,11 +14,6 @@ function isProfileErrorKey(value: string | undefined): value is ProfileErrorKey 
 }
 
 export type ProfileFormResult = { ok: true } | { ok: false; messageKey: ProfileErrorKey };
-
-function readLang(formData: FormData): Locale {
-  const raw = formData.get("lang");
-  return typeof raw === "string" && isLocale(raw) ? raw : defaultLocale;
-}
 
 /**
  * Gated on profile:update (student and above, lib/auth/permissions.ts) —

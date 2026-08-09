@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { requirePermission } from "@/lib/auth/require-role";
 import { createClient } from "@/lib/supabase/server";
 import { newPasswordSchema } from "@/schemas/auth";
-import { isLocale, defaultLocale, type Locale } from "@/lib/i18n/config";
+import { readLang } from "@/lib/i18n/config";
 
 type ChangePasswordErrorKey =
   | "passwordTooShort"
@@ -33,11 +33,6 @@ function fieldErrorKey(rawKey: string | undefined): ChangePasswordErrorKey {
 }
 
 export type ChangePasswordResult = { ok: true } | { ok: false; messageKey: ChangePasswordErrorKey };
-
-function readLang(formData: FormData): Locale {
-  const raw = formData.get("lang");
-  return typeof raw === "string" && isLocale(raw) ? raw : defaultLocale;
-}
 
 /**
  * Settings > change password. Deliberately a NEW action, not a reuse of

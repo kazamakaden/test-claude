@@ -240,15 +240,27 @@ export async function getBookYears(): Promise<number[]> {
  * signs the *path*, not the query string, so the same signed URL would
  * still work without `download` too — this is purely a response-header
  * toggle, not a second permission check.
+ *
+ * Deliberately NOT passed as the SDK's own `{ download }` option — the
+ * installed `@supabase/storage-js` builds that query param with
+ * `URLSearchParams` (percent-encodes non-ASCII bytes) and then runs the
+ * *entire* URL through `encodeURI()` again, which re-escapes the `%`
+ * characters `URLSearchParams` just produced. For an ASCII filename this
+ * is a no-op; for a Thai title — the common case for this project's book
+ * titles, per lib/books.ts#bookPdfFilename's own comment — it corrupts the
+ * filename into literal `%E0%B9…` text (verified directly: reproduced the
+ * SDK's exact `encodeURI(base + "&" + params.toString())` sequence in
+ * Node). Working around it by minting the plain signed URL first and
+ * appending `download=` ourselves, encoded exactly once, avoids the SDK's
+ * internal re-encoding pass entirely.
  */
 export async function getSignedPdfUrl(path: string, downloadAs?: string): Promise<string | null> {
   const supabase = await tryCreateClient();
   if (!supabase) return null;
-  const { data, error } = await supabase.storage
-    .from("books")
-    .createSignedUrl(path, 3600, downloadAs ? { download: downloadAs } : undefined);
+  const { data, error } = await supabase.storage.from("books").createSignedUrl(path, 3600);
   if (error || !data) return null;
-  return data.signedUrl;
+  if (!downloadAs) return data.signedUrl;
+  return `${data.signedUrl}&download=${encodeURIComponent(downloadAs)}`;
 }
 
 export async function getSignedCoverUrl(path: string): Promise<string | null> {
