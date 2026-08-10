@@ -1,10 +1,14 @@
 import Image from "next/image";
 import Link from "next/link";
+import { homeHrefFor } from "@/lib/navigation";
+import type { Role } from "@/types/auth";
 
-export function Logo({ lang }: { lang: string }) {
+export function Logo({ lang, role }: { lang: string; role: Role }) {
+  const href = homeHrefFor(role);
+
   return (
     <Link
-      href={`/${lang}`}
+      href={`/${lang}${href === "/" ? "" : href}`}
       className="flex items-center gap-2 rounded-lg outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
     >
       <Image

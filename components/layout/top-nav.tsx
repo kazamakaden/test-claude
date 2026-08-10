@@ -32,7 +32,7 @@ export function TopNav({
     <header className="sticky top-0 z-40 h-20 border-b border-border bg-card/80 backdrop-blur-sm">
       <div className="mx-auto flex h-full max-w-7xl items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
         <div className="flex items-center gap-6">
-          <Logo lang={lang} />
+          <Logo lang={lang} role={role} />
           <nav aria-label={dict.common.mainNav} className="hidden lg:block">
             <NavLinks items={items} lang={lang} dict={dict} />
           </nav>
