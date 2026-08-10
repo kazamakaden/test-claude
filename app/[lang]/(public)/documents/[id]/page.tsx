@@ -123,7 +123,7 @@ export default async function BookDetailPage({
       )}
 
       {source.kind === "flipbook" && book.pdfPath ? (
-        <PdfDownloadLink pdfPath={book.pdfPath} dict={dict} />
+        <PdfDownloadLink pdfPath={book.pdfPath} title={book.title} dict={dict} />
       ) : null}
 
       {canEdit && viewerId ? <BookEditForm book={book} ownerId={viewerId} lang={lang} dict={dict} /> : null}

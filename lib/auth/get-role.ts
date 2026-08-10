@@ -24,9 +24,19 @@ export interface SessionProfile {
   fullName: string | null;
   avatarUrl: string | null;
   email: string | null;
+  /** Task 5: settings dialog's password section reads this to decide
+   * between "change password" and "set a password" copy — a Google-only
+   * account has none yet (see 0030's header). */
+  passwordSet: boolean;
 }
 
-const GUEST_PROFILE: SessionProfile = { role: "guest", fullName: null, avatarUrl: null, email: null };
+const GUEST_PROFILE: SessionProfile = {
+  role: "guest",
+  fullName: null,
+  avatarUrl: null,
+  email: null,
+  passwordSet: false,
+};
 
 /**
  * Real role/profile source once a Supabase project is configured; falls
@@ -40,7 +50,7 @@ const GUEST_PROFILE: SessionProfile = { role: "guest", fullName: null, avatarUrl
 export const getSessionProfile = cache(async (): Promise<SessionProfile> => {
   if (!isSupabaseConfigured) {
     const role = await getDevCookieRole();
-    return { role, fullName: null, avatarUrl: null, email: null };
+    return { role, fullName: null, avatarUrl: null, email: null, passwordSet: false };
   }
 
   const supabase = await createClient();
@@ -52,13 +62,19 @@ export const getSessionProfile = cache(async (): Promise<SessionProfile> => {
 
   const { data, error } = await supabase
     .from("profiles")
-    .select("role, full_name, avatar_url")
+    .select("role, full_name, avatar_url, password_set")
     .eq("id", user.id)
     .single();
 
   if (error || !data) return GUEST_PROFILE;
 
-  return { role: data.role, fullName: data.full_name, avatarUrl: data.avatar_url, email: user.email ?? null };
+  return {
+    role: data.role,
+    fullName: data.full_name,
+    avatarUrl: data.avatar_url,
+    email: user.email ?? null,
+    passwordSet: data.password_set,
+  };
 });
 
 export async function getRole(): Promise<Role> {

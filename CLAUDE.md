@@ -1680,6 +1680,111 @@ their next navigation and they reappear in `/approvals`; revoke is refused
 for the caller's own account and for an admin target even when called
 directly, not just hidden in the UI.
 
+**Six-task pass: the `0030` live-schema gap closed, a real content page, a
+real `/profile`, a Settings overlay (password/font-size/push), and genuine
+PDF downloads — this session had live Supabase MCP access throughout, a
+first for several of these.**
+
+1. **`0030_profiles_password_set.sql` applied live** — it had been sitting
+   in the migration file, unapplied, since the section above first
+   documented it (that section's own `types/database.ts` header comment
+   already recorded the resulting `42703 undefined column` breaking "Add
+   user"). Applied via the Supabase MCP this session; re-verified against
+   `information_schema.columns` and that `password_set` is in fact
+   `authenticated`-selectable per its own migration's grant.
+2. **`/aft-11`** ("11 ดี 11 เก่ง อวท.") — a new public content page, backed
+   by `content_blocks` (`0031_content_blocks.sql`, one row per `slug`,
+   `title_th`/`title_en`/`body_th`/`body_en`), not a hardcoded page — an
+   admin can edit the copy without a deploy. RLS (`0032`) is anon/
+   authenticated `SELECT` for everyone, `UPDATE` for `admin`/`aft_teacher`
+   only, both applied and confirmed live via `pg_policies`. `services/content.ts`
+   uses `tryCreateClient()` (fail-soft, same convention as every other read
+   path in this codebase), `actions/content.ts` re-checks
+   `content:manage` server-side. Nav entry added to `lib/navigation.ts`
+   (public, no permission gate) and both dictionaries.
+3. **`/profile`** — replaced the `PageShell` "coming soon" stub. Only
+   `full_name` is actually editable by the viewer (`actions/profile.ts` →
+   `services/profiles.ts#updateOwnProfile`, gated on `profile:update`,
+   target row always the caller's own session id, never a form value);
+   role/student ID/department/class/club render read-only with an
+   explanatory note, since `prevent_member_identity_change` (0025) would
+   reject a self-edit of those anyway — matching the established "don't
+   build a form the database will just reject" discipline this file
+   already applies elsewhere. Added a real `<form action={signOut.bind(null,
+   lang)}>` sign-out button (`components/layout/sign-out-button.tsx`) —
+   the *only* sign-out entry point in the app that works with JavaScript
+   disabled, since the existing menu-item sign-outs in `user-menu.tsx`/
+   `mobile-nav.tsx` live inside JS-only Base UI overlays that can't open
+   without JS in the first place.
+4. **Settings as a blurred-overlay dialog**, reachable from both the
+   desktop dropdown and the mobile sheet, not a route — replaces the
+   dead `toast.info(comingSoon)` stub the Settings menu item previously
+   called. `SettingsDialogProvider` wraps `UserMenu`+`MobileNav`
+   unconditionally in `top-nav.tsx` (not conditionally on role) so
+   `useSettingsDialog()`/`useSignOut()` can be called unconditionally at
+   the top of both consumers — calling a hook only after a `role ===
+   "guest"` early return would violate rules-of-hooks the moment role
+   changes without a remount, checked for directly rather than assumed
+   safe. Mobile's Settings trigger closes the sheet before opening the
+   dialog (`setOpen(false)` then `openSettings()`) — two simultaneously
+   open Base UI Dialogs would mean two stacked focus traps.
+5. **Settings contents**: password change/set
+   (`change-password-section.tsx` + `actions/settings.ts#changePasswordAction`,
+   a deliberately *new* action rather than a reuse of the recovery-flow
+   `updatePassword` — this one must NOT sign out/redirect, the recovery one
+   must; documented trade-off: the current password isn't verified, since
+   `updateUser({password})` doesn't check it and re-authenticating would hit
+   this project's project-level Turnstile requirement with no captcha
+   widget available in a settings dialog — mitigated by requiring a live
+   session, the existing 12-hour session cap, and revoking every *other*
+   session on success), font size (`font-size-section.tsx`, a `data-font-size`
+   attribute + cookie read server-side in `app/[lang]/layout.tsx` to avoid a
+   flash of default size), and web push opt-in (`push-section.tsx` +
+   `public/sw.js` + `push_subscriptions` table, `0033`/`0034` — RLS applied
+   and confirmed live via `pg_policies`: owner-only `SELECT`/`UPDATE`/
+   `DELETE`, `INSERT` additionally requires `current_role()` to be a real
+   member role, not `pending`/`guest`). Renders nothing at all when
+   `NEXT_PUBLIC_VAPID_PUBLIC_KEY` is unset — same "hide the control rather
+   than render one that can only fail" pattern as `isTurnstileConfigured`/
+   `isSupabaseAdminConfigured` elsewhere in this codebase — then degrades
+   through unsupported-browser and permission-denied states before ever
+   showing a live toggle. This phase only stores subscriptions; it does not
+   send pushes (`VAPID_PRIVATE_KEY` is documented in `.env.example` but
+   deliberately unused by any code this pass — sending is a later phase).
+6. **Downloadable documents** — `PdfDownloadLink`/`PdfViewer` previously
+   only ever opened a PDF in a new tab (`target="_blank"`), which most
+   browsers still render inline rather than save; neither actually
+   triggered a download despite the former's name. `services/books.ts#getSignedPdfUrl`
+   gained an optional `downloadAs` filename, passed through to Supabase
+   Storage's own `createSignedUrl(path, ttl, { download })` option
+   (`Content-Disposition: attachment` on the response) — a plain HTML
+   `download` attribute is silently ignored across an origin boundary, and
+   Storage is always cross-origin from the app, so this is the only way
+   that actually works. `PdfViewer` now mints a *second*, separate signed
+   URL specifically for the download link rather than reusing the inline
+   viewer's URL — forcing `Content-Disposition: attachment` on the same URL
+   used by the `<object>` tag risked turning the inline preview into a
+   forced download too. `lib/books.ts#bookPdfFilename` strips characters
+   illegal in a `Content-Disposition` filename (quotes, control/path
+   separators) while leaving Thai script intact, since this project's book
+   titles are frequently Thai.
+
+**Live-verified this pass, via the Supabase MCP directly** (not `curl`,
+not assumed from reading policy SQL): `0030` applied and its column grant
+confirmed; `0031`–`0034` applied and every new table's `pg_policies` read
+back to confirm the intended role/command matrix, matching this project's
+established `0005`/`0008`/`0011`-style live-proof discipline rather than
+trusting the migration file alone. `npx tsc --noEmit && npm run lint &&
+npm run build` all pass clean, including a full 54-route static generation
+pass with the new `/profile` and `/aft-11` routes. **Not verified live**:
+the actual signed-in click-through for all five UI-facing changes (Settings
+dialog open/close on both breakpoints, a real password change, a real push
+subscribe/unsubscribe round trip including a delivered notification, a real
+PDF download's `Content-Disposition` header observed in a live response) —
+this session had live database access but not a live deployed frontend or
+a real signed-in browser session; that gap matches every prior pass's own
+stated limitation, not a new one introduced here.
+
 ### ❌ Remaining
 
 * **RLS policy performance (`auth_rls_initplan`, `multiple_permissive_policies`)**

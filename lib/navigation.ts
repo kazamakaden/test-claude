@@ -15,6 +15,9 @@ export const navItems: readonly NavItem[] = [
   { key: "projects", href: "/projects", permission: "workspace:access" },
   { key: "activities", href: "/activities" },
   { key: "documents", href: "/documents" },
+  // §5: public — "11 ดี 11 เก่ง อวท." is public page copy, editable in-app
+  // only by staff (content:manage, lib/auth/permissions.ts).
+  { key: "aft11", href: "/aft-11" },
   // §5: public — guests can browse the directory to check whether they're
   // registered; services/members.ts hides email from them and the "add
   // filters"/edit affordances stay role-gated inside the page itself.

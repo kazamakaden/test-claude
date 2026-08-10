@@ -26,6 +26,7 @@ export default async function PublicLayout({
         fullName={profile.fullName}
         avatarUrl={profile.avatarUrl}
         email={profile.email}
+        passwordSet={profile.passwordSet}
         dict={dict}
       />
       <main id="main" className="flex-1">

@@ -4,7 +4,6 @@ import Link from "next/link";
 import { useRef, useState } from "react";
 import { MenuIcon, type MenuIconHandle } from "@animateicons/react/lucide";
 import { LogOut, Settings, User } from "lucide-react";
-import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useReducedMotion } from "@/hooks/use-reduced-motion";
@@ -20,7 +19,8 @@ import { NavLinks } from "@/components/layout/nav-links";
 import { Logo } from "@/components/layout/logo";
 import { LanguageToggle } from "@/components/layout/language-toggle";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
-import { signOut } from "@/actions/auth";
+import { useSignOut } from "@/hooks/use-sign-out";
+import { useSettingsDialog } from "@/components/settings/settings-dialog-provider";
 import { getInitials } from "@/lib/utils";
 import type { NavItem } from "@/lib/navigation";
 import type { Locale } from "@/lib/i18n/config";
@@ -56,6 +56,8 @@ export function MobileNav({
   const menuIconRef = useRef<MenuIconHandle>(null);
   const prefersReducedMotion = useReducedMotion();
   const initials = getInitials(fullName);
+  const { handleSignOut } = useSignOut(lang);
+  const { openSettings } = useSettingsDialog();
 
   // Driven from the button rather than the icon's own hover — Button sets
   // [&_svg]:pointer-events-none, so the icon never sees mouse events.
@@ -133,7 +135,13 @@ export function MobileNav({
                 <Button
                   variant="ghost"
                   className="justify-start"
-                  onClick={() => toast.info(dict.common.comingSoon)}
+                  onClick={() => {
+                    // Close the sheet before opening Settings — both are
+                    // Base UI Dialogs, and stacking two open popups means
+                    // two focus traps and two scroll locks fighting.
+                    setOpen(false);
+                    openSettings();
+                  }}
                 >
                   <Settings className="size-4" aria-hidden />
                   {dict.common.settings}
@@ -143,7 +151,7 @@ export function MobileNav({
                   className="justify-start text-destructive hover:bg-destructive/10 hover:text-destructive"
                   onClick={() => {
                     setOpen(false);
-                    void signOut(lang);
+                    handleSignOut();
                   }}
                 >
                   <LogOut className="size-4" aria-hidden />

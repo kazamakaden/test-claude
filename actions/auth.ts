@@ -1,6 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import { signInSchema, resetRequestSchema, newPasswordSchema } from "@/schemas/auth";
@@ -263,8 +264,36 @@ export async function signInWithGoogle(lang: Locale) {
   redirect(data.url);
 }
 
-export async function signOut(lang: Locale) {
+/**
+ * Task 3: fixes sign-out not visibly working. Bound via `signOut.bind(null,
+ * lang)` to a real `<form action={...}>` in both user-menu.tsx and
+ * mobile-nav.tsx — not an `onClick={() => void signOut(lang)}` handler like
+ * before, which fired the redirect outside any transition/form-action
+ * context and could get its rejection silently swallowed by the bare
+ * `void`. A real form action also gives the no-JS guarantee sign-IN already
+ * has (§30.9) and a genuine useFormStatus pending state.
+ *
+ * `revalidatePath("/", "layout")` before the redirect is the actual fix for
+ * the reported symptom: without it, Next's client Router Cache can keep
+ * serving an RSC payload rendered while signed in, so the nav still shows
+ * the avatar menu after "signing out" even though the session cookie really
+ * is gone — indistinguishable from "logout doesn't work" to the user.
+ *
+ * The signOut() call itself is wrapped in try/catch: a GoTrue network
+ * hiccup must not strand the user signed-in-looking. The cookie deletions
+ * @supabase/ssr's adapter performs are what actually end the session
+ * locally; redirect() must stay OUTSIDE the try/catch since NEXT_REDIRECT
+ * is a Next.js control-flow signal, not an error (the same lesson already
+ * documented in services/dashboard.ts for requirePermission's redirect()).
+ */
+export async function signOut(lang: Locale, formData?: FormData) {
+  void formData; // present only so this satisfies a <form action> signature when bound
   const supabase = await createClient();
-  await supabase.auth.signOut();
+  try {
+    await supabase.auth.signOut();
+  } catch (error) {
+    console.error("[signOut]", error);
+  }
+  revalidatePath("/", "layout");
   redirect(`/${lang}`);
 }

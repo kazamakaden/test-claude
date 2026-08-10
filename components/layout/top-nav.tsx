@@ -3,6 +3,7 @@ import { NavLinks } from "@/components/layout/nav-links";
 import { MobileNav } from "@/components/layout/mobile-nav";
 import { NotificationsButton } from "@/components/layout/notifications-button";
 import { UserMenu } from "@/components/layout/user-menu";
+import { SettingsDialogProvider } from "@/components/settings/settings-dialog-provider";
 import { navFor } from "@/lib/navigation";
 import type { Locale } from "@/lib/i18n/config";
 import type { Role } from "@/types/auth";
@@ -14,6 +15,7 @@ export function TopNav({
   fullName,
   avatarUrl,
   email,
+  passwordSet,
   dict,
 }: {
   lang: Locale;
@@ -21,6 +23,7 @@ export function TopNav({
   fullName: string | null;
   avatarUrl: string | null;
   email: string | null;
+  passwordSet: boolean;
   dict: Dictionary;
 }) {
   const items = navFor(role);
@@ -39,18 +42,20 @@ export function TopNav({
           {role !== "guest" ? (
             <NotificationsButton label={dict.nav.notifications} />
           ) : null}
-          <div className="hidden lg:block">
-            <UserMenu lang={lang} role={role} fullName={fullName} avatarUrl={avatarUrl} email={email} dict={dict} />
-          </div>
-          <MobileNav
-            items={items}
-            lang={lang}
-            role={role}
-            fullName={fullName}
-            avatarUrl={avatarUrl}
-            email={email}
-            dict={dict}
-          />
+          <SettingsDialogProvider lang={lang} dict={dict} email={email} passwordSet={passwordSet}>
+            <div className="hidden lg:block">
+              <UserMenu lang={lang} role={role} fullName={fullName} avatarUrl={avatarUrl} email={email} dict={dict} />
+            </div>
+            <MobileNav
+              items={items}
+              lang={lang}
+              role={role}
+              fullName={fullName}
+              avatarUrl={avatarUrl}
+              email={email}
+              dict={dict}
+            />
+          </SettingsDialogProvider>
         </div>
       </div>
     </header>

@@ -10,6 +10,7 @@ import {
   FolderKanban,
   Home,
   Megaphone,
+  Sparkles,
   Users,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -23,6 +24,7 @@ const iconByKey: Partial<Record<keyof Dictionary["nav"], typeof Home>> = {
   projects: FolderKanban,
   activities: Megaphone,
   documents: FileText,
+  aft11: Sparkles,
   members: Users,
   reports: BarChart3,
 };

@@ -5,7 +5,7 @@ import { requirePermission } from "@/lib/auth/require-role";
 import { createClient } from "@/lib/supabase/server";
 import { createActivitySchema, updateActivitySchema, deleteActivitySchema } from "@/schemas/activities";
 import { createActivity, updateActivity, deleteActivity } from "@/services/activities";
-import { isLocale, defaultLocale, type Locale } from "@/lib/i18n/config";
+import { readLang, type Locale } from "@/lib/i18n/config";
 
 type ActivityErrorKey = "invalidDate" | "invalidTime" | "titleRequired" | "descriptionTooLong" | "unknown";
 
@@ -20,11 +20,6 @@ function isActivityErrorKey(value: string | undefined): value is ActivityErrorKe
 
 export type ActivityFormResult = { ok: true } | { ok: false; messageKey: ActivityErrorKey };
 export type DeleteActivityResult = { ok: true } | { ok: false; messageKey: "unknown" };
-
-function readLang(formData: FormData): Locale {
-  const raw = formData.get("lang");
-  return typeof raw === "string" && isLocale(raw) ? raw : defaultLocale;
-}
 
 /**
  * Calendar day-sheet create. Gated on activity:manage (aft_teacher/admin,
