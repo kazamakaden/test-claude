@@ -139,6 +139,7 @@
       "title": "Calendar",
       "description": "This month's events",
       "today": "Today",
+      "holidayLabel": "Holiday",
       "noEventsOnDay": "No events on this day",
       "addEvent": "Add event",
       "edit": "Edit",

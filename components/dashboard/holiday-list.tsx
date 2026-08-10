@@ -2,19 +2,18 @@ import { CalendarHeart } from "lucide-react";
 import { format } from "date-fns";
 import { th, enUS } from "date-fns/locale";
 import { CardEmpty } from "@/components/dashboard/card-states";
-import { getHolidays } from "@/services/holidays";
+import type { Holiday } from "@/types/holidays";
 import type { Locale } from "@/lib/i18n/config";
 import type { Dictionary } from "@/types/i18n";
 
 /**
  * §8 "ปฏิทินวันหยุด" — the right-hand panel of the merged calendar card
  * (see CalendarCard), not its own Card: the calendar owns the card chrome,
- * this owns only the heading + list. Rows stack name-over-date instead of
- * sharing one baseline, so a long Thai holiday name gets the panel's full
- * width to wrap in rather than fighting the date for room.
+ * this owns only the heading + list. Purely presentational — `holidays` is
+ * fetched once by CalendarCard and shared with CalendarGrid, so this list
+ * and the grid's day markers can never disagree.
  */
-export async function HolidayList({ lang, dict }: { lang: Locale; dict: Dictionary }) {
-  const holidays = await getHolidays(lang);
+export function HolidayList({ holidays, lang, dict }: { holidays: Holiday[]; lang: Locale; dict: Dictionary }) {
   const d = dict.dashboard.holidays;
   const locale = lang === "th" ? th : enUS;
 
