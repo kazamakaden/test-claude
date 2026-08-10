@@ -22,8 +22,8 @@ export function Logo({ lang, role }: { lang: string; role: Role }) {
       <Image
         src="/brand/logo-with-text-dark.png"
         alt="AFT UDONTECH"
-        width={1410}
-        height={420}
+        width={1415}
+        height={423}
         className="hidden h-14 w-auto dark:block"
         priority
       />

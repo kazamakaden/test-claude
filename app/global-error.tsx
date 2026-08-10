@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
+import { isChunkLoadError, recoverFromChunkError } from "@/lib/chunk-error";
 
 // Last resort: only reached if the root layout itself throws, which
 // app/[lang]/error.tsx cannot catch (it lives below the layout). Must
@@ -15,9 +16,25 @@ export default function GlobalError({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
+  // Same stale-chunk self-recovery as [lang]/error.tsx, see its comment —
+  // a redeploy can just as easily invalidate the root layout's own chunk.
+  const [recovering, setRecovering] = useState(false);
+
   useEffect(() => {
+    if (isChunkLoadError(error) && recoverFromChunkError()) {
+      setRecovering(true);
+      return;
+    }
     console.error(error);
   }, [error]);
+
+  if (recovering) {
+    return (
+      <html>
+        <body />
+      </html>
+    );
+  }
 
   return (
     <html>
