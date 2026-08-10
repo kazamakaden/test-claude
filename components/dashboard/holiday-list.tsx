@@ -18,15 +18,15 @@ export function HolidayList({ holidays, lang, dict }: { holidays: Holiday[]; lan
   const locale = lang === "th" ? th : enUS;
 
   return (
-    <div>
+    <div className="flex h-full flex-col">
       <h3 className="font-heading text-sm font-medium">{d.title}</h3>
       <p className="text-sm text-muted-foreground">{d.description}</p>
 
-      <div className="mt-4">
+      <div className="mt-4 flex-1 min-h-0">
         {holidays.length === 0 ? (
           <CardEmpty icon={CalendarHeart} message={d.empty} ctaLabel={d.emptyCta} ctaHref="/calendar" lang={lang} />
         ) : (
-          <ul className="flex max-h-80 flex-col gap-3 overflow-y-auto">
+          <ul className="flex h-full flex-col gap-3 overflow-y-auto">
             {holidays.map((h) => (
               <li key={h.date} className="flex flex-col gap-0.5">
                 <span className="text-sm text-foreground">{h.name}</span>

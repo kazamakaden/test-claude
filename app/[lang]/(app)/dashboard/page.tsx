@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import { getDictionary } from "@/lib/i18n/get-dictionary";
 import { getRole } from "@/lib/auth/get-role";
 import { can } from "@/lib/auth/permissions";
+import { parseMonthParam } from "@/schemas/calendar";
 import type { Locale } from "@/lib/i18n/config";
 import type { Dictionary } from "@/types/i18n";
 import { CardBoundary } from "@/components/dashboard/card-boundary";
@@ -35,11 +36,16 @@ async function MemberStatsChart({ lang, dict }: { lang: Locale; dict: Dictionary
 
 export default async function DashboardPage({
   params,
+  searchParams: rawSearchParams,
 }: {
   params: Promise<{ lang: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const { lang: rawLang } = await params;
   const lang = rawLang as Locale;
+  const rawParams = await rawSearchParams;
+  const monthParam = Array.isArray(rawParams.month) ? rawParams.month[0] : rawParams.month;
+  const month = parseMonthParam(monthParam);
   const [dict, role] = await Promise.all([getDictionary(lang), getRole()]);
   const isReviewer = can(role, "project:draft:review");
 
@@ -64,7 +70,7 @@ export default async function DashboardPage({
       <div className="md:col-span-2 xl:col-span-3">
         <CardBoundary errorTitle={dict.dashboard.errorTitle} retryLabel={dict.dashboard.errorRetry}>
           <Suspense fallback={<CalendarCardSkeleton />}>
-            <CalendarCard lang={lang} dict={dict} />
+            <CalendarCard month={month} lang={lang} dict={dict} />
           </Suspense>
         </CardBoundary>
       </div>
