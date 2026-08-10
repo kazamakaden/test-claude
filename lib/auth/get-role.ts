@@ -1,7 +1,7 @@
 import "server-only";
 import { cache } from "react";
 import { cookies } from "next/headers";
-import { createClient } from "@/lib/supabase/server";
+import { tryCreateClient } from "@/lib/supabase/server";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
 import type { Role } from "@/types/auth";
 import { roles } from "@/types/auth";
@@ -53,12 +53,16 @@ export const getSessionProfile = cache(async (): Promise<SessionProfile> => {
     return { role, fullName: null, avatarUrl: null, email: null, passwordSet: false };
   }
 
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  // tryCreateClient(), not createClient() — createClient() throws
+  // synchronously when Supabase isn't configured, which every caller of
+  // getRole()/getSessionProfile() (including page-level top-level awaits
+  // like /members') would let escape as an unhandled crash instead of the
+  // intended fail-closed-to-guest behavior. Same pattern already used by
+  // (app)/profile/page.tsx.
+  const supabase = await tryCreateClient();
+  const user = supabase ? (await supabase.auth.getUser()).data.user : null;
 
-  if (!user) return GUEST_PROFILE;
+  if (!user || !supabase) return GUEST_PROFILE;
 
   const { data, error } = await supabase
     .from("profiles")

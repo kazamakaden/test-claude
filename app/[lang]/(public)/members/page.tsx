@@ -12,6 +12,7 @@ import { MembersTable } from "@/components/members/members-table";
 import { MemberCreateSheet } from "@/components/members/member-create-sheet";
 import { Pagination } from "@/components/table/pagination";
 import { MembersTableSkeleton } from "@/components/members/members-table-skeleton";
+import { CardBoundary } from "@/components/dashboard/card-boundary";
 
 async function MembersResults({
   filters,
@@ -109,26 +110,37 @@ export default async function MembersPage({
         ) : null}
       </div>
 
-      <MembersFilters
-        departments={departments}
-        clubs={clubs}
-        years={filterOptions.years}
-        classNames={filterOptions.classNames}
-        dict={dict}
-      />
-
-      <Suspense key={suspenseKey} fallback={<MembersTableSkeleton />}>
-        <MembersResults
-          filters={filters}
-          pathname={pathname}
-          searchParams={searchParams}
+      {/* Each isolated behind its own CardBoundary so a throw in one
+          (a render bug, or a Supabase call that starts failing) degrades
+          to an error card in place, instead of taking the whole page
+          (including the nav) down to the route-level error.tsx — the exact
+          gap /documents already closed for the same shape (see
+          CLAUDE.md's §0 "documents/members dying on a failing dependency"
+          entry; /members never got this half of that fix). */}
+      <CardBoundary errorTitle={dict.common.errorTitle} retryLabel={dict.common.errorRetry}>
+        <MembersFilters
           departments={departments}
           clubs={clubs}
-          role={role}
-          lang={lang}
+          years={filterOptions.years}
+          classNames={filterOptions.classNames}
           dict={dict}
         />
-      </Suspense>
+      </CardBoundary>
+
+      <CardBoundary errorTitle={dict.common.errorTitle} retryLabel={dict.common.errorRetry}>
+        <Suspense key={suspenseKey} fallback={<MembersTableSkeleton />}>
+          <MembersResults
+            filters={filters}
+            pathname={pathname}
+            searchParams={searchParams}
+            departments={departments}
+            clubs={clubs}
+            role={role}
+            lang={lang}
+            dict={dict}
+          />
+        </Suspense>
+      </CardBoundary>
     </div>
   );
 }
