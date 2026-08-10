@@ -29,6 +29,7 @@ import {
   type ActivityFormResult,
 } from "@/actions/activities";
 import type { MonthActivity } from "@/types/activities";
+import type { Holiday } from "@/types/holidays";
 import type { Locale } from "@/lib/i18n/config";
 import type { Dictionary } from "@/types/i18n";
 
@@ -189,6 +190,7 @@ export function CalendarDaySheet({
   date,
   onOpenChange,
   events,
+  holiday,
   canManage,
   lang,
   dict,
@@ -196,6 +198,7 @@ export function CalendarDaySheet({
   date: Date | null;
   onOpenChange: (open: boolean) => void;
   events: MonthActivity[];
+  holiday: Holiday | null;
   canManage: boolean;
   lang: Locale;
   dict: Dictionary;
@@ -217,6 +220,11 @@ export function CalendarDaySheet({
       <SheetContent>
         <SheetHeader>
           <SheetTitle>{format(date, "d MMMM yyyy", { locale })}</SheetTitle>
+          {holiday ? (
+            <p className="text-sm text-primary">
+              {d.holidayLabel}: {holiday.name}
+            </p>
+          ) : null}
         </SheetHeader>
 
         {editing !== null ? (

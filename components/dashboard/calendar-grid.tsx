@@ -15,6 +15,7 @@ import {
 import { cn } from "@/lib/utils";
 import { CalendarDaySheet } from "@/components/dashboard/calendar-day-sheet";
 import type { MonthActivity } from "@/types/activities";
+import type { Holiday } from "@/types/holidays";
 import type { Locale } from "@/lib/i18n/config";
 import type { Dictionary } from "@/types/i18n";
 
@@ -26,16 +27,24 @@ const WEEKDAY_KEYS_EN = ["M", "T", "W", "T", "F", "S", "S"];
  * selected and renders CalendarDaySheet on top of the grid. Day cells are
  * real <button>s (not a <div onClick>) so they stay keyboard-reachable
  * (§24) — Enter/Space opens the sheet the same as a click.
+ *
+ * `holidays` is the same list HolidayList renders beside this grid
+ * (fetched once by CalendarCard) — matched here by ISO date so a holiday
+ * day gets a ring + tinted date number in the grid itself, and its name
+ * surfaces in CalendarDaySheet when that day is opened, keeping the panel
+ * and the grid in sync rather than two independent views of holidays.
  */
 export function CalendarGrid({
   todayIso,
   events,
+  holidays,
   canManage,
   lang,
   dict,
 }: {
   todayIso: string;
   events: MonthActivity[];
+  holidays: Holiday[];
   canManage: boolean;
   lang: Locale;
   dict: Dictionary;
@@ -51,6 +60,7 @@ export function CalendarGrid({
   const days = eachDayOfInterval({ start: gridStart, end: gridEnd });
 
   const eventsForDay = (day: Date) => events.filter((e) => isSameDay(new Date(e.startsAt), day));
+  const holidayForDay = (day: Date) => holidays.find((h) => h.date === format(day, "yyyy-MM-dd"));
 
   return (
     <>
@@ -64,22 +74,34 @@ export function CalendarGrid({
           const inMonth = isSameMonth(day, today);
           const today_ = isToday(day);
           const hasEvent = eventsForDay(day).length > 0;
+          const holiday = holidayForDay(day);
+          const dayLabel = today_ ? `${dict.dashboard.calendar.today} ${format(day, "d")}` : format(day, "d");
           return (
             <button
               key={day.toISOString()}
               type="button"
               onClick={() => setSelectedDate(day)}
               aria-current={today_ ? "date" : undefined}
-              aria-label={today_ ? `${dict.dashboard.calendar.today} ${format(day, "d")}` : format(day, "d")}
+              aria-label={holiday ? `${dayLabel} — ${dict.dashboard.calendar.holidayLabel}: ${holiday.name}` : dayLabel}
               className={cn(
                 "relative flex aspect-square items-center justify-center rounded-md text-sm outline-none transition-colors hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50",
                 !inMonth && "text-muted-foreground/40",
+                holiday && !today_ && "text-primary ring-1 ring-inset ring-primary/30",
                 today_ && "bg-primary text-primary-foreground font-semibold hover:bg-primary/90"
               )}
             >
               {format(day, "d")}
               {hasEvent && !today_ ? (
                 <span className="absolute bottom-1 size-1 rounded-full bg-accent-glow" aria-hidden />
+              ) : null}
+              {holiday ? (
+                <span
+                  className={cn(
+                    "absolute top-1 size-1 rounded-full",
+                    today_ ? "bg-primary-foreground" : "bg-primary"
+                  )}
+                  aria-hidden
+                />
               ) : null}
             </button>
           );
@@ -92,6 +114,7 @@ export function CalendarGrid({
           if (!open) setSelectedDate(null);
         }}
         events={selectedDate ? eventsForDay(selectedDate) : []}
+        holiday={selectedDate ? (holidayForDay(selectedDate) ?? null) : null}
         canManage={canManage}
         lang={lang}
         dict={dict}
