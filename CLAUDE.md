@@ -1785,6 +1785,73 @@ this session had live database access but not a live deployed frontend or
 a real signed-in browser session; that gap matches every prior pass's own
 stated limitation, not a new one introduced here.
 
+**Dashboard calendar compacted, ปฏิทินวันหยุด merged and made to fill the
+card, month navigation added, and the first real realtime usage in the
+codebase — scoped to the dashboard calendar specifically, not `/activities`.**
+Reported live with a screenshot: the month grid's `aspect-square` cells blew
+up to 113×113px once the merged calendar+holiday card (see the "Dashboard
+calendar day cells are now clickable" entry above) went full-width, six rows
+running to ~680px and dwarfing the rest of the dashboard; ปฏิทินวันหยุด's own
+`max-h-80` cap left visible dead space below it once the grid shrank; and
+there was no way to change the displayed month at all. Fixed: `h-12` fixed
+row height (wide-cell month-view shape, grid → 336px); `holiday-list.tsx`
+stretches (`flex h-full` + `flex-1` on the list) to match the grid's height
+exactly — verified via CDP that the grid's, panel's, and list's bottom edges
+land on the identical pixel. New `components/dashboard/calendar-month-nav.tsx`
+renders `‹ สิงหาคม 2026 ›` in the card's `CardAction` slot, reusing
+`schemas/calendar.ts`'s existing `parseMonthParam`/`formatMonthParam` and the
+`calendar.previousMonth/nextMonth/today` dictionary keys `/calendar`'s own
+`MonthNav` already uses — no new i18n keys, plain `<Link>`s so paging works
+with JS disabled. `CalendarGrid` gained a `monthIso` prop and switched its
+"today" check from date-fns's `isToday()` (reads the browser clock) to
+comparing against the passed-down `todayIso`, so the highlight stays correct
+while a non-current month is displayed.
+
+Realtime: `0035_activities_realtime.sql` adds `public.activities` to the
+`supabase_realtime` publication — applied live and confirmed via
+`pg_publication_tables`. Supabase's Realtime server evaluates each
+subscriber's own SELECT RLS (`activities_select_public`/
+`activities_select_authenticated`, 0008) before forwarding a row, so this
+doesn't widen visibility, only pushes already-visible rows instead of
+requiring a refetch — confirmed via `get_advisors` showing no new finding
+from the change. `CalendarGrid` seeds local state from the server-provided
+`events` prop, resets it whenever that prop changes (a month-navigation
+re-render), and separately subscribes to `postgres_changes` on `activities`
+for the displayed month's date range, merging INSERT/UPDATE into state (or
+dropping a row that moved outside the range) and removing on DELETE.
+
+**A real regression was found and fixed while building this, not left for
+someone else to hit:** the browser `createClient()`
+(`lib/supabase/client.ts`) asserts its env vars are present and throws
+immediately when they're not; called unconditionally from `CalendarGrid`'s
+new effect, that throw would have propagated to the dashboard page's
+`CardBoundary` and taken the *entire* calendar card down in any environment
+without a live Supabase project configured — exactly the class of bug this
+project has already fixed more than once for the server-side client
+(`tryCreateClient()`). Guarded with the existing `isSupabaseConfigured` flag
+(`lib/supabase/env.ts`, already safe to import client-side — no
+`server-only`), which now short-circuits the effect instead of subscribing.
+Verified live in this session's dev-fixture environment (no `.env.local`):
+before the guard, the console showed `createClient` throwing from inside the
+effect; after, the calendar card renders cleanly with zero console
+errors/exceptions from the realtime path — the other pre-existing "cannot
+load data" error cards visible on the same screenshot (Notifications,
+Upcoming Meetings, etc.) are unrelated, already-documented behavior of their
+own server-side `services/*.ts` calls, not something this pass touched.
+
+**Not verified live**: an actual `postgres_changes` event being received by
+a real connected browser — this session's outbound network is blocked to
+`*.supabase.co` directly (confirmed via a timed-out `curl`, the same
+limitation already documented for `calendar.google.com` and the Vercel
+domains), even though the Supabase MCP connector itself can reach the
+project for `execute_sql`/`apply_migration`/`get_advisors`. The publication
+membership and RLS-enabled state were confirmed live via SQL; the
+subscribe → receive → merge-into-state round trip was not observed in a
+real browser and needs the same live click-through proof this project's
+other realtime-adjacent gaps already call for.
+
+`npx tsc --noEmit && npm run lint && npm run build` all pass clean.
+
 ### ❌ Remaining
 
 * **RLS policy performance (`auth_rls_initplan`, `multiple_permissive_policies`)**
@@ -1884,9 +1951,13 @@ stated limitation, not a new one introduced here.
   * **§30.10's Activities phase remains partially consumed** — unaffected by
     this correction: the full §10 UI (search/filters/sort/pagination/
     statistics) already shipped, built directly against the existing
-    `activities` table; only **realtime** (the other half of that phase)
-    remains outstanding. No realtime/`supabase.channel` usage found anywhere
-    in the codebase.
+    `activities` table. Realtime landed for the **dashboard calendar card**
+    specifically (see the "Dashboard calendar compacted... realtime usage"
+    entry above, `0035_activities_realtime.sql`) — the standalone
+    `/activities` page (`services/activities.ts#listActivities`/
+    `getActivityCounts`) deliberately was not touched by that pass and still
+    has no `supabase.channel` usage; its own table/stats strip still requires
+    a manual refresh to see a new row.
 * **`attendance` has zero rows** — by design (see Done above), but it means
   the §10 activity-statistics chart's "attendance" series will show 0 for
   every month until either real QR check-ins land or a future pass seeds it

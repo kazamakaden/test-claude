@@ -1,25 +1,46 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   startOfMonth,
   endOfMonth,
   startOfWeek,
   endOfWeek,
   eachDayOfInterval,
+  addMonths,
   format,
   isSameMonth,
   isSameDay,
 } from "date-fns";
+import type { RealtimePostgresChangesPayload } from "@supabase/supabase-js";
+import { createClient } from "@/lib/supabase/client";
+import { isSupabaseConfigured } from "@/lib/supabase/env";
 import { cn } from "@/lib/utils";
 import { CalendarDaySheet } from "@/components/dashboard/calendar-day-sheet";
 import type { MonthActivity } from "@/types/activities";
 import type { Holiday } from "@/types/holidays";
+import type { Database } from "@/types/database";
 import type { Locale } from "@/lib/i18n/config";
 import type { Dictionary } from "@/types/i18n";
 
 const WEEKDAY_KEYS_TH = ["จ", "อ", "พ", "พฤ", "ศ", "ส", "อา"];
 const WEEKDAY_KEYS_EN = ["M", "T", "W", "T", "F", "S", "S"];
+
+type ActivityRow = Database["public"]["Tables"]["activities"]["Row"];
+
+/** Same field mapping as services/activities.ts#getMonthActivities — duplicated,
+ * not imported, since that module is `server-only` and this is a Client
+ * Component reading the raw postgres_changes row directly. */
+function toMonthActivity(row: ActivityRow): MonthActivity {
+  return {
+    id: row.id,
+    title: row.title,
+    description: row.description,
+    startsAt: row.starts_at,
+    endsAt: row.ends_at,
+    location: row.location,
+  };
+}
 
 /**
  * Client boundary for the dashboard's calendar: owns which day is
@@ -41,11 +62,22 @@ const WEEKDAY_KEYS_EN = ["M", "T", "W", "T", "F", "S", "S"];
  * being viewed, and preserves the original hydration-safety intent: the
  * server and the client agree on what "today" is because they're both
  * reading the same passed-down value.
+ *
+ * `initialEvents` seeds local state rather than being read directly, so a
+ * live `postgres_changes` subscription (0035_activities_realtime.sql) can
+ * append/replace/remove entries as staff add/edit/delete activities —
+ * §10's "realtime" half, applied here first since the calendar is where it
+ * matters most. Supabase evaluates the connecting viewer's own SELECT RLS
+ * before delivering a change, the same scoping a manual refetch would get,
+ * so this never shows a row the viewer couldn't already query directly.
+ * State resets from `initialEvents` whenever the server-provided list
+ * changes (a month navigation re-render), so paging months doesn't leave
+ * stale realtime-appended rows from the previously viewed month behind.
  */
 export function CalendarGrid({
   monthIso,
   todayIso,
-  events,
+  events: initialEvents,
   holidays,
   canManage,
   lang,
@@ -59,10 +91,60 @@ export function CalendarGrid({
   lang: Locale;
   dict: Dictionary;
 }) {
+  const [events, setEvents] = useState(initialEvents);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const month = new Date(monthIso);
   const today = new Date(todayIso);
   const weekdayLabels = lang === "th" ? WEEKDAY_KEYS_TH : WEEKDAY_KEYS_EN;
+
+  useEffect(() => {
+    setEvents(initialEvents);
+  }, [initialEvents]);
+
+  useEffect(() => {
+    // createClient() (lib/supabase/client.ts) asserts its env vars are
+    // present and throws immediately when they're not — fine for a write
+    // action, but this runs inside an effect with no local error boundary
+    // of its own, so an unconfigured environment (no live Supabase project,
+    // this dev-fixture path) would otherwise bubble up to the page's
+    // CardBoundary and take the whole calendar card down. Same
+    // fail-soft-when-unconfigured discipline this project already applies
+    // via tryCreateClient() on the server side (services/*.ts) — realtime
+    // is a progressive enhancement, not a hard requirement.
+    if (!isSupabaseConfigured) return;
+
+    const rangeStart = startOfMonth(new Date(monthIso)).toISOString();
+    const rangeEnd = startOfMonth(addMonths(new Date(monthIso), 1)).toISOString();
+
+    const supabase = createClient();
+    const channel = supabase
+      .channel(`dashboard-activities-${monthIso}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "activities" },
+        (payload: RealtimePostgresChangesPayload<ActivityRow>) => {
+          if (payload.eventType === "DELETE") {
+            const deletedId = payload.old.id;
+            if (!deletedId) return;
+            setEvents((prev) => prev.filter((e) => e.id !== deletedId));
+            return;
+          }
+
+          const mapped = toMonthActivity(payload.new);
+          const stillInMonth = mapped.startsAt >= rangeStart && mapped.startsAt < rangeEnd;
+          setEvents((prev) => {
+            const withoutExisting = prev.filter((e) => e.id !== mapped.id);
+            if (!stillInMonth) return withoutExisting;
+            return [...withoutExisting, mapped].sort((a, b) => a.startsAt.localeCompare(b.startsAt));
+          });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [monthIso]);
 
   const monthStart = startOfMonth(month);
   const monthEnd = endOfMonth(month);

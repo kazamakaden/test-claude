@@ -1,0 +1,16 @@
+-- §10's realtime half, for the dashboard calendar (§8) specifically:
+-- `public.activities` joins the `supabase_realtime` publication so
+-- postgres_changes subscriptions can stream INSERT/UPDATE/DELETE events to
+-- the browser. Supabase's Realtime server evaluates each subscribing
+-- connection's own SELECT RLS policies (0008_dashboard_rls.sql's
+-- "activities_select_public"/"activities_select_authenticated") before
+-- forwarding a row, the same way a direct query would be scoped — enabling
+-- replication does not itself widen who can see what, it only makes
+-- already-visible rows push instead of poll.
+--
+-- REPLICA IDENTITY is left at its default (primary key) rather than FULL:
+-- INSERT/UPDATE events already carry the complete new row regardless of
+-- replica identity, and the calendar's realtime handler only needs `id`
+-- from a DELETE payload to remove the right entry from local state — a
+-- full old-row snapshot on delete isn't used for anything here.
+alter publication supabase_realtime add table public.activities;
