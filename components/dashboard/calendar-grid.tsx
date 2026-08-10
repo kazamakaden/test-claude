@@ -10,7 +10,6 @@ import {
   format,
   isSameMonth,
   isSameDay,
-  isToday,
 } from "date-fns";
 import { cn } from "@/lib/utils";
 import { CalendarDaySheet } from "@/components/dashboard/calendar-day-sheet";
@@ -33,8 +32,18 @@ const WEEKDAY_KEYS_EN = ["M", "T", "W", "T", "F", "S", "S"];
  * day gets a ring + tinted date number in the grid itself, and its name
  * surfaces in CalendarDaySheet when that day is opened, keeping the panel
  * and the grid in sync rather than two independent views of holidays.
+ *
+ * `monthIso` is the month being *displayed* (driven by the dashboard's
+ * `?month=` URL param, CalendarMonthNav) — independent of `todayIso`,
+ * which is always the real current day. Comparing cells against `todayIso`
+ * (not date-fns's `isToday()`, which reads the browser clock directly)
+ * keeps the "today" highlight correct even while a past/future month is
+ * being viewed, and preserves the original hydration-safety intent: the
+ * server and the client agree on what "today" is because they're both
+ * reading the same passed-down value.
  */
 export function CalendarGrid({
+  monthIso,
   todayIso,
   events,
   holidays,
@@ -42,6 +51,7 @@ export function CalendarGrid({
   lang,
   dict,
 }: {
+  monthIso: string;
   todayIso: string;
   events: MonthActivity[];
   holidays: Holiday[];
@@ -50,11 +60,12 @@ export function CalendarGrid({
   dict: Dictionary;
 }) {
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  const month = new Date(monthIso);
   const today = new Date(todayIso);
   const weekdayLabels = lang === "th" ? WEEKDAY_KEYS_TH : WEEKDAY_KEYS_EN;
 
-  const monthStart = startOfMonth(today);
-  const monthEnd = endOfMonth(today);
+  const monthStart = startOfMonth(month);
+  const monthEnd = endOfMonth(month);
   const gridStart = startOfWeek(monthStart, { weekStartsOn: 1 });
   const gridEnd = endOfWeek(monthEnd, { weekStartsOn: 1 });
   const days = eachDayOfInterval({ start: gridStart, end: gridEnd });
@@ -71,8 +82,8 @@ export function CalendarGrid({
           </div>
         ))}
         {days.map((day) => {
-          const inMonth = isSameMonth(day, today);
-          const today_ = isToday(day);
+          const inMonth = isSameMonth(day, month);
+          const today_ = isSameDay(day, today);
           const hasEvent = eventsForDay(day).length > 0;
           const holiday = holidayForDay(day);
           const dayLabel = today_ ? `${dict.dashboard.calendar.today} ${format(day, "d")}` : format(day, "d");
@@ -84,7 +95,7 @@ export function CalendarGrid({
               aria-current={today_ ? "date" : undefined}
               aria-label={holiday ? `${dayLabel} — ${dict.dashboard.calendar.holidayLabel}: ${holiday.name}` : dayLabel}
               className={cn(
-                "relative flex aspect-square items-center justify-center rounded-md text-sm outline-none transition-colors hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50",
+                "relative flex h-12 items-center justify-center rounded-md text-sm outline-none transition-colors hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50",
                 !inMonth && "text-muted-foreground/40",
                 holiday && !today_ && "text-primary ring-1 ring-inset ring-primary/30",
                 today_ && "bg-primary text-primary-foreground font-semibold hover:bg-primary/90"
