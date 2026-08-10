@@ -18,8 +18,8 @@ export function Logo({ lang }: { lang: string }) {
       <Image
         src="/brand/logo-with-text-dark.png"
         alt="AFT UDONTECH"
-        width={1507}
-        height={483}
+        width={1410}
+        height={420}
         className="hidden h-14 w-auto dark:block"
         priority
       />
