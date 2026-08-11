@@ -47,7 +47,7 @@ export async function CalendarCard({
   const [events, role, holidays] = await Promise.all([
     getMonthActivities(month),
     getRole(),
-    getHolidays(lang),
+    getHolidays(lang, month),
   ]);
   const d = dict.dashboard.calendar;
   const canManage = can(role, "activity:manage");
