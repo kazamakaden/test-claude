@@ -67,6 +67,8 @@ export default async function DashboardPage({
         </Suspense>
       </CardBoundary>
 
+      <QuickActionsCard role={role} lang={lang} dict={dict} />
+
       <div className="md:col-span-2 xl:col-span-3">
         <CardBoundary errorTitle={dict.dashboard.errorTitle} retryLabel={dict.dashboard.errorRetry}>
           <Suspense fallback={<CalendarCardSkeleton />}>
@@ -109,7 +111,6 @@ export default async function DashboardPage({
         </CardBoundary>
       ) : null}
 
-      <QuickActionsCard role={role} lang={lang} dict={dict} />
     </div>
   );
 }
