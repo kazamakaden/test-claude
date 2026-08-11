@@ -2067,6 +2067,29 @@ from live production while signed in.
    been. Zero horizontal overflow at any width. The empty-list path (the real
    state here, feed still blocked) was re-checked afterward and is unchanged.
 
+   **Follow-up in the same pass — the first bound was too narrow.** A
+   future-only window (`date >= today`) left *past* months with no holiday
+   markers at all, even though the calendar can be paged back 24 months
+   (`schemas/calendar.ts`). `getHolidays()` now takes the displayed month and
+   spans both the next 12 months (what the panel lists) and that month, so a
+   month a year ago still marks its holidays; `HolidayList` filters to
+   upcoming so the side panel stays "upcoming holidays" rather than listing
+   dates already past. Proven end-to-end against the **real** `getHolidays()`
+   with a stubbed ICS feed and a faked clock (`node --experimental-strip-types`,
+   with a throwaway `server-only` shim removed afterward): viewing 2025-08
+   returns the 2025 holidays, viewing the current month does not, and a
+   2029 date stays excluded in every case so the size bound still holds.
+
+   **Time-dependence audited while answering "will it follow in 2027?"**: the
+   default month is `startOfMonth(new Date())` and the holiday window is
+   derived from `new Date()` per request, so both roll over on their own.
+   Confirmed the dashboard is **not** frozen at build time despite the `●`
+   marker in `next build` output — that reflects `generateStaticParams` for
+   `[lang]`, and there is no prerendered HTML nor a `prerender-manifest`
+   entry for the route. Clock-faked checks at 2027-01, 2027-12 and 2030-06 all
+   return the matching month. Google's feed is re-fetched with
+   `revalidate: 86400`, so a holiday Google adds or moves appears within 24h.
+
 2. **The avatar now opens the Settings card directly.** It previously opened a
    Profile/Settings/Sign out dropdown. `components/layout/user-menu.tsx` drops
    the `DropdownMenu` for a plain button calling the existing `openSettings()`.

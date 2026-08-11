@@ -1,4 +1,5 @@
 import "server-only";
+import { endOfMonth, startOfMonth } from "date-fns";
 import type { Locale } from "@/lib/i18n/config";
 import type { Holiday } from "@/types/holidays";
 
@@ -125,7 +126,7 @@ async function fetchIcs(calendarId: string): Promise<string | null> {
  * function (`if (error || !data) return []`), so HolidayCard's existing
  * CardEmpty path is what a real outage looks like, not a crash.
  */
-export async function getHolidays(lang: Locale): Promise<Holiday[]> {
+export async function getHolidays(lang: Locale, month?: Date): Promise<Holiday[]> {
   const preferredId = lang === "en" ? HOLIDAY_CALENDAR_ID_EN : HOLIDAY_CALENDAR_ID_TH;
   let ics = await fetchIcs(preferredId);
   if (!ics && preferredId !== HOLIDAY_CALENDAR_ID_TH) {
@@ -134,19 +135,28 @@ export async function getHolidays(lang: Locale): Promise<Holiday[]> {
   if (!ics) return [];
 
   const today = new Date();
-  const todayIso = today.toISOString().slice(0, 10);
 
-  // Bounded to the next 12 months. Google's feed carries several years
-  // forward, and left unbounded this returned ~100 rows — which is what made
-  // the dashboard calendar card grow past the viewport (holidays listed out
-  // to 2029). Deliberately a date horizon rather than a `slice(n)`: this same
-  // array marks day cells in CalendarGrid, so truncating to a small count
-  // would silently drop markers from months the user can page to.
-  const horizon = new Date(today);
-  horizon.setFullYear(horizon.getFullYear() + 1);
-  const horizonIso = horizon.toISOString().slice(0, 10);
+  // Bounded rather than unbounded: Google's feed carries several years
+  // forward, and returning all of it (~100 rows) is what made the dashboard
+  // calendar card grow past the viewport. Deliberately a date window and not
+  // a `slice(n)` — CalendarGrid marks day cells from this same array, so
+  // truncating to a count would silently drop markers.
+  //
+  // The window covers BOTH the next 12 months (what the ปฏิทินวันหยุด panel
+  // lists) AND the month currently being displayed, which may be in the past:
+  // the calendar can be paged back 24 months (schemas/calendar.ts), and a
+  // future-only filter left those months with no holiday markers at all.
+  const forwardHorizon = new Date(today);
+  forwardHorizon.setFullYear(forwardHorizon.getFullYear() + 1);
+
+  const displayed = month ?? today;
+  const lower = new Date(Math.min(startOfMonth(displayed).getTime(), startOfMonth(today).getTime()));
+  const upper = new Date(Math.max(endOfMonth(displayed).getTime(), forwardHorizon.getTime()));
+
+  const lowerIso = lower.toISOString().slice(0, 10);
+  const upperIso = upper.toISOString().slice(0, 10);
 
   return parseIcs(ics)
-    .filter((h) => h.date >= todayIso && h.date <= horizonIso)
+    .filter((h) => h.date >= lowerIso && h.date <= upperIso)
     .sort((a, b) => a.date.localeCompare(b.date));
 }

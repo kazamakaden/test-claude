@@ -18,6 +18,13 @@ export function HolidayList({ holidays, lang, dict }: { holidays: Holiday[]; lan
   const d = dict.dashboard.holidays;
   const locale = lang === "th" ? th : enUS;
 
+  // The array from getHolidays() also covers the month currently displayed in
+  // the grid, which may be in the past (so past months still get day markers).
+  // This panel is specifically "upcoming holidays", so it filters those out
+  // rather than listing dates that have already been and gone.
+  const todayIso = new Date().toISOString().slice(0, 10);
+  const upcoming = holidays.filter((h) => h.date >= todayIso);
+
   return (
     <div className="flex flex-col">
       <h3 className="font-heading text-sm font-medium">{d.title}</h3>
@@ -29,11 +36,11 @@ export function HolidayList({ holidays, lang, dict }: { holidays: Holiday[]; lan
           and dragged the whole card past the viewport. A fixed cap holds for
           any list length. */}
       <div className="mt-4">
-        {holidays.length === 0 ? (
+        {upcoming.length === 0 ? (
           <CardEmpty icon={CalendarHeart} message={d.empty} ctaLabel={d.emptyCta} ctaHref="/calendar" lang={lang} />
         ) : (
           <ul data-holiday-scroll className="flex max-h-80 flex-col gap-3 overflow-y-auto pr-1">
-            {holidays.map((h) => (
+            {upcoming.map((h) => (
               <li key={h.date} className="flex flex-col gap-0.5">
                 <span className="text-sm text-foreground">{h.name}</span>
                 <span className="text-xs text-muted-foreground">
@@ -45,7 +52,7 @@ export function HolidayList({ holidays, lang, dict }: { holidays: Holiday[]; lan
         )}
       </div>
 
-      {holidays.length > 0 ? (
+      {upcoming.length > 0 ? (
         <Link
           href={`/${lang}/calendar`}
           className="mt-3 rounded-sm text-sm text-primary underline-offset-4 hover:underline focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
