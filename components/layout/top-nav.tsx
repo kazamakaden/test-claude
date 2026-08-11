@@ -1,10 +1,13 @@
 import { Logo } from "@/components/layout/logo";
 import { NavLinks } from "@/components/layout/nav-links";
 import { MobileNav } from "@/components/layout/mobile-nav";
+import { Suspense } from "react";
+import { NotificationsBell } from "@/components/layout/notifications-bell";
 import { NotificationsButton } from "@/components/layout/notifications-button";
 import { UserMenu } from "@/components/layout/user-menu";
 import { SettingsDialogProvider } from "@/components/settings/settings-dialog-provider";
 import { navFor } from "@/lib/navigation";
+import { can } from "@/lib/auth/permissions";
 import type { Locale } from "@/lib/i18n/config";
 import type { Role } from "@/types/auth";
 import type { Dictionary } from "@/types/i18n";
@@ -39,8 +42,13 @@ export function TopNav({
         </div>
 
         <div className="flex items-center gap-1">
-          {role !== "guest" ? (
-            <NotificationsButton label={dict.nav.notifications} />
+          {/* notification:read, not `role !== "guest"`: `pending` sits at
+              guest-level permissions, so the old check showed a bell that
+              could only bounce them back to /pending. */}
+          {can(role, "notification:read") ? (
+            <Suspense fallback={<NotificationsButton lang={lang} dict={dict} />}>
+              <NotificationsBell lang={lang} dict={dict} />
+            </Suspense>
           ) : null}
           <SettingsDialogProvider lang={lang} dict={dict} email={email} passwordSet={passwordSet}>
             <div className="hidden lg:block">
