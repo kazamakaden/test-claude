@@ -258,9 +258,9 @@
       "documentAwaitingApproval": "เอกสาร “{title}” รอการอนุมัติ",
       "documentApproved": "เอกสาร “{title}” ได้รับการอนุมัติเรียบร้อยแล้ว",
       "documentRejected": "เอกสาร “{title}” ถูกส่งกลับเพื่อแก้ไข: {reason}",
-      "accountApproved": "บัญชีของคุณได้รับการอนุมัติแล้ว (สิทธิ์: {role})",
-      "accountRevoked": "สิทธิ์การเข้าใช้งานของคุณถูกระงับ กรุณาติดต่อผู้ดูแลระบบ"
-    }
+      "accountApproved": "บัญชีของคุณได้รับการอนุมัติแล้ว (สิทธิ์: {role})"
+    },
+    "markAsRead": "ทำเครื่องหมายว่าอ่านแล้ว"
   },
   "members": {
     "description": "ค้นหาและกรองรายชื่อสมาชิกทั้งหมด",

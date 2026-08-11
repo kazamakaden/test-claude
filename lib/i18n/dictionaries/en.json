@@ -258,9 +258,9 @@
       "documentAwaitingApproval": "Document “{title}” is awaiting approval",
       "documentApproved": "Document “{title}” has been approved",
       "documentRejected": "Document “{title}” was sent back for revision: {reason}",
-      "accountApproved": "Your account has been approved (role: {role})",
-      "accountRevoked": "Your access has been suspended. Please contact an administrator."
-    }
+      "accountApproved": "Your account has been approved (role: {role})"
+    },
+    "markAsRead": "Mark as read"
   },
   "members": {
     "description": "Search and filter the full member directory",

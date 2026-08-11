@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { NotificationItem } from "@/components/notifications/notification-item";
 import { Bell } from "lucide-react";
 import { format } from "date-fns";
 import { th, enUS } from "date-fns/locale";
@@ -72,16 +72,15 @@ export function NotificationsList({
 
         return (
           <li key={n.id}>
-            {n.link ? (
-              <Link
-                href={`/${lang}${n.link}`}
-                className="block rounded-xl focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
-              >
-                {body}
-              </Link>
-            ) : (
-              body
-            )}
+            <NotificationItem
+              id={n.id}
+              href={n.link}
+              read={n.read}
+              lang={lang}
+              markLabel={d.markAsRead}
+            >
+              {body}
+            </NotificationItem>
           </li>
         );
       })}

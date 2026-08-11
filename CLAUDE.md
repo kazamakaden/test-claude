@@ -1987,6 +1987,50 @@ cookie stub: guest correctly 307s to `/login`, student gets 200 on
 states render their distinct copy, and the dashboard still renders with the
 QR action gone.
 
+**Three defects found by code review of the notifications commit, all fixed
+and verified (migration `0039`).** Recorded because two of them are the kind
+that only show up in a state this session cannot reach live:
+
+1. **Opening a notification never marked it read.**
+   `markNotificationReadAction` was written but had *zero callers* — dead code
+   — so unread state could only be cleared in bulk, which also cleared items
+   the user had never opened, making the unread count meaningless. Wired via a
+   new client `components/notifications/notification-item.tsx`. Degrades
+   correctly with JS off (§30.9 item 3): the linked case is still a real
+   `<Link>`, so navigation works and the row just stays unread; only the
+   mark-on-open *side effect* needs JS, never the navigation itself. An unread
+   row with no link becomes the "mark as read" control itself.
+2. **The `accountRevoked` notification was unreachable by its only
+   recipient.** 0036 addressed it to the user whose role had just become
+   `pending` — but `pending` holds guest-level permissions, so it lacks
+   `notification:read` (no bell) *and* `workspace:access`, which every
+   `app/[lang]/(app)` route requires (so `/notifications` bounces them to
+   `/pending`). Doubly blocked. Worse, it doesn't stay invisible: on later
+   re-approval the stale "your access has been suspended" surfaces in their
+   history *after* access was restored — actively misleading. `0039` drops
+   that insert (keeping `accountApproved`, which is genuinely readable since
+   the recipient regains `notification:read` by definition); `/pending` is
+   what actually informs a revoked user, and an admin-side record belongs in
+   `audit_logs` (§20, deferred), not a user-facing inbox. Verified live:
+   revoke now writes 0 rows, approve still writes 1, and — the `0011`→`0012`
+   trap checked for directly again — `create or replace` did not resurrect
+   the `EXECUTE` grant, confirmed against `role_routine_grants`.
+3. **An out-of-range `?page=` stranded the viewer.** `total` is read off the
+   returned rows, so a page past the end yields `total: 0`, and
+   `components/table/pagination.tsx` renders *nothing* at `total === 0` — an
+   empty page with no link back to page 1. The page now redirects to page 1
+   of the same filter. Verified against the running dev server:
+   `?page=99` → `307` to `/th/notifications`, `?filter=unread&page=99` → `307`
+   preserving `?filter=unread`, `/en/notifications?page=5` → `307`, while a
+   genuinely empty page 1 correctly stays `200` and renders its empty state.
+
+`npx tsc --noEmit && npm run lint && npm run build` all pass. The orphaned
+`accountRevoked` dictionary entry was removed from both locales and key parity
+re-checked programmatically. **Not verified live**: the mark-on-open round
+trip needs real notification rows in a signed-in browser, which this session
+still cannot reach — the action, its RLS (`notification_reads_insert_own`) and
+the bulk path were all proven live earlier, but the per-item click was not.
+
 ### ❌ Remaining
 
 * **RLS policy performance (`auth_rls_initplan`, `multiple_permissive_policies`)**

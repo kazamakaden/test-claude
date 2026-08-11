@@ -1,3 +1,4 @@
+import { redirect } from "next/navigation";
 import { getDictionary } from "@/lib/i18n/get-dictionary";
 import { requirePermission } from "@/lib/auth/require-role";
 import { parseNotificationSearchParams, NOTIFICATIONS_PER_PAGE } from "@/schemas/notifications";
@@ -30,6 +31,17 @@ export default async function NotificationsPage({
     listNotifications(filters),
     getUnreadNotificationCount(),
   ]);
+
+  // `total` is read off the returned rows, so an out-of-range page yields
+  // total 0 — and Pagination renders nothing at total 0, which would strand
+  // the viewer on an empty page with no link back. Send them to page 1 of the
+  // same filter instead of rendering a dead end.
+  if (rows.length === 0 && filters.page > 1) {
+    const back = new URLSearchParams();
+    if (filters.filter !== "all") back.set("filter", filters.filter);
+    const query = back.toString();
+    redirect(`/${lang}/notifications${query ? `?${query}` : ""}`);
+  }
 
   const pathname = `/${lang}/notifications`;
   const searchParams = new URLSearchParams(
