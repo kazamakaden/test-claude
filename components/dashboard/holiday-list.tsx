@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { CalendarHeart } from "lucide-react";
 import { format } from "date-fns";
 import { th, enUS } from "date-fns/locale";
@@ -18,15 +19,20 @@ export function HolidayList({ holidays, lang, dict }: { holidays: Holiday[]; lan
   const locale = lang === "th" ? th : enUS;
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="flex flex-col">
       <h3 className="font-heading text-sm font-medium">{d.title}</h3>
       <p className="text-sm text-muted-foreground">{d.description}</p>
 
-      <div className="mt-4 flex-1 min-h-0">
+      {/* Explicit max-height, not `h-full`/`flex-1`: those only constrain when
+          the PARENT is bounded, and this panel's grid row is sized by its
+          tallest child — itself — so the list stretched instead of scrolling
+          and dragged the whole card past the viewport. A fixed cap holds for
+          any list length. */}
+      <div className="mt-4">
         {holidays.length === 0 ? (
           <CardEmpty icon={CalendarHeart} message={d.empty} ctaLabel={d.emptyCta} ctaHref="/calendar" lang={lang} />
         ) : (
-          <ul className="flex h-full flex-col gap-3 overflow-y-auto">
+          <ul data-holiday-scroll className="flex max-h-80 flex-col gap-3 overflow-y-auto pr-1">
             {holidays.map((h) => (
               <li key={h.date} className="flex flex-col gap-0.5">
                 <span className="text-sm text-foreground">{h.name}</span>
@@ -38,6 +44,15 @@ export function HolidayList({ holidays, lang, dict }: { holidays: Holiday[]; lan
           </ul>
         )}
       </div>
+
+      {holidays.length > 0 ? (
+        <Link
+          href={`/${lang}/calendar`}
+          className="mt-3 rounded-sm text-sm text-primary underline-offset-4 hover:underline focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+        >
+          {d.emptyCta}
+        </Link>
+      ) : null}
     </div>
   );
 }

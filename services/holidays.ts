@@ -133,9 +133,20 @@ export async function getHolidays(lang: Locale): Promise<Holiday[]> {
   }
   if (!ics) return [];
 
-  const todayIso = new Date().toISOString().slice(0, 10);
+  const today = new Date();
+  const todayIso = today.toISOString().slice(0, 10);
+
+  // Bounded to the next 12 months. Google's feed carries several years
+  // forward, and left unbounded this returned ~100 rows — which is what made
+  // the dashboard calendar card grow past the viewport (holidays listed out
+  // to 2029). Deliberately a date horizon rather than a `slice(n)`: this same
+  // array marks day cells in CalendarGrid, so truncating to a small count
+  // would silently drop markers from months the user can page to.
+  const horizon = new Date(today);
+  horizon.setFullYear(horizon.getFullYear() + 1);
+  const horizonIso = horizon.toISOString().slice(0, 10);
 
   return parseIcs(ics)
-    .filter((h) => h.date >= todayIso)
+    .filter((h) => h.date >= todayIso && h.date <= horizonIso)
     .sort((a, b) => a.date.localeCompare(b.date));
 }
