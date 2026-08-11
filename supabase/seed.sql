@@ -80,10 +80,14 @@ insert into public.books (title, description, academic_year, season, status) val
   ('รายงานประจำปีการศึกษา 2568 (ตัวอย่าง)', 'ตัวอย่างหนังสือปีการศึกษาก่อนหน้า ยังไม่แนบไฟล์', 2568, 2, 'draft'),
   ('ร่างวารสาร อวท. ภาคเรียนที่ 2 (ตัวอย่าง)', 'ร่างหนังสือที่ยังไม่เผยแพร่', 2569, 2, 'draft');
 
-insert into public.notifications (recipient_id, type, title, body, read) values
-  (null, 'approval', 'โครงการ "ค่ายอาสาพัฒนาชุมชน" ได้รับการอนุมัติแล้ว', null, false),
-  (null, 'deadline', 'ส่งร่างเอกสารกิจกรรมภายในวันที่ 5 สิงหาคม', null, false),
-  (null, 'meeting', 'ประชุมคณะกรรมการ อวท. ประจำเดือน', null, true);
+-- Broadcast rows (recipient_id null) are visible to every signed-in user.
+-- No `read` column: 0037 moved read state into notification_reads, since a
+-- single boolean on a shared broadcast row can't be per-user. These carry no
+-- message_key — they're free-text announcements, rendered from `title`.
+insert into public.notifications (recipient_id, type, title, body) values
+  (null, 'approval', 'โครงการ "ค่ายอาสาพัฒนาชุมชน" ได้รับการอนุมัติแล้ว', null),
+  (null, 'deadline', 'ส่งร่างเอกสารกิจกรรมภายในวันที่ 5 สิงหาคม', null),
+  (null, 'meeting', 'ประชุมคณะกรรมการ อวท. ประจำเดือน', null);
 
 -- §14 demo student account (the student half of the four demo accounts
 -- documented in .demo-accounts.local.md, git-ignored since it holds real

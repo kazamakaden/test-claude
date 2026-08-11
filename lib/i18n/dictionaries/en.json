@@ -120,14 +120,7 @@
       "title": "Notifications",
       "description": "Recent news and alerts",
       "empty": "No new notifications",
-      "emptyCta": "View all notifications",
-      "types": {
-        "meeting": "Meeting",
-        "activity": "Activity",
-        "deadline": "Deadline",
-        "approval": "Approval",
-        "announcement": "Announcement"
-      }
+      "emptyCta": "View all notifications"
     },
     "meetings": {
       "title": "Upcoming Meetings",
@@ -224,13 +217,50 @@
       "title": "Quick Actions",
       "description": "Shortcuts for common tasks",
       "submitDraft": "Submit project draft",
-      "scanAttendance": "Scan attendance QR",
       "signDocument": "Sign document",
       "reviewDrafts": "Review draft documents",
       "manageMembers": "Manage members"
     },
     "errorTitle": "Couldn't load this data",
     "errorRetry": "Try again"
+  },
+  "notifications": {
+    "title": "Notifications",
+    "description": "All your news and alerts",
+    "bellLabel": "Notifications",
+    "bellUnread": "Notifications ({count} unread)",
+    "viewAll": "View all notifications",
+    "markAllRead": "Mark all as read",
+    "markAllReadSuccess": "All notifications marked as read",
+    "markAllReadError": "Could not mark notifications as read",
+    "unreadBadge": "New",
+    "empty": "No notifications yet",
+    "emptyDescription": "Approvals, submissions and announcements will appear here.",
+    "emptyUnread": "You're all caught up",
+    "emptyUnreadDescription": "Nothing left unread.",
+    "filters": {
+      "all": "All",
+      "unread": "Unread"
+    },
+    "types": {
+      "meeting": "Meeting",
+      "activity": "Activity",
+      "deadline": "Deadline",
+      "approval": "Approval",
+      "announcement": "Announcement"
+    },
+    "messages": {
+      "projectSubmitted": "Project “{title}” was submitted for review",
+      "projectAwaitingApproval": "Project “{title}” passed review and is awaiting approval",
+      "projectRecommended": "Project “{title}” was recommended by a teacher",
+      "projectApproved": "Project “{title}” has been approved",
+      "projectRejected": "Project “{title}” was sent back for revision: {reason}",
+      "documentAwaitingApproval": "Document “{title}” is awaiting approval",
+      "documentApproved": "Document “{title}” has been approved",
+      "documentRejected": "Document “{title}” was sent back for revision: {reason}",
+      "accountApproved": "Your account has been approved (role: {role})"
+    },
+    "markAsRead": "Mark as read"
   },
   "members": {
     "description": "Search and filter the full member directory",

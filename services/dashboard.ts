@@ -10,31 +10,10 @@ import type {
   DepartmentStat,
   DraftDocument,
   Meeting,
-  Notification,
   QuickAction,
   RecentActivity,
   RecentProject,
 } from "@/types/dashboard";
-
-// notifications: own row or broadcast (recipient_id is null) — see 0008_dashboard_rls.sql.
-export async function getNotifications(): Promise<Notification[]> {
-  const supabase = await createClient();
-  const { data, error } = await supabase
-    .from("notifications")
-    .select("id, type, title, created_at, read")
-    .order("created_at", { ascending: false })
-    .limit(10);
-
-  if (error || !data) return [];
-
-  return data.map((n) => ({
-    id: n.id,
-    type: n.type,
-    title: n.title,
-    createdAt: n.created_at,
-    read: n.read,
-  }));
-}
 
 // No dedicated meetings table (§20) — derived from activities.
 export async function getUpcomingMeetings(): Promise<Meeting[]> {
@@ -161,7 +140,10 @@ export async function getMemberStats(lang: Locale): Promise<DepartmentStat[]> {
 
 const allQuickActions: QuickAction[] = [
   { key: "submitDraft", href: "/projects", permission: "project:draft:submit" },
-  { key: "scanAttendance", href: "/activities", permission: "attendance:submit" },
+  // "Scan attendance QR" deliberately absent: §13 QR attendance is unbuilt
+  // (no qr_sessions table, no scanner, and nothing anywhere writes to
+  // `attendance`). It previously linked to /activities, promising a
+  // scanner and delivering a plain table. Re-add it with that phase.
   { key: "signDocument", href: "/documents/manage", permission: "document:sign" },
   { key: "reviewDrafts", href: "/projects/review", permission: "project:draft:review" },
   // Quick Actions is a workspace-only card (dashboard is behind (app)), so

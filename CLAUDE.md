@@ -1852,6 +1852,185 @@ other realtime-adjacent gaps already call for.
 
 `npx tsc --noEmit && npm run lint && npm run build` all pass clean.
 
+**§16 Notifications: the feature had no write path at all — built, and the
+whole read path rebuilt around per-user read state (migrations `0036`–`0038`,
+all applied and proven live).** `.from("notifications")` appeared exactly once
+in the entire codebase, as a *read* (`services/dashboard.ts`). Nothing ever
+created a notification: every row on screen came from `seed.sql`, and every
+approval, submission, rejection and account change notified nobody.
+
+Two structural problems were fixed before any writer was added, because both
+would have been baked in permanently otherwise:
+
+1. **i18n.** The seeded rows store Thai prose directly in `title`. A
+   notification is read by the *recipient*, whose locale is unknown at write
+   time, so text baked in at insert time is wrong for half the audience.
+   System-generated rows instead store `message_key` + `message_params`
+   (jsonb) and are translated at render time from the same dictionaries as
+   the rest of the app (§30.3), via new `lib/i18n/interpolate.ts` +
+   `lib/notifications.ts`. `title` stays `NOT NULL` and carries the entity's
+   own name, so free-text announcements and the existing seeds keep working
+   untouched. `accountApproved` stores the raw role enum and the renderer maps
+   it through the existing `dict.roles` rather than storing a second localized
+   copy.
+2. **Read state.** `notifications.read` was one boolean on a row that, for
+   broadcasts (`recipient_id is null`, §16), is *shared by every user* — one
+   person marking it read would mark it read for all. In practice nobody could
+   even do that: `notifications_update_own_read` (0008) required
+   `recipient_id = auth.uid()`, never true for a broadcast, so a badge built
+   on that column would have shown a count no user could ever clear. `0037`
+   drops the column outright and moves read state into `notification_reads`
+   (one row per notification+user), which works identically for personal and
+   broadcast rows. Users now need no UPDATE privilege on `notifications` at
+   all.
+
+**Writers are triggers, not application inserts** (`0036`), the same choice
+`enforce_project_status_transition`/`handle_new_user` already make here: a
+Server Action, a future Edge Function and a manual Table Editor fix all
+notify, and since they are `security definer` there is still deliberately no
+INSERT policy on `notifications` for `authenticated` — a signed-in user cannot
+forge a notification addressed to someone else. `notify_roles()` fans out to
+reviewer roles and **always excludes the actor** (notifying the person who
+just performed the action is noise, never news). Covered: project
+submitted/recommended/approved/rejected, document awaiting-approval/approved/
+rejected (`signed` deliberately silent — the owner just signed it on screen),
+and account approved/revoked across the `pending` boundary. All four functions
+had `EXECUTE` revoked in the same migration that defines them — the exact
+`0011`→`0012` trap this file already records, checked for directly rather than
+rediscovered.
+
+**A real defect this design avoided, confirmed live rather than reasoned
+about.** `notifications_all_admin` (0008) is permissive and OR's with the
+own-or-broadcast policy, so for an admin RLS alone matches *every* row in the
+table, including other users' private targeted notifications. RLS is the
+security floor here, not the definition of "my notifications", so all three
+RPCs (`get_unread_notification_count`, `mark_all_notifications_read`,
+`list_notifications`) spell out `recipient_id = auth.uid() or recipient_id is
+null` explicitly. Proven with a real targeted notification addressed to the
+demo student: an admin JWT reading it through the app RPC returned **0 rows**,
+while a raw `select` on the same table as the same admin returned **1** —
+demonstrating the filter is load-bearing, not decorative. Per-user read state
+was proven the same way: the student marked all 3 broadcasts read (unread
+3 → 0, 3 `notification_reads` rows written) while the admin's unread count
+stayed **3**, which a single shared boolean could never have produced.
+
+**Full live trigger matrix**, run against the hosted project with real JWT
+claims (`set local role authenticated` + `request.jwt.claims`), not
+service-role shortcuts: student submits → exactly the 3 reviewers notified and
+the submitting student excluded; aft_teacher recommends → 2 admins notified,
+the recommending aft_teacher excluded, owner gets `projectRecommended`; admin
+approves → owner gets `projectApproved`; admin rejects with a Thai reason →
+owner gets `projectRejected` with the reason round-tripped intact through
+jsonb; revoke and re-approve both fire with the correct `/pending` and
+`/dashboard` links. Grants re-checked afterward: the four trigger functions
+are callable by nobody, the three app RPCs by `authenticated` only. Every
+test row, the temporary project, the temporary role change and all read-marks
+were deleted afterward and the database confirmed back to its 3-seed baseline.
+
+**A self-caused regression, caught before shipping rather than in
+production.** `0037` dropping the `read` column immediately broke
+`services/dashboard.ts#getNotifications`, which still did
+`.select("id, type, title, created_at, read")` — and worse, broke it
+*silently*: its `if (error || !data) return []` guard swallows the `42703
+column "read" does not exist` error, so the dashboard's Notifications card
+would have shown "no notifications" forever instead of failing visibly.
+Confirmed live (the exact 42703), then fixed by deleting that fetcher and the
+now-dead `Notification` type entirely and routing the card through the new
+`services/notifications.ts#getRecentNotifications`, so the dashboard card and
+the full page share one read path with correct per-user read state.
+
+**`/notifications` is a real page**, replacing the `PageShell` "coming soon"
+placeholder (one of the five §30.10 placeholders this file lists): All/Unread
+filters as plain `<Link>`s (URL state, shareable, works with JS disabled per
+§30.9 item 3), 20-rows/page pagination reusing `components/table/pagination.tsx`,
+localized relative dates, unread rows visually distinguished, per-type badges,
+and a "mark all read" button rendered only when something is actually unread.
+`services/notifications.ts` uses `tryCreateClient()` (fail-soft), matching
+every other read path here.
+
+**The notification bell was decorative and is now wired.**
+`components/layout/notifications-button.tsx` was a `<Button>` with no `href`
+and no handler, and its `unreadCount` prop defaulted to 0 and was never passed
+by `top-nav.tsx` — so it navigated nowhere and the unread dot could never
+appear under any circumstances. Now a real link to `/notifications` with a
+live count, split into `notifications-bell.tsx` behind `<Suspense>` so the
+nav (rendered on every page) never blocks on a notification query. Two further
+fixes made in passing: the old component set both an `aria-label` *and* an
+`sr-only` span with the count — an `aria-label` overrides element content, so
+the count was never announced to a screen reader; the count now lives in the
+accessible name itself. And the visibility gate moved from `role !== "guest"`
+to `can(role, "notification:read")`, because `pending` sits at guest-level
+permissions — the old check gave a pending user a bell that could only bounce
+them back to `/pending`. Verified per role against the running app:
+student/teacher/aft_teacher/admin get the bell, `pending` and `guest` do not.
+
+**The "สแกน QR เข้าร่วมกิจกรรม" quick action was removed rather than left
+lying.** It pointed at `/activities` — a plain table with no scanner anywhere
+in it. Grep-confirmed §13 QR attendance has *no* implementation at all (no
+`qr_sessions` migration, no scanner dependency, and nothing anywhere writes to
+`attendance`; the only hits are comments saying it is deferred). A button that
+promises a QR scanner and delivers a list is worse than no button, so the
+entry and its now-orphaned dictionary keys were removed from both locales,
+with a comment in `services/dashboard.ts` saying to re-add it with that phase.
+
+`npx tsc --noEmit && npm run lint && npm run build` all pass clean, including
+the new `/[lang]/notifications` route. Dictionary key parity between
+`th.json`/`en.json` was checked programmatically, not by eye.
+**Not verified live**: the signed-in browser click-through — a real user
+clicking the bell, marking notifications read, and paging the list — because
+this session has no `.env.local` and outbound access to `*.supabase.co` is
+blocked (`curl` returns `000`), the same limitation prior passes record. The
+database half *was* proven live via the Supabase MCP as described above, and
+the pages were verified against a running dev server with the `dev_role`
+cookie stub: guest correctly 307s to `/login`, student gets 200 on
+`/th/notifications`, `?filter=unread` and `/en/notifications`, both empty
+states render their distinct copy, and the dashboard still renders with the
+QR action gone.
+
+**Three defects found by code review of the notifications commit, all fixed
+and verified (migration `0039`).** Recorded because two of them are the kind
+that only show up in a state this session cannot reach live:
+
+1. **Opening a notification never marked it read.**
+   `markNotificationReadAction` was written but had *zero callers* — dead code
+   — so unread state could only be cleared in bulk, which also cleared items
+   the user had never opened, making the unread count meaningless. Wired via a
+   new client `components/notifications/notification-item.tsx`. Degrades
+   correctly with JS off (§30.9 item 3): the linked case is still a real
+   `<Link>`, so navigation works and the row just stays unread; only the
+   mark-on-open *side effect* needs JS, never the navigation itself. An unread
+   row with no link becomes the "mark as read" control itself.
+2. **The `accountRevoked` notification was unreachable by its only
+   recipient.** 0036 addressed it to the user whose role had just become
+   `pending` — but `pending` holds guest-level permissions, so it lacks
+   `notification:read` (no bell) *and* `workspace:access`, which every
+   `app/[lang]/(app)` route requires (so `/notifications` bounces them to
+   `/pending`). Doubly blocked. Worse, it doesn't stay invisible: on later
+   re-approval the stale "your access has been suspended" surfaces in their
+   history *after* access was restored — actively misleading. `0039` drops
+   that insert (keeping `accountApproved`, which is genuinely readable since
+   the recipient regains `notification:read` by definition); `/pending` is
+   what actually informs a revoked user, and an admin-side record belongs in
+   `audit_logs` (§20, deferred), not a user-facing inbox. Verified live:
+   revoke now writes 0 rows, approve still writes 1, and — the `0011`→`0012`
+   trap checked for directly again — `create or replace` did not resurrect
+   the `EXECUTE` grant, confirmed against `role_routine_grants`.
+3. **An out-of-range `?page=` stranded the viewer.** `total` is read off the
+   returned rows, so a page past the end yields `total: 0`, and
+   `components/table/pagination.tsx` renders *nothing* at `total === 0` — an
+   empty page with no link back to page 1. The page now redirects to page 1
+   of the same filter. Verified against the running dev server:
+   `?page=99` → `307` to `/th/notifications`, `?filter=unread&page=99` → `307`
+   preserving `?filter=unread`, `/en/notifications?page=5` → `307`, while a
+   genuinely empty page 1 correctly stays `200` and renders its empty state.
+
+`npx tsc --noEmit && npm run lint && npm run build` all pass. The orphaned
+`accountRevoked` dictionary entry was removed from both locales and key parity
+re-checked programmatically. **Not verified live**: the mark-on-open round
+trip needs real notification rows in a signed-in browser, which this session
+still cannot reach — the action, its RLS (`notification_reads_insert_own`) and
+the bulk path were all proven live earlier, but the per-item click was not.
+
 ### ❌ Remaining
 
 * **RLS policy performance (`auth_rls_initplan`, `multiple_permissive_policies`)**
@@ -1931,10 +2110,14 @@ other realtime-adjacent gaps already call for.
     debounced-search pattern already proven on `/members` and `/activities`
     (`hooks/use-debounced-value.ts`) is the natural building block once this
     phase starts.
-  * **Notifications/web push (§16/§30.10)** — genuinely not started.
-    `/notifications` is the same bare `PageShell` placeholder; no service
-    worker, no `web-push` usage, nothing beyond the nav bell icon that
-    already exists for the in-app unread-dot UI.
+  * **Notifications (§16) — in-app half now done** (see the Done entry above:
+    trigger write path, per-user read state, real `/notifications` page, wired
+    bell). **Web push is still not sent**: `push_subscriptions` (0033/0034)
+    stores browser subscriptions and `public/sw.js` exists, but nothing ever
+    calls `web-push` — `VAPID_PRIVATE_KEY` remains documented in
+    `.env.example` and unused by any code. Sending is the remaining piece,
+    and the natural trigger for it is the same 0036 notification insert that
+    now drives the in-app UI.
   * **`/profile` — a fifth placeholder page, not previously listed here at
     all.** Also a bare `PageShell` "coming soon", despite being linked from
     every signed-in role's top nav and avatar-menu dropdown. Found while

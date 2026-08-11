@@ -1,16 +1,16 @@
 /**
  * Generated from the live project (hmkciwgzbdszsgnbeakc) via
- * `generate_typescript_types` after migrations 0001–0030 were applied live
- * (2026-08-03/04, 0030 applied 2026-08-09). Genuinely regenerated each time
- * a migration adds/removes a column or table — do not hand-patch this file;
- * the discipline that broke down before (a hand-patched type drifting from
- * the live schema) is exactly what this note exists to prevent happening
- * again.
+ * `generate_typescript_types` after migrations 0001–0038 were applied live
+ * (2026-08-03/04, 0030 applied 2026-08-09, 0036–0038 applied 2026-08-11).
+ * Genuinely regenerated each time a migration adds/removes a column or
+ * table — do not hand-patch this file; the discipline that broke down
+ * before (a hand-patched type drifting from the live schema) is exactly
+ * what this note exists to prevent happening again.
  *
  * `profiles.password_set` (0030) was written to the repo's migration file
  * long before it was actually applied to this project — discovered and
- * fixed live in this pass: `services/members.ts#createMember`'s post-create
- * profile UPDATE was failing with `42703 undefined column` against the real
+ * fixed live: `services/members.ts#createMember`'s post-create profile
+ * UPDATE was failing with `42703 undefined column` against the real
  * schema, which tripped its own rollback and silently deleted every account
  * "Add user" created. Applied now; selectable by `authenticated` per the
  * 0030 grant, same allow-list pattern as every other profiles column below.
@@ -61,6 +61,25 @@
  * what keeps a draft's PDF unguessable while it's unpublished. Publishing
  * is gated on aft_teacher/admin (`books_staff_all`, 0028); an owner can
  * only ever write `status = 'draft'` (`books_update_own_draft`).
+ *
+ * `notifications` lost its `read` boolean in 0037: read state now lives in
+ * `notification_reads`, one row per (notification, user). A broadcast row
+ * (`recipient_id` null) is shared by every user, so a single boolean on the
+ * row could never track per-user state — and the old
+ * `notifications_update_own_read` policy (`recipient_id = auth.uid()`)
+ * excluded broadcasts entirely, so nobody could mark one read at all.
+ * `message_key`/`message_params` (0036) hold a dictionary key plus its
+ * interpolation params for system-generated rows, so a notification is
+ * stored once and rendered in the reader's own language; `title` is the
+ * fallback for free-text/announcement rows. Rows are written by the three
+ * `notify_*` triggers (0036), never by app code.
+ *
+ * NOTE for anything counting or listing "my notifications": RLS is the
+ * security floor, not the app-level definition. `notifications_all_admin`
+ * (0008) matches *every* row for an admin, so a query relying on RLS alone
+ * would show an admin everyone else's private notifications. Always filter
+ * `recipient_id = <me> or recipient_id is null` explicitly — both 0037 RPCs
+ * and services/notifications.ts do.
  */
 
 export type Json =
@@ -473,12 +492,47 @@ export type Database = {
           },
         ]
       }
+      notification_reads: {
+        Row: {
+          notification_id: string
+          read_at: string
+          user_id: string
+        }
+        Insert: {
+          notification_id: string
+          read_at?: string
+          user_id: string
+        }
+        Update: {
+          notification_id?: string
+          read_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notification_reads_notification_id_fkey"
+            columns: ["notification_id"]
+            isOneToOne: false
+            referencedRelation: "notifications"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notification_reads_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       notifications: {
         Row: {
           body: string | null
           created_at: string
           id: string
-          read: boolean
+          link: string | null
+          message_key: string | null
+          message_params: Json | null
           recipient_id: string | null
           title: string
           type: Database["public"]["Enums"]["notification_type"]
@@ -487,7 +541,9 @@ export type Database = {
           body?: string | null
           created_at?: string
           id?: string
-          read?: boolean
+          link?: string | null
+          message_key?: string | null
+          message_params?: Json | null
           recipient_id?: string | null
           title: string
           type: Database["public"]["Enums"]["notification_type"]
@@ -496,7 +552,9 @@ export type Database = {
           body?: string | null
           created_at?: string
           id?: string
-          read?: boolean
+          link?: string | null
+          message_key?: string | null
+          message_params?: Json | null
           recipient_id?: string | null
           title?: string
           type?: Database["public"]["Enums"]["notification_type"]
@@ -736,6 +794,33 @@ export type Database = {
           department: string
           member_count: number
         }[]
+      }
+      get_unread_notification_count: { Args: never; Returns: number }
+      list_notifications: {
+        Args: { p_limit?: number; p_offset?: number; p_unread_only?: boolean }
+        Returns: {
+          created_at: string
+          id: string
+          link: string
+          message_key: string
+          message_params: Json
+          read: boolean
+          title: string
+          total_count: number
+          type: Database["public"]["Enums"]["notification_type"]
+        }[]
+      }
+      mark_all_notifications_read: { Args: never; Returns: undefined }
+      notify_roles: {
+        Args: {
+          p_key: string
+          p_link: string
+          p_params: Json
+          p_roles: Database["public"]["Enums"]["user_role"][]
+          p_title: string
+          p_type: Database["public"]["Enums"]["notification_type"]
+        }
+        Returns: undefined
       }
       sign_document: {
         Args: { p_document_id: string; p_signature_data: string }

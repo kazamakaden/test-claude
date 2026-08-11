@@ -120,14 +120,7 @@
       "title": "การแจ้งเตือน",
       "description": "ข่าวสารและการแจ้งเตือนล่าสุด",
       "empty": "ไม่มีการแจ้งเตือนใหม่",
-      "emptyCta": "ดูการแจ้งเตือนทั้งหมด",
-      "types": {
-        "meeting": "การประชุม",
-        "activity": "กิจกรรม",
-        "deadline": "กำหนดส่ง",
-        "approval": "การอนุมัติ",
-        "announcement": "ประกาศ"
-      }
+      "emptyCta": "ดูการแจ้งเตือนทั้งหมด"
     },
     "meetings": {
       "title": "การประชุมที่จะถึง",
@@ -224,13 +217,50 @@
       "title": "การดำเนินการด่วน",
       "description": "ทางลัดสำหรับงานที่ใช้บ่อย",
       "submitDraft": "ส่งร่างโครงการ",
-      "scanAttendance": "สแกน QR เข้าร่วมกิจกรรม",
       "signDocument": "ลงนามเอกสาร",
       "reviewDrafts": "ตรวจสอบร่างเอกสาร",
       "manageMembers": "จัดการสมาชิก"
     },
     "errorTitle": "ไม่สามารถโหลดข้อมูลได้",
     "errorRetry": "ลองใหม่อีกครั้ง"
+  },
+  "notifications": {
+    "title": "การแจ้งเตือน",
+    "description": "ข่าวสารและการแจ้งเตือนทั้งหมดของคุณ",
+    "bellLabel": "การแจ้งเตือน",
+    "bellUnread": "การแจ้งเตือน ({count} รายการที่ยังไม่อ่าน)",
+    "viewAll": "ดูการแจ้งเตือนทั้งหมด",
+    "markAllRead": "อ่านทั้งหมดแล้ว",
+    "markAllReadSuccess": "ทำเครื่องหมายว่าอ่านแล้วทั้งหมด",
+    "markAllReadError": "ไม่สามารถทำเครื่องหมายว่าอ่านแล้วได้",
+    "unreadBadge": "ใหม่",
+    "empty": "ยังไม่มีการแจ้งเตือน",
+    "emptyDescription": "เมื่อมีการอนุมัติ การส่งงาน หรือประกาศใหม่ จะแสดงที่นี่",
+    "emptyUnread": "คุณอ่านการแจ้งเตือนครบทุกรายการแล้ว",
+    "emptyUnreadDescription": "ไม่มีรายการที่ยังไม่ได้อ่าน",
+    "filters": {
+      "all": "ทั้งหมด",
+      "unread": "ยังไม่อ่าน"
+    },
+    "types": {
+      "meeting": "การประชุม",
+      "activity": "กิจกรรม",
+      "deadline": "กำหนดส่ง",
+      "approval": "การอนุมัติ",
+      "announcement": "ประกาศ"
+    },
+    "messages": {
+      "projectSubmitted": "โครงการ “{title}” ถูกส่งเข้ารับการตรวจสอบ",
+      "projectAwaitingApproval": "โครงการ “{title}” ผ่านการตรวจสอบแล้ว และรอการอนุมัติ",
+      "projectRecommended": "โครงการ “{title}” ผ่านการตรวจสอบจากอาจารย์แล้ว",
+      "projectApproved": "โครงการ “{title}” ได้รับการอนุมัติเรียบร้อยแล้ว",
+      "projectRejected": "โครงการ “{title}” ถูกส่งกลับเพื่อแก้ไข: {reason}",
+      "documentAwaitingApproval": "เอกสาร “{title}” รอการอนุมัติ",
+      "documentApproved": "เอกสาร “{title}” ได้รับการอนุมัติเรียบร้อยแล้ว",
+      "documentRejected": "เอกสาร “{title}” ถูกส่งกลับเพื่อแก้ไข: {reason}",
+      "accountApproved": "บัญชีของคุณได้รับการอนุมัติแล้ว (สิทธิ์: {role})"
+    },
+    "markAsRead": "ทำเครื่องหมายว่าอ่านแล้ว"
   },
   "members": {
     "description": "ค้นหาและกรองรายชื่อสมาชิกทั้งหมด",

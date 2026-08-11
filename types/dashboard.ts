@@ -7,14 +7,6 @@ export type NotificationType =
   | "approval"
   | "announcement";
 
-export interface Notification {
-  id: string;
-  type: NotificationType;
-  title: string;
-  createdAt: string;
-  read: boolean;
-}
-
 export interface Meeting {
   id: string;
   title: string;
