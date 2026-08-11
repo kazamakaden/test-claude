@@ -2031,6 +2031,83 @@ trip needs real notification rows in a signed-in browser, which this session
 still cannot reach — the action, its RLS (`notification_reads_insert_own`) and
 the bulk path were all proven live earlier, but the per-item click was not.
 
+**Dashboard calendar card no longer runs past the screen; the avatar now opens
+Settings directly; the web-push toggle can finally appear.** All three reported
+from live production while signed in.
+
+1. **The calendar card was enormously tall** (screenshot: holidays listed out
+   to 2029, dead space beside the month grid). Two compounding causes.
+   `services/holidays.ts#getHolidays()` filtered `date >= today` and sorted but
+   **never bounded the result** — Google's Thai ICS carries years forward, so
+   it returned ~100 rows. And the height cap never engaged:
+   `holiday-list.tsx` used `flex h-full` → `flex-1 min-h-0` → a `h-full
+   overflow-y-auto` list, which only constrains when the *parent* is bounded —
+   but in `calendar-card.tsx`'s `xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]`
+   the row height is set by its tallest child, which was this very list, so it
+   stretched instead of scrolling. **Why it passed review before:** this file
+   already records the panel as "verified via CDP that the grid's, panel's and
+   list's bottom edges land on the identical pixel" — that check ran in a
+   session where `calendar.google.com` was network-blocked, so the list was
+   empty and the unbounded case was never exercised. An earlier pass had a real
+   `max-h-80`; the later "stretch to match the grid" change removed the only
+   hard bound. Fixed in both layers: a 12-month horizon in `getHolidays()`
+   (deliberately a date window, **not** a `slice(n)` — the same array marks day
+   cells in `CalendarGrid`, so truncating to a count would silently drop
+   markers), an explicit `max-h-80 overflow-y-auto` on the scroll container,
+   `items-start` on the card's grid so columns size to their own content, and
+   the existing "ดูปฏิทินทั้งหมด" CTA surfaced below the list rather than only
+   in the empty state.
+
+   **Proven against production's actual data volume**, which is the part the
+   previous verification skipped: a temporary 100-row stub (removed before
+   commit; `grep TEMP_SELF_TEST` → 0) plus real viewport emulation over CDP,
+   3 breakpoints × 2 themes. The list caps at **320px visible against 4988px
+   of content** — so the bound scrolls rather than clips — and the card lands
+   at **502px** at 1280 and 887px stacked, versus the ~5000px it would have
+   been. Zero horizontal overflow at any width. The empty-list path (the real
+   state here, feed still blocked) was re-checked afterward and is unchanged.
+
+2. **The avatar now opens the Settings card directly.** It previously opened a
+   Profile/Settings/Sign out dropdown. `components/layout/user-menu.tsx` drops
+   the `DropdownMenu` for a plain button calling the existing `openSettings()`.
+   **Profile and Sign out were not dropped** — they moved into
+   `settings-dialog.tsx` as a footer row (reusing `dict.nav.profile` /
+   `dict.common.signOut` and the existing `hooks/use-sign-out.ts`, no new
+   keys), so nothing became unreachable. The button's accessible name now
+   leads with the visible display name (WCAG 2.5.3 "Label in Name" — the old
+   `aria-label` was `dict.nav.profile`, which no longer matches what the button
+   does); it falls back to just "ตั้งค่า" when there is no name to show.
+   `mobile-nav.tsx` is deliberately untouched: its sheet already lists all
+   three separately and already closes itself before `openSettings()` to avoid
+   two stacked focus traps. Verified over CDP with a real click: dialog opens
+   containing password / font size / push / profile / sign out, and Escape
+   closes it.
+
+3. **Web push was invisible in production because of a config gap, not a bug.**
+   `push-section.tsx` is `if (!isPushConfigured) return null`, derived from
+   `NEXT_PUBLIC_VAPID_PUBLIC_KEY` — which was never set in Vercel (only the
+   Supabase + Turnstile vars are). A VAPID P-256 keypair was generated with
+   Node's built-in `crypto` (no new dependency; `web-push` still isn't
+   installed) and written to the git-ignored `.env.local`, which is what made
+   the toggle render in the CDP check above. **The three vars still have to be
+   set in Vercel by hand** — this session cannot reach that dashboard — and
+   until then production still shows no toggle.
+
+   **Stated plainly rather than implied:** this only makes the toggle appear
+   and *subscribe*. Nothing sends a push. `push_subscriptions` (0033/0034)
+   stores subscriptions and `public/sw.js` exists, but no code calls
+   `web-push`. Delivery remains a separate unbuilt phase; the natural hook is
+   the same 0036 notification insert that now drives the in-app bell.
+
+`npx tsc --noEmit && npm run lint && npm run build` all pass, and
+`npm run check:responsive` is 72/72. **A false alarm worth recording so it
+isn't re-investigated:** an intermediate responsive run failed all 72 with
+`innerWidth=981, emulation did not apply`. That was not a regression and not
+the missing-viewport-meta bug it resembles — it was `npm run build` being run
+concurrently with `next dev` against the same `.next` directory, which
+clobbered the dev server's manifests. Killing the server, clearing `.next` and
+restarting produced a clean 72/72 with the viewport meta present.
+
 ### ❌ Remaining
 
 * **RLS policy performance (`auth_rls_initplan`, `multiple_permissive_policies`)**
@@ -2117,7 +2194,11 @@ the bulk path were all proven live earlier, but the per-item click was not.
     calls `web-push` — `VAPID_PRIVATE_KEY` remains documented in
     `.env.example` and unused by any code. Sending is the remaining piece,
     and the natural trigger for it is the same 0036 notification insert that
-    now drives the in-app UI.
+    now drives the in-app UI. **Also still pending: the three VAPID vars
+    (`NEXT_PUBLIC_VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`)
+    must be set in Vercel** — a keypair was generated this pass and works
+    locally via `.env.local`, but until those land in the Vercel project the
+    Settings web-push toggle renders nothing in production.
   * **`/profile` — a fifth placeholder page, not previously listed here at
     all.** Also a bare `PageShell` "coming soon", despite being linked from
     every signed-in role's top nav and avatar-menu dropdown. Found while

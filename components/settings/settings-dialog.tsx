@@ -1,6 +1,10 @@
 "use client";
 
+import Link from "next/link";
+import { LogOut, User } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { useSignOut } from "@/hooks/use-sign-out";
 import { Separator } from "@/components/ui/separator";
 import { ChangePasswordSection } from "@/components/settings/change-password-section";
 import { FontSizeSection } from "@/components/settings/font-size-section";
@@ -33,6 +37,9 @@ export function SettingsDialog({
   passwordSet: boolean;
 }) {
   const d = dict.settings;
+  // Profile and Sign out live here now that the avatar opens this dialog
+  // instead of a dropdown menu — see components/layout/user-menu.tsx.
+  const { handleSignOut } = useSignOut(lang);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -48,6 +55,22 @@ export function SettingsDialog({
           <FontSizeSection dict={dict} />
           <Separator />
           <PushSection lang={lang} dict={dict} />
+
+          <Separator />
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <Button
+              variant="outline"
+              nativeButton={false}
+              render={<Link href={`/${lang}/profile`} onClick={() => onOpenChange(false)} />}
+            >
+              <User className="size-4" aria-hidden />
+              {dict.nav.profile}
+            </Button>
+            <Button variant="destructive" onClick={handleSignOut}>
+              <LogOut className="size-4" aria-hidden />
+              {dict.common.signOut}
+            </Button>
+          </div>
         </div>
       </DialogContent>
     </Dialog>
