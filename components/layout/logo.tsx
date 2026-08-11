@@ -19,10 +19,15 @@ export function Logo({ lang, role }: { lang: string; role: Role }) {
         className="h-14 w-auto dark:hidden"
         priority
       />
+      {/* Must keep the SAME aspect ratio as the light asset above
+          (418/134 = 3.119): both render `h-14 w-auto`, so any difference in
+          intrinsic aspect makes the logo change width when the theme is
+          toggled and shoves the nav sideways. The dark file is rebuilt from
+          the light lockup's proportions for exactly this reason. */}
       <Image
         src="/brand/logo-with-text-dark.png"
         alt="AFT UDONTECH"
-        width={1415}
+        width={1320}
         height={423}
         className="hidden h-14 w-auto dark:block"
         priority

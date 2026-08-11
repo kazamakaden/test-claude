@@ -2131,6 +2131,42 @@ concurrently with `next dev` against the same `.next` directory, which
 clobbered the dev server's manifests. Killing the server, clearing `.next` and
 restarting produced a clean 72/72 with the viewport meta present.
 
+**Logo changed size when toggling light/dark — fixed by rebuilding the dark
+asset to the light lockup's proportions.** Reported with side-by-side
+screenshots: the whole nav shifted right in dark mode. Cause was an
+**aspect-ratio mismatch between the two PNGs**, not CSS —
+`logo-with-text.png` is 418×134 (aspect 3.119) and
+`logo-with-text-dark.png` was 1415×423 (aspect 3.345). Both render
+`h-14 w-auto`, so width is `56 × aspect`: 174.7px light vs 187.3px dark, and
+everything after the logo moved with it.
+
+Measured rather than eyeballed: normalising each file by its own height, the
+crest matched (1.02×h vs 1.00×h) but the **text block was 2.008×h light
+against 2.303×h dark** — ~15% wider. So it was genuinely different artwork,
+not croppable whitespace. Confirmed the two files are otherwise the same
+lockup by comparing ink bands: identical structure and colours, differing
+only in the Chinese subtitle (near-black `rgb(30,30,31)` light vs white
+`rgb(249,249,249)` dark), which is the intended dark-mode treatment. The
+drift dates to commit `b13e8aa`, which rebuilt the dark variant by
+compositing the high-res `Picture/logo.png` + `text only.png` rather than
+deriving it from the same `Picture/logo with text.png` the light asset came
+from.
+
+Rebuilt the dark PNG programmatically from the light file's geometry while
+keeping the high-res source pixels: the seal is pasted at its natural size
+(**not** stretched — a 2% horizontal scale to force an exact match would
+visibly oval a circular crest), and only the text block is rescaled, by
+LANCZOS **downscale** so it stays sharp, positioned using the light file's
+own normalised gap and vertical span. Result is 1320×423, aspect 3.1206
+against the light's 3.1194 — a 0.04% difference, i.e. 0.08px at the rendered
+56px height. `logo.tsx`'s `width` prop updated to match, with a comment
+saying the two assets must stay proportional and why.
+
+Verified in a real browser over CDP at 1280px in both themes: logo width
+**174.67px light / 174.75px dark (0.08px apart, was ~12px)** and the nav
+starts at the same x in both. The rebuilt file is also slightly smaller on
+disk (517KB vs 527KB). `npm run check:responsive` 72/72, lint and build clean.
+
 ### ❌ Remaining
 
 * **RLS policy performance (`auth_rls_initplan`, `multiple_permissive_policies`)**
