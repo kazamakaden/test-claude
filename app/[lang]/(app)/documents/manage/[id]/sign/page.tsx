@@ -1,7 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 import { getDictionary } from "@/lib/i18n/get-dictionary";
+import { getSessionUserId } from "@/lib/auth/get-role";
 import { requirePermission } from "@/lib/auth/require-role";
-import { createClient } from "@/lib/supabase/server";
 import { getDocumentForWorkflow } from "@/services/documents";
 import { parseDocumentId } from "@/schemas/documents";
 import { SignatureFlow } from "@/components/documents/signature-flow";
@@ -23,15 +23,12 @@ export default async function SignDocumentPage({
   const [dict, document] = await Promise.all([getDictionary(lang), getDocumentForWorkflow(id)]);
   if (!document) notFound();
 
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const viewerUserId = await getSessionUserId();
 
   // Only the owner may sign, and only while the document is still a draft —
   // re-checked server-side; sign_document() (0016) enforces the same rule
   // at the database layer regardless of what this page allows.
-  if (!user || user.id !== document.ownerId || document.status !== "draft") {
+  if (!viewerUserId || viewerUserId !== document.ownerId || document.status !== "draft") {
     redirect(`/${lang}/documents/manage/${document.id}`);
   }
 

@@ -1,8 +1,8 @@
 import Link from "next/link";
 import { Plus } from "lucide-react";
 import { getDictionary } from "@/lib/i18n/get-dictionary";
+import { getSessionUserId } from "@/lib/auth/get-role";
 import { requirePermission } from "@/lib/auth/require-role";
-import { createClient } from "@/lib/supabase/server";
 import { parseProjectsSearchParams, PROJECTS_PER_PAGE_SIZE } from "@/schemas/projects";
 import { listMyProjects } from "@/services/projects";
 import { ProjectsFilters } from "@/components/projects/projects-filters";
@@ -27,13 +27,10 @@ export default async function ProjectsPage({
 
   const rawParams = await rawSearchParams;
   const dict = await getDictionary(lang);
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const viewerUserId = await getSessionUserId();
 
   const filters = parseProjectsSearchParams(rawParams);
-  const { rows, total } = user ? await listMyProjects(user.id, filters) : { rows: [], total: 0 };
+  const { rows, total } = viewerUserId ? await listMyProjects(viewerUserId, filters) : { rows: [], total: 0 };
 
   const pathname = `/${lang}/projects`;
   const searchParams = new URLSearchParams(

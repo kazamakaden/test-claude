@@ -3,9 +3,8 @@ import { ArrowLeft } from "lucide-react";
 import { notFound } from "next/navigation";
 import { getDictionary } from "@/lib/i18n/get-dictionary";
 import { requirePermission } from "@/lib/auth/require-role";
-import { getRole } from "@/lib/auth/get-role";
+import { getRole, getSessionUserId } from "@/lib/auth/get-role";
 import { can } from "@/lib/auth/permissions";
-import { createClient } from "@/lib/supabase/server";
 import { getDepartments } from "@/services/members";
 import { getProject } from "@/services/projects";
 import { parseProjectId } from "@/schemas/projects";
@@ -31,11 +30,8 @@ export default async function ProjectDetailPage({
   const [dict, role, project] = await Promise.all([getDictionary(lang), getRole(), getProject(id)]);
   if (!project) notFound();
 
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  const isOwner = Boolean(user && user.id === project.ownerId);
+  const viewerUserId = await getSessionUserId();
+  const isOwner = Boolean(viewerUserId && viewerUserId === project.ownerId);
 
   const d = dict.projects;
   const canEdit = isOwner && project.status === "draft";

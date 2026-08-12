@@ -1,5 +1,5 @@
 import "server-only";
-import { createClient } from "@/lib/supabase/server";
+import { createClient, tryCreateClient } from "@/lib/supabase/server";
 import type { Database } from "@/types/database";
 import type {
   Project,
@@ -61,7 +61,8 @@ export async function listMyProjects(
   ownerId: string,
   filters: ProjectFilters
 ): Promise<ProjectsResult> {
-  const supabase = await createClient();
+  const supabase = await tryCreateClient();
+  if (!supabase) return { rows: [], total: 0 };
   const start = (filters.page - 1) * PROJECTS_PER_PAGE_SIZE;
 
   let query = supabase
@@ -92,7 +93,8 @@ export async function listReviewProjects(
   stage: "teacher_review" | "admin_approval",
   filters: ProjectFilters
 ): Promise<ProjectsResult> {
-  const supabase = await createClient();
+  const supabase = await tryCreateClient();
+  if (!supabase) return { rows: [], total: 0 };
   const start = (filters.page - 1) * PROJECTS_PER_PAGE_SIZE;
 
   let query = supabase
@@ -117,7 +119,8 @@ export async function listReviewProjects(
 
 /** No status filter (unlike the public documents reader) — RLS scopes visibility. */
 export async function getProject(id: string): Promise<Project | null> {
-  const supabase = await createClient();
+  const supabase = await tryCreateClient();
+  if (!supabase) return null;
   const { data, error } = await supabase
     .from("projects")
     .select(PROJECT_COLUMNS)

@@ -1,5 +1,5 @@
 import "server-only";
-import { createClient } from "@/lib/supabase/server";
+import { createClient, tryCreateClient } from "@/lib/supabase/server";
 import type { Database } from "@/types/database";
 import type {
   DocumentStatus,
@@ -68,7 +68,8 @@ export async function listMyDocuments(
   ownerId: string,
   filters: DocumentWorkflowFilters
 ): Promise<DocumentsWorkflowResult> {
-  const supabase = await createClient();
+  const supabase = await tryCreateClient();
+  if (!supabase) return { rows: [], total: 0 };
   const start = (filters.page - 1) * DOCUMENTS_PER_PAGE_SIZE;
 
   let query = supabase
@@ -98,7 +99,8 @@ export async function listMyDocuments(
 export async function listReviewDocuments(
   filters: DocumentWorkflowFilters
 ): Promise<DocumentsWorkflowResult> {
-  const supabase = await createClient();
+  const supabase = await tryCreateClient();
+  if (!supabase) return { rows: [], total: 0 };
   const start = (filters.page - 1) * DOCUMENTS_PER_PAGE_SIZE;
 
   let query = supabase
@@ -130,7 +132,8 @@ export async function listReviewDocuments(
  * behavior for.
  */
 export async function getDocumentForWorkflow(id: string): Promise<DocumentWorkflowDetail | null> {
-  const supabase = await createClient();
+  const supabase = await tryCreateClient();
+  if (!supabase) return null;
 
   const [docResult, draftResult, signatureResult] = await Promise.all([
     supabase.from("documents").select(WORKFLOW_COLUMNS).eq("id", id).maybeSingle(),

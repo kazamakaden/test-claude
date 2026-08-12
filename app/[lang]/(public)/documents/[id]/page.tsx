@@ -4,9 +4,8 @@ import { format } from "date-fns";
 import { th, enUS } from "date-fns/locale";
 import { ArrowLeft, FileWarning, Trash2 } from "lucide-react";
 import { getDictionary } from "@/lib/i18n/get-dictionary";
-import { getRole } from "@/lib/auth/get-role";
+import { getRole, getSessionUserId } from "@/lib/auth/get-role";
 import { can } from "@/lib/auth/permissions";
-import { createClient } from "@/lib/supabase/server";
 import { getBook } from "@/services/books";
 import { parseBookId } from "@/schemas/books";
 import { resolveBookSource, SEASON_LABELS_TH, SEASON_LABELS_EN } from "@/lib/books";
@@ -39,12 +38,9 @@ export default async function BookDetailPage({
 
   if (!book) notFound();
 
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const viewerUserId = await getSessionUserId();
 
-  const viewerId = user?.id ?? null;
+  const viewerId = viewerUserId;
   const isOwner = viewerId !== null && book.ownerId === viewerId;
   const isStaff = can(role, "document:approve");
   const canEdit = isStaff || (isOwner && book.status === "draft");
