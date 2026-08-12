@@ -692,6 +692,7 @@ export type Database = {
           created_at: string
           endpoint: string
           id: string
+          locale: string
           p256dh_key: string
           updated_at: string
           user_agent: string | null
@@ -702,6 +703,7 @@ export type Database = {
           created_at?: string
           endpoint: string
           id?: string
+          locale?: string
           p256dh_key: string
           updated_at?: string
           user_agent?: string | null
@@ -712,6 +714,7 @@ export type Database = {
           created_at?: string
           endpoint?: string
           id?: string
+          locale?: string
           p256dh_key?: string
           updated_at?: string
           user_agent?: string | null

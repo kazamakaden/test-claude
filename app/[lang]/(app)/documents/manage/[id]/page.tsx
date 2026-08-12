@@ -3,9 +3,8 @@ import { ArrowLeft, PenLine } from "lucide-react";
 import { notFound } from "next/navigation";
 import { getDictionary } from "@/lib/i18n/get-dictionary";
 import { requirePermission } from "@/lib/auth/require-role";
-import { getRole } from "@/lib/auth/get-role";
+import { getRole, getSessionUserId } from "@/lib/auth/get-role";
 import { can } from "@/lib/auth/permissions";
-import { createClient } from "@/lib/supabase/server";
 import { getDocumentForWorkflow } from "@/services/documents";
 import { parseDocumentId } from "@/schemas/documents";
 import { DocumentForm } from "@/components/documents/document-form";
@@ -36,11 +35,8 @@ export default async function DocumentWorkflowDetailPage({
   ]);
   if (!document) notFound();
 
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  const isOwner = Boolean(user && user.id === document.ownerId);
+  const viewerUserId = await getSessionUserId();
+  const isOwner = Boolean(viewerUserId && viewerUserId === document.ownerId);
 
   const d = dict.documents.manage;
   const canEdit = isOwner && document.status === "draft";

@@ -20,7 +20,8 @@ const PENDING_PROFILE_COLUMNS = "id, email, full_name, avatar_url, student_id, c
  * page/action that calls it — not RLS.
  */
 export async function listPendingProfiles(): Promise<PendingProfile[]> {
-  const supabase = await createClient();
+  const supabase = await tryCreateClient();
+  if (!supabase) return [];
   const { data, error } = await supabase
     .from("profiles")
     .select(PENDING_PROFILE_COLUMNS)

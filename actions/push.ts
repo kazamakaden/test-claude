@@ -35,7 +35,9 @@ export async function savePushSubscriptionAction(
   } = await supabase.auth.getUser();
   if (!user) return { ok: false, error: "unknown" };
 
-  const result = await savePushSubscription(user.id, parsed.data);
+  // lang is the locale segment the user was actually on — the language
+  // any future push to this device should be composed in (0040).
+  const result = await savePushSubscription(user.id, parsed.data, lang);
   if (!result.ok) return { ok: false, error: "unknown" };
   return { ok: true };
 }

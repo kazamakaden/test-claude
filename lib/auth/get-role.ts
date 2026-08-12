@@ -20,6 +20,10 @@ async function getDevCookieRole(): Promise<Role> {
 }
 
 export interface SessionProfile {
+  /** Signed-in user's id, or null for a guest / unconfigured Supabase.
+   * Pages that only need "who is looking at this" read it via
+   * getSessionUserId() instead of opening their own client. */
+  userId: string | null;
   role: Role;
   fullName: string | null;
   avatarUrl: string | null;
@@ -31,6 +35,7 @@ export interface SessionProfile {
 }
 
 const GUEST_PROFILE: SessionProfile = {
+  userId: null,
   role: "guest",
   fullName: null,
   avatarUrl: null,
@@ -50,7 +55,7 @@ const GUEST_PROFILE: SessionProfile = {
 export const getSessionProfile = cache(async (): Promise<SessionProfile> => {
   if (!isSupabaseConfigured) {
     const role = await getDevCookieRole();
-    return { role, fullName: null, avatarUrl: null, email: null, passwordSet: false };
+    return { userId: null, role, fullName: null, avatarUrl: null, email: null, passwordSet: false };
   }
 
   // tryCreateClient(), not createClient() — createClient() throws
@@ -73,6 +78,7 @@ export const getSessionProfile = cache(async (): Promise<SessionProfile> => {
   if (error || !data) return GUEST_PROFILE;
 
   return {
+    userId: user.id,
     role: data.role,
     fullName: data.full_name,
     avatarUrl: data.avatar_url,
@@ -84,4 +90,15 @@ export const getSessionProfile = cache(async (): Promise<SessionProfile> => {
 export async function getRole(): Promise<Role> {
   const profile = await getSessionProfile();
   return profile.role;
+}
+
+/**
+ * The viewer's own id, for pages that render differently for the owner of a
+ * row ("is this my project?"). Shares getSessionProfile()'s cached round trip
+ * rather than opening a second client, and inherits its fail-closed
+ * behavior: an unconfigured Supabase yields null, never a throw.
+ */
+export async function getSessionUserId(): Promise<string | null> {
+  const profile = await getSessionProfile();
+  return profile.userId;
 }

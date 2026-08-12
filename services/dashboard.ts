@@ -1,6 +1,6 @@
 import "server-only";
 import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { tryCreateClient } from "@/lib/supabase/server";
 import { can } from "@/lib/auth/permissions";
 import { getRole } from "@/lib/auth/get-role";
 import type { Locale } from "@/lib/i18n/config";
@@ -17,7 +17,8 @@ import type {
 
 // No dedicated meetings table (§20) — derived from activities.
 export async function getUpcomingMeetings(): Promise<Meeting[]> {
-  const supabase = await createClient();
+  const supabase = await tryCreateClient();
+  if (!supabase) return [];
   const { data, error } = await supabase
     .from("activities")
     .select("id, title, starts_at, location")
@@ -37,7 +38,8 @@ export async function getUpcomingMeetings(): Promise<Meeting[]> {
 
 // §10 activity statistics, aggregated in SQL — see get_activity_stats() (0009).
 export async function getActivityStats(): Promise<ActivityStat[]> {
-  const supabase = await createClient();
+  const supabase = await tryCreateClient();
+  if (!supabase) return [];
   const { data, error } = await supabase.rpc("get_activity_stats");
 
   if (error || !data) return [];
@@ -52,7 +54,8 @@ export async function getActivityStats(): Promise<ActivityStat[]> {
 
 // §12 document workflow. Explicit column list — never select("*").
 export async function getDraftDocuments(role: Role): Promise<DraftDocument[]> {
-  const supabase = await createClient();
+  const supabase = await tryCreateClient();
+  if (!supabase) return [];
   // document:approve, not project:draft:review — that permission gates
   // *project* drafts, an unrelated table; this card is about documents.
   const isReviewer = can(role, "document:approve");
@@ -79,7 +82,8 @@ export async function getDraftDocuments(role: Role): Promise<DraftDocument[]> {
 }
 
 export async function getRecentProjects(): Promise<RecentProject[]> {
-  const supabase = await createClient();
+  const supabase = await tryCreateClient();
+  if (!supabase) return [];
   const { data, error } = await supabase
     .from("projects")
     .select("id, title, status, updated_at")
@@ -97,7 +101,8 @@ export async function getRecentProjects(): Promise<RecentProject[]> {
 }
 
 export async function getRecentActivities(): Promise<RecentActivity[]> {
-  const supabase = await createClient();
+  const supabase = await tryCreateClient();
+  if (!supabase) return [];
   const { data, error } = await supabase
     .from("activities")
     .select("id, title, starts_at, departments(name_th)")
@@ -127,7 +132,8 @@ export async function getMemberStats(lang: Locale): Promise<DepartmentStat[]> {
     redirect(`/${lang}/login`);
   }
 
-  const supabase = await createClient();
+  const supabase = await tryCreateClient();
+  if (!supabase) return [];
   const { data, error } = await supabase.rpc("get_member_stats");
 
   if (error || !data) return [];

@@ -1,8 +1,8 @@
 import Link from "next/link";
 import { Plus } from "lucide-react";
 import { getDictionary } from "@/lib/i18n/get-dictionary";
+import { getSessionUserId } from "@/lib/auth/get-role";
 import { requirePermission } from "@/lib/auth/require-role";
-import { createClient } from "@/lib/supabase/server";
 import { parseDocumentsSearchParams, DOCUMENTS_PER_PAGE_SIZE } from "@/schemas/documents";
 import { listMyDocuments } from "@/services/documents";
 import { DocumentsFilters } from "@/components/documents/documents-filters";
@@ -25,13 +25,10 @@ export default async function ManageDocumentsPage({
 
   const rawParams = await rawSearchParams;
   const dict = await getDictionary(lang);
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const viewerUserId = await getSessionUserId();
 
   const filters = parseDocumentsSearchParams(rawParams);
-  const { rows, total } = user ? await listMyDocuments(user.id, filters) : { rows: [], total: 0 };
+  const { rows, total } = viewerUserId ? await listMyDocuments(viewerUserId, filters) : { rows: [], total: 0 };
 
   const pathname = `/${lang}/documents/manage`;
   const searchParams = new URLSearchParams(
