@@ -25,7 +25,8 @@ const ACTIVITY_COLUMNS =
   "id, title, description, status, starts_at, ends_at, location, is_public, academic_year, department_id, club_id, departments(name_th, name_en), clubs(name_th, name_en)";
 
 export async function listActivities(filters: ActivityFilters): Promise<ActivitiesResult> {
-  const supabase = await createClient();
+  const supabase = await tryCreateClient();
+  if (!supabase) return { rows: [], total: 0 };
   const start = (filters.page - 1) * ACTIVITIES_PER_PAGE_SIZE;
 
   let query = supabase.from("activities").select(ACTIVITY_COLUMNS, { count: "exact" });
@@ -80,7 +81,8 @@ export async function listActivities(filters: ActivityFilters): Promise<Activiti
  * scopes it to own-rows/reviewers regardless. Not a bug; the UI says so.
  */
 export async function getActivityCounts(): Promise<ActivityCounts> {
-  const supabase = await createClient();
+  const supabase = await tryCreateClient();
+  if (!supabase) return { attendance: 0, completed: 0, pending: 0 };
 
   const [attendanceResult, completedResult, pendingResult] = await Promise.all([
     supabase.from("attendance").select("id", { count: "exact", head: true }),
