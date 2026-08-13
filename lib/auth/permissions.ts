@@ -18,8 +18,15 @@ export const permissions = [
    */
   "workspace:access",
 
-  /** Student — §6 "submit project drafts". */
+  /** นักศึกษา อวท./ครู — §6 "submit project drafts". */
   "project:draft:submit",
+  /**
+   * Authoring an e-book / document draft. Split out from workspace:access,
+   * which every signed-in user holds — without it a read-only student could
+   * still create a book, contradicting the four-role model. RLS agrees
+   * (books_insert_own/update/delete, 0047).
+   */
+  "document:draft:submit",
   /** Student — §6 "QR attendance". */
   "attendance:submit",
   /** Student — §6 "digital signature". */
@@ -79,43 +86,50 @@ export type Permission = (typeof permissions)[number];
 const guestPermissions = ["content:read:official"] as const satisfies readonly Permission[];
 
 /**
- * Signed in, awaiting an admin's approval. Deliberately identical to guest:
- * public content only, and crucially NO `workspace:access`, so every
- * authenticated route's `requirePermission` guard turns them away until an
- * admin assigns a real role.
+ * Signed in, but READ-ONLY. A student sees public content, their own profile
+ * and notifications, and — via workspace:access — which activities they have
+ * missed. They author nothing: no project drafts, no attendance submissions,
+ * no signatures, no e-books.
  */
-const pendingPermissions = [...guestPermissions] as const satisfies readonly Permission[];
-
 const studentPermissions = [
   ...guestPermissions,
   "workspace:access",
-  "project:draft:submit",
-  "attendance:submit",
-  "document:sign",
   "notification:read",
   "profile:read",
   "profile:update",
 ] as const satisfies readonly Permission[];
 
+/**
+ * นักศึกษา อวท. / ครู — the people who actually run the organisation.
+ *
+ * Everything a student has, plus authoring (project drafts, e-book drafts,
+ * attendance, digital signature), the review stage of §11/§12, and management
+ * of activities and public page copy.
+ *
+ * Deliberately NOT here: project:approve / document:approve. The approver has
+ * to sit above whoever submits, and this role submits — so approval is
+ * admin's. That is what keeps "send a project and it stays a draft" true.
+ * Also not here: member:approve, which is admin's or comes from holding a
+ * ตำแหน่ง (0044/0045).
+ */
 const teacherPermissions = [
   ...studentPermissions,
+  "project:draft:submit",
+  "document:draft:submit",
+  "attendance:submit",
+  "document:sign",
   "project:draft:review",
   "project:draft:comment",
   "project:recommend",
-] as const satisfies readonly Permission[];
-
-/** อาจารย์ อวท. — teacher + approval authority, still below admin. */
-const aftTeacherPermissions = [
-  ...teacherPermissions,
-  "project:approve",
-  "document:approve",
   "activity:manage",
   "content:manage",
-  "member:approve",
 ] as const satisfies readonly Permission[];
 
 const adminPermissions = [
-  ...aftTeacherPermissions,
+  ...teacherPermissions,
+  "project:approve",
+  "document:approve",
+  "member:approve",
   "content:delete",
   "member:manage",
   "system:manage",
@@ -123,10 +137,8 @@ const adminPermissions = [
 
 export const permissionsByRole: Record<Role, readonly Permission[]> = {
   guest: guestPermissions,
-  pending: pendingPermissions,
   student: studentPermissions,
   teacher: teacherPermissions,
-  aft_teacher: aftTeacherPermissions,
   admin: adminPermissions,
 };
 

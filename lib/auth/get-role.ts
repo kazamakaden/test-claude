@@ -5,7 +5,7 @@ import { tryCreateClient } from "@/lib/supabase/server";
 import type { Actor } from "@/lib/auth/permissions";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
 import type { MemberPosition, Role } from "@/types/auth";
-import { isMemberPosition, roles } from "@/types/auth";
+import { isMemberPosition, roles, toRole } from "@/types/auth";
 
 async function getDevCookieRole(): Promise<Role> {
   if (process.env.NODE_ENV !== "development") return "guest";
@@ -110,7 +110,7 @@ export const getSessionProfile = cache(async (): Promise<SessionProfile> => {
 
   return {
     userId: user.id,
-    role: data.role,
+    role: toRole(data.role),
     position: data.position,
     fullName: data.full_name,
     avatarUrl: data.avatar_url,

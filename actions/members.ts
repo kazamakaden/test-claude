@@ -4,13 +4,11 @@ import { revalidatePath } from "next/cache";
 import { requirePermission } from "@/lib/auth/require-role";
 import { updateMemberSchema, createMemberSchema, createDepartmentSchema } from "@/schemas/members";
 import { updateMember, createMember, deleteMember, createDepartment } from "@/services/members";
-import { revokeProfileApproval } from "@/services/profiles";
 import { createClient } from "@/lib/supabase/server";
 import { isLocale, defaultLocale, type Locale } from "@/lib/i18n/config";
 
 type UpdateMemberErrorKey =
   | "invalidRole"
-  | "forbiddenRole"
   | "invalidPosition"
   | "forbiddenPosition"
   | "invalidStudentId"
@@ -24,7 +22,6 @@ export type UpdateMemberResult = { ok: true } | { ok: false; messageKey: UpdateM
 function isUpdateMemberErrorKey(value: string | undefined): value is UpdateMemberErrorKey {
   return (
     value === "invalidRole" ||
-    value === "forbiddenRole" ||
     value === "invalidPosition" ||
     value === "forbiddenPosition" ||
     value === "invalidStudentId" ||
@@ -121,10 +118,6 @@ export async function updateMemberAction(
   if (!parsed.success) {
     const rawKey = parsed.error.issues[0]?.message;
     return { ok: false, messageKey: isUpdateMemberErrorKey(rawKey) ? rawKey : "unknown" };
-  }
-
-  if (actorRole !== "admin" && parsed.data.role === "aft_teacher") {
-    return { ok: false, messageKey: "forbiddenRole" };
   }
 
   // Only an admin may assign an อวท. office. Hiding the select from everyone
@@ -227,53 +220,6 @@ export async function deleteMemberAction(lang: Locale, id: string): Promise<Dele
     return { ok: false, messageKey: "unknown" };
   }
 
-  revalidatePath(`/${lang}/members`);
-  return { ok: true };
-}
-
-/**
- * "Stop approve" — sends an already-approved member back to `pending` so
- * every requirePermission-guarded route bounces them to /pending on their
- * next request (lib/auth/require-role.ts#deniedRedirectTarget), without the
- * account-deletion services/members.ts#deleteMember performs. Gated on
- * member:approve (admin + aft_teacher — the same tier that can approve at
- * /approvals), not member:manage, matching the distinction
- * lib/auth/permissions.ts already draws between approval authority and
- * admin-only account management.
- *
- * Same two server-side guards as deleteMemberAction, checked here rather
- * than relying solely on prevent_role_self_escalation (0002/0024) to raise:
- * that trigger's raise ("cannot change your own role") is mapped by
- * services/profiles.ts#revokeProfileApproval to "forbiddenRole", which this
- * action's UpdateMemberErrorKey-shaped result type doesn't carry — checking
- * here first gives a clearer messageKey and avoids relying on a raw
- * Postgres error string staying stable across a future migration.
- */
-export async function revokeMemberAction(lang: Locale, id: string): Promise<RevokeMemberResult> {
-  await requirePermission("member:approve", lang);
-
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (user?.id === id) {
-    return { ok: false, messageKey: "selfRevoke" };
-  }
-
-  const { data: target } = await supabase.from("profiles").select("role").eq("id", id).single();
-  if (target?.role === "admin") {
-    return { ok: false, messageKey: "adminRevoke" };
-  }
-
-  const result = await revokeProfileApproval(id);
-  if (!result.ok) {
-    return { ok: false, messageKey: "unknown" };
-  }
-
-  // One path now: a revoked member drops out of the directory list and
-  // reappears in the pending-approvals section, both of which live on
-  // /members since /approvals was folded into it.
   revalidatePath(`/${lang}/members`);
   return { ok: true };
 }

@@ -1,18 +1,37 @@
 /**
- * `pending` = signed in, but not yet approved by an admin. Distinct from
- * `guest` (not signed in at all) so the app can tell the two apart and show
- * a "waiting for approval" page instead of bouncing back to login.
+ * Four roles.
+ *
+ *   guest    not signed in — public/official content only
+ *   student  signed in, READ-ONLY: own profile, notifications, and which
+ *            activities they have missed. Cannot author content.
+ *   teacher  นักศึกษา อวท. / ครู — submits project drafts, takes attendance,
+ *            signs documents, reviews/comments/recommends, and manages
+ *            activities and site content
+ *   admin    everything, including approving projects and documents
+ *
+ * `pending` and `aft_teacher` were removed (0046/0047): signing up no longer
+ * needs approval, and nothing sits between teacher and admin. Both survive as
+ * `user_role` enum LABELS only because PostgreSQL cannot drop an enum value in
+ * place — the `profiles_role_allowed` CHECK is what actually prevents either
+ * from being stored, so this union is not merely a convention.
  */
-export type Role = "guest" | "pending" | "student" | "teacher" | "aft_teacher" | "admin";
+export type Role = "guest" | "student" | "teacher" | "admin";
 
-export const roles: readonly Role[] = [
-  "guest",
-  "pending",
-  "student",
-  "teacher",
-  "aft_teacher",
-  "admin",
-];
+export const roles: readonly Role[] = ["guest", "student", "teacher", "admin"];
+
+/**
+ * Narrow a role read from the database to the four the app knows.
+ *
+ * `user_role` still carries `pending` and `aft_teacher` as enum labels
+ * (PostgreSQL cannot drop them), so the generated `Database` type is wider
+ * than `Role`. The `profiles_role_allowed` CHECK means no row can actually
+ * hold one — but a value arriving here that this app does not recognise is
+ * precisely the schema/code skew this project has hit before, so it fails
+ * CLOSED to guest rather than being cast through.
+ */
+export function toRole(value: string | null | undefined): Role {
+  return (roles as readonly string[]).includes(value ?? "") ? (value as Role) : "guest";
+}
 
 /**
  * อวท. office (§ member positions). A SECOND, independent authorization axis

@@ -51,8 +51,8 @@ export function parseMembersSearchParams(
  * authority is prevent_role_self_escalation (0024).
  */
 const assignableRoles = roles.filter(
-  (r): r is Exclude<(typeof roles)[number], "guest" | "pending" | "admin"> =>
-    r !== "guest" && r !== "pending" && r !== "admin"
+  (r): r is Exclude<(typeof roles)[number], "guest" | "admin"> =>
+    r !== "guest" && r !== "admin"
 );
 
 export const updateMemberSchema = z.object({

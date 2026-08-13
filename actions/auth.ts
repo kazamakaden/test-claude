@@ -1,6 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { toRole } from "@/types/auth";
 import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
@@ -136,7 +137,7 @@ export async function signInWithPassword(
     .eq("id", data.user.id)
     .single();
 
-  redirect(signedInLandingTarget(profile?.role ?? "guest", lang));
+  redirect(signedInLandingTarget(toRole(profile?.role), lang));
 }
 
 /** Uniform response regardless of whether the address is registered — same enumeration guard. */

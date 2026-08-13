@@ -1,4 +1,5 @@
 import "server-only";
+import { toRole } from "@/types/auth";
 import { createClient, tryCreateClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { Club, Department, Member, MemberFilters, MembersResult } from "@/types/members";
@@ -56,13 +57,9 @@ export async function getMembers(
   if (options.includeEmail) {
     let query = supabase
       .from("profiles")
-      .select(MEMBER_COLUMNS_WITH_EMAIL, { count: "exact" })
-      // "Members" means approved accounts — a still-pending signup isn't
-      // one yet, whatever the viewer's own role is. RLS already hides this
-      // row from anon (0026); this also excludes it for every signed-in
-      // viewer, since profiles_select_directory (0004) grants
-      // `using (true)` with no role filter of its own.
-      .neq("role", "pending");
+      // No role filter: with `pending` retired (0046) every profile row is a
+      // real member, so the directory is simply everyone.
+      .select(MEMBER_COLUMNS_WITH_EMAIL, { count: "exact" });
 
     if (filters.search) {
       const q = filters.search.replace(/[%_]/g, "\\$&");
@@ -84,7 +81,7 @@ export async function getMembers(
       fullName: m.full_name ?? "",
       email: m.email,
       avatarUrl: m.avatar_url,
-      role: m.role,
+      role: toRole(m.role),
       position: m.position,
       studentId: m.student_id,
       departmentId: m.department_id,
@@ -100,8 +97,7 @@ export async function getMembers(
 
   let query = supabase
     .from("profiles")
-    .select(MEMBER_COLUMNS_BASE, { count: "exact" })
-    .neq("role", "pending");
+    .select(MEMBER_COLUMNS_BASE, { count: "exact" });
 
   if (filters.search) {
     const q = filters.search.replace(/[%_]/g, "\\$&");
@@ -123,7 +119,7 @@ export async function getMembers(
     fullName: m.full_name ?? "",
     email: null,
     avatarUrl: m.avatar_url,
-    role: m.role,
+    role: toRole(m.role),
     position: m.position,
     studentId: m.student_id,
     departmentId: m.department_id,
@@ -150,7 +146,7 @@ export async function getMembers(
  */
 export async function updateMember(input: {
   id: string;
-  role: Exclude<Role, "guest" | "pending" | "admin">;
+  role: Exclude<Role, "guest" | "admin">;
   departmentId: string | null;
   clubId: string | null;
   className: string | null;

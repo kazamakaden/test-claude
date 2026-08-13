@@ -24,8 +24,7 @@ export type NavItem = {
  * Components, hence the deliberate small overlap rather than an import.
  */
 export function homeHrefFor(role: Role): string {
-  if (role === "guest") return "/";
-  return role === "pending" ? "/pending" : "/dashboard";
+  return role === "guest" ? "/" : "/dashboard";
 }
 
 export const navItems: readonly NavItem[] = [
