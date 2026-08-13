@@ -400,6 +400,12 @@
         "departmentCodeTaken": "That program code already exists.",
         "notAllowed": "You do not have permission to do this.",
         "unknown": "Something went wrong. Please try again."
+      },
+      "levelLabel": "Level",
+      "levels": {
+        "vocational": "ปวช. (Vocational Certificate)",
+        "diploma": "ปวส. (High Vocational Diploma)",
+        "unknown": "Unknown level"
       }
     }
   },

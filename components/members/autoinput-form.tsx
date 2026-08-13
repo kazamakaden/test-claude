@@ -142,6 +142,13 @@ export function AutoInputForm({
             <DetectedValue label={d.programCodeLabel} value={parsed.programCode} />
             <DetectedValue label={d.studentNumberLabel} value={parsed.studentNumber} />
             <DetectedValue label={d.studentIdLabel} value={parsed.studentId} />
+            {/* ปวช./ปวส. comes from รหัสวิชา's first digit. An unrecognised
+                digit shows "unknown" rather than blocking the member — a
+                future level must not stop a real student being admitted. */}
+            <DetectedValue
+              label={d.levelLabel}
+              value={parsed.level ? d.levels[parsed.level] : d.levels.unknown}
+            />
           </div>
 
           <p className="text-sm text-muted-foreground">

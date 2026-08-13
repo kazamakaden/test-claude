@@ -28,6 +28,31 @@ const STUDENT_ID_RE = /^[0-9]{11,}$/;
 export const PROGRAM_CODE_LENGTH = 7;
 export const YEAR_LENGTH = 2;
 
+/**
+ * Education level, encoded in the FIRST digit of รหัสวิชา (i.e. the 3rd digit
+ * of the whole ID):
+ *
+ *   69 3190100 15  → รหัสวิชา starts 3 → ปวส.
+ *   66 2090100 20  → รหัสวิชา starts 2 → ปวช.
+ *
+ * `null` means "a digit we don't have a name for". That is deliberately NOT a
+ * parse failure: a รหัสวิชา starting with some future digit must never block
+ * admitting a real student, so the rest of the ID stays valid and usable and
+ * the UI simply says the level is unknown.
+ */
+export type StudentLevel = "vocational" | "diploma" | null;
+
+export function studentLevelFromProgramCode(programCode: string): StudentLevel {
+  switch (programCode.charAt(0)) {
+    case "2":
+      return "vocational"; // ปวช.
+    case "3":
+      return "diploma"; // ปวส.
+    default:
+      return null;
+  }
+}
+
 export interface ParsedStudentId {
   /**
    * Thai BE year, last two digits, as a STRING — never a number.
@@ -43,6 +68,8 @@ export interface ParsedStudentId {
   studentNumber: string;
   /** The full ID, i.e. the email's local part. */
   studentId: string;
+  /** ปวช. / ปวส., derived from programCode's first digit; null if unrecognised. */
+  level: StudentLevel;
 }
 
 /**
@@ -63,11 +90,14 @@ export function parseStudentId(input: string): ParsedStudentId | null {
 
   if (!STUDENT_ID_RE.test(localPart)) return null;
 
+  const programCode = localPart.slice(YEAR_LENGTH, YEAR_LENGTH + PROGRAM_CODE_LENGTH);
+
   return {
     year: localPart.slice(0, YEAR_LENGTH),
-    programCode: localPart.slice(YEAR_LENGTH, YEAR_LENGTH + PROGRAM_CODE_LENGTH),
+    programCode,
     studentNumber: localPart.slice(YEAR_LENGTH + PROGRAM_CODE_LENGTH),
     studentId: localPart,
+    level: studentLevelFromProgramCode(programCode),
   };
 }
 
