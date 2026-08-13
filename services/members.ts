@@ -2,7 +2,7 @@ import "server-only";
 import { toRole, type MemberPosition } from "@/types/auth";
 import { createClient, tryCreateClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import type { Club, Department, Member, MemberFilters, MembersResult } from "@/types/members";
+import type { Club, Department, DepartmentUsage, Member, MemberFilters, MembersResult } from "@/types/members";
 import type { Role } from "@/types/auth";
 import { PER_PAGE_SIZE, type CreateMemberInput, type CreateDepartmentInput } from "@/schemas/members";
 
@@ -331,6 +331,97 @@ export async function getFilterOptions(): Promise<{ years: number[]; classNames:
   const classNames = [...new Set(data.map((r) => r.class_name).filter((c): c is string => c !== null))];
 
   return { years, classNames };
+}
+
+/**
+ * Every สาขา with the counts that decide whether it can be removed.
+ *
+ * Three small aggregate queries rather than one join: `departments` is 29 rows
+ * and each count is an indexed FK lookup, so this is cheaper and far easier to
+ * read than a triple LEFT JOIN with GROUP BY — and it degrades to zeroes
+ * instead of failing outright if one of them errors.
+ */
+export async function getDepartmentsWithUsage(): Promise<DepartmentUsage[]> {
+  const supabase = await tryCreateClient();
+  if (!supabase) return [];
+
+  const [departments, members, activities, projects] = await Promise.all([
+    supabase.from("departments").select("id, code, name_th, name_en").order("code"),
+    supabase.from("profiles").select("department_id").not("department_id", "is", null),
+    supabase.from("activities").select("department_id").not("department_id", "is", null),
+    supabase.from("projects").select("department_id").not("department_id", "is", null),
+  ]);
+
+  if (departments.error || !departments.data) return [];
+
+  const tally = (rows: { department_id: string | null }[] | null) => {
+    const map = new Map<string, number>();
+    for (const row of rows ?? []) {
+      if (row.department_id) map.set(row.department_id, (map.get(row.department_id) ?? 0) + 1);
+    }
+    return map;
+  };
+  const memberBy = tally(members.data);
+  const activityBy = tally(activities.data);
+  const projectBy = tally(projects.data);
+
+  return departments.data.map((d) => ({
+    id: d.id,
+    code: d.code,
+    nameTh: d.name_th,
+    nameEn: d.name_en,
+    memberCount: memberBy.get(d.id) ?? 0,
+    activityCount: activityBy.get(d.id) ?? 0,
+    projectCount: projectBy.get(d.id) ?? 0,
+  }));
+}
+
+/**
+ * Rename a สาขา. The 5-digit code is deliberately NOT editable: a student's
+ * สาขา is resolved by matching that code against their student ID (0051), so
+ * changing it would silently detach every member who resolves through it.
+ * Getting a code wrong is a delete-and-re-add, not an edit.
+ */
+export async function updateDepartment(input: {
+  id: string;
+  nameTh: string;
+  nameEn: string;
+}): Promise<{ ok: true } | { ok: false; error: string }> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("departments")
+    .update({ name_th: input.nameTh, name_en: input.nameEn })
+    .eq("id", input.id)
+    .select("id")
+    .maybeSingle();
+
+  if (error) return { ok: false, error: "unknown" };
+  // Zero rows means RLS refused or the id is stale — never a silent success.
+  if (!data) return { ok: false, error: "notAllowed" };
+  return { ok: true };
+}
+
+/**
+ * Remove a สาขา. Callers must check usage first; this still handles 23503
+ * because the FK is the real guard and a row can be attached between the
+ * check and the delete.
+ */
+export async function deleteDepartment(
+  id: string
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const supabase = await createClient();
+  const { error, count } = await supabase
+    .from("departments")
+    .delete({ count: "exact" })
+    .eq("id", id);
+
+  if (error) {
+    // 23503 = foreign_key_violation: something still points at it.
+    if (error.code === "23503") return { ok: false, error: "departmentInUse" };
+    return { ok: false, error: "unknown" };
+  }
+  if (!count) return { ok: false, error: "notAllowed" };
+  return { ok: true };
 }
 
 /**
