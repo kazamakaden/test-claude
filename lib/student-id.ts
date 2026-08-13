@@ -1,44 +1,53 @@
 /**
  * §14 student ID format, shared by the client form and the server action.
  *
- * A student's college email local part IS their student ID, built from three
- * concatenated parts:
+ * A student's college email local part IS their student ID. It is built from
+ * FOUR concatenated parts, not three:
  *
- *   69        3190100      15
- *   └ year    └ รหัสวิชา   └ running number
- *   2 digits  exactly 7    2+ digits
+ *   69     31901        00      15
+ *   └ year └ department └ group └ running number
+ *   2      5 digits     2       2+ digits
  *
- *   69 + 3190100 + 15  = 69319010015   (11 digits)
- *   69 + 3190100 + 100 = 693190100100  (12 digits)
+ *   69 + 31901 + 00 + 15  = 69319010015   (11 digits)
+ *   69 + 31901 + 00 + 100 = 693190100100  (12 digits)
+ *   66 + 20901 + 00 + 20  = 66209010020   (ปวช.)
  *
- * The split is only unambiguous because รหัสวิชา is ALWAYS exactly 7 digits
- * (confirmed with the user, and enforced by departments_code_format in 0042).
- * Take 2, then 7, then whatever remains is the number — which is why the
- * database constraint is `^[0-9]{11,}$` (11 or MORE) rather than a fixed
- * length.
+ * The middle 7 digits together are the รหัสวิชา as it is usually written
+ * (`programCode` below), but only its first FIVE identify the department —
+ * the last two are the student's group/classroom index. Treating all 7 as the
+ * department is the bug 0043 fixes: it made every student outside group `00`
+ * look like they belonged to a department that did not exist yet.
+ *
+ * The split is unambiguous because both middle fields are fixed-width
+ * (department enforced by departments_code_format in 0043). Take 2, then 5,
+ * then 2, and whatever remains is the running number — which is why the
+ * regex below is `^[0-9]{11,}$` (11 or MORE) rather than a fixed length.
  *
  * Isomorphic on purpose — no `server-only`. The autoinput form parses as the
  * admin types and the server re-validates what it submits; both must agree, so
  * there is exactly one implementation.
  */
 
-/** Year is 2 digits, รหัสวิชา is 7, so anything valid is at least 11. */
+/** 2 year + 5 department + 2 group + at least 2 running = at least 11. */
 const STUDENT_ID_RE = /^[0-9]{11,}$/;
 
-export const PROGRAM_CODE_LENGTH = 7;
 export const YEAR_LENGTH = 2;
+export const DEPARTMENT_CODE_LENGTH = 5;
+export const GROUP_CODE_LENGTH = 2;
+/** The รหัสวิชา as normally written: department + group. */
+export const PROGRAM_CODE_LENGTH = DEPARTMENT_CODE_LENGTH + GROUP_CODE_LENGTH;
 
 /**
- * Education level, encoded in the FIRST digit of รหัสวิชา (i.e. the 3rd digit
- * of the whole ID):
+ * Education level, encoded in the FIRST digit of the department code (i.e.
+ * the 3rd digit of the whole ID):
  *
- *   69 3190100 15  → รหัสวิชา starts 3 → ปวส.
- *   66 2090100 20  → รหัสวิชา starts 2 → ปวช.
+ *   69 31901 00 15  → department starts 3 → ปวส.
+ *   66 20901 00 20  → department starts 2 → ปวช.
  *
  * `null` means "a digit we don't have a name for". That is deliberately NOT a
- * parse failure: a รหัสวิชา starting with some future digit must never block
- * admitting a real student, so the rest of the ID stays valid and usable and
- * the UI simply says the level is unknown.
+ * parse failure: a department code starting with some future digit must never
+ * block admitting a real student, so the rest of the ID stays valid and usable
+ * and the UI simply says the level is unknown.
  */
 export type StudentLevel = "vocational" | "diploma" | null;
 
@@ -62,13 +71,20 @@ export interface ParsedStudentId {
    * a string makes that bug unrepresentable rather than merely unlikely.
    */
   year: string;
-  /** รหัสวิชา — matches `departments.code`. */
+  /** Department code — the 5 digits that match `departments.code`. */
+  departmentCode: string;
+  /** Group/classroom index within the department ("00", "02", ...). */
+  groupCode: string;
+  /**
+   * รหัสวิชา as normally written — departmentCode + groupCode, 7 digits.
+   * Display only: it is NOT the department key. Match on `departmentCode`.
+   */
   programCode: string;
   /** Running number, as written in the ID ("05", "15", "100"). */
   studentNumber: string;
   /** The full ID, i.e. the email's local part. */
   studentId: string;
-  /** ปวช. / ปวส., derived from programCode's first digit; null if unrecognised. */
+  /** ปวช. / ปวส., derived from the department code's first digit. */
   level: StudentLevel;
 }
 
@@ -90,14 +106,20 @@ export function parseStudentId(input: string): ParsedStudentId | null {
 
   if (!STUDENT_ID_RE.test(localPart)) return null;
 
-  const programCode = localPart.slice(YEAR_LENGTH, YEAR_LENGTH + PROGRAM_CODE_LENGTH);
+  const departmentCode = localPart.slice(YEAR_LENGTH, YEAR_LENGTH + DEPARTMENT_CODE_LENGTH);
+  const groupCode = localPart.slice(
+    YEAR_LENGTH + DEPARTMENT_CODE_LENGTH,
+    YEAR_LENGTH + PROGRAM_CODE_LENGTH
+  );
 
   return {
     year: localPart.slice(0, YEAR_LENGTH),
-    programCode,
+    departmentCode,
+    groupCode,
+    programCode: `${departmentCode}${groupCode}`,
     studentNumber: localPart.slice(YEAR_LENGTH + PROGRAM_CODE_LENGTH),
     studentId: localPart,
-    level: studentLevelFromProgramCode(programCode),
+    level: studentLevelFromProgramCode(departmentCode),
   };
 }
 
@@ -109,19 +131,21 @@ export function parseStudentId(input: string): ParsedStudentId | null {
  */
 export function buildStudentId(
   year: string,
-  programCode: string,
+  departmentCode: string,
+  groupCode: string,
   studentNumber: string | number
 ): string | null {
   const paddedNumber = String(studentNumber).padStart(2, "0");
-  const candidate = `${year}${programCode}${paddedNumber}`;
+  const candidate = `${year}${departmentCode}${groupCode}${paddedNumber}`;
   return STUDENT_ID_RE.test(candidate) &&
     year.length === YEAR_LENGTH &&
-    programCode.length === PROGRAM_CODE_LENGTH
+    departmentCode.length === DEPARTMENT_CODE_LENGTH &&
+    groupCode.length === GROUP_CODE_LENGTH
     ? candidate
     : null;
 }
 
-/** Shape a รหัสวิชา must have to be a real `departments.code` (0042). */
-export function isProgramCode(value: string): boolean {
-  return /^[0-9]{7}$/.test(value.trim());
+/** Shape a code must have to be a real `departments.code` (0043). */
+export function isDepartmentCode(value: string): boolean {
+  return /^[0-9]{5}$/.test(value.trim());
 }
