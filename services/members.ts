@@ -1,5 +1,5 @@
 import "server-only";
-import { toRole } from "@/types/auth";
+import { toRole, type MemberPosition } from "@/types/auth";
 import { createClient, tryCreateClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { Club, Department, Member, MemberFilters, MembersResult } from "@/types/members";
@@ -146,12 +146,20 @@ export async function getMembers(
  */
 export async function updateMember(input: {
   id: string;
-  role: Exclude<Role, "guest" | "admin">;
+  role: Exclude<Role, "guest" | "aft" | "admin">;
   departmentId: string | null;
   clubId: string | null;
   className: string | null;
   studentId: string | null;
   fullName: string | null;
+  /**
+   * อวท. office. `undefined` means "leave it alone" — a non-admin's form
+   * renders no ตำแหน่ง select at all, so it submits no field, and writing
+   * `null` for that absence would silently strip the member's office (and,
+   * via sync_role_with_position(), demote them out of `aft`) on every
+   * ordinary edit. Only a present value is written.
+   */
+  position?: MemberPosition | null;
 }): Promise<{ ok: true } | { ok: false; error: string }> {
   const supabase = await createClient();
   const { data, error } = await supabase
@@ -163,6 +171,8 @@ export async function updateMember(input: {
       class_name: input.className,
       student_id: input.studentId,
       full_name: input.fullName,
+      // Conditional, not `position: input.position` — see the doc above.
+      ...(input.position !== undefined ? { position: input.position } : {}),
     })
     .eq("id", input.id)
     .select("id")
@@ -172,8 +182,10 @@ export async function updateMember(input: {
     if (error.code === "23505" && error.message.includes("profiles_student_id_key")) {
       return { ok: false, error: "studentIdTaken" };
     }
+    // Covers every guard trigger's message: role change, identity fields and
+    // ตำแหน่ง assignment are all admin-only now.
     if (error.message.includes("insufficient privilege")) {
-      return { ok: false, error: "forbiddenRole" };
+      return { ok: false, error: "forbidden" };
     }
     return { ok: false, error: error.message };
   }
