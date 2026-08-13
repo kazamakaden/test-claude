@@ -28,8 +28,9 @@ export interface Member {
   email: string | null;
   avatarUrl: string | null;
   role: Role;
-  /** อวท. office, or null for a general member. Display + edit only — the
-   *  authority it confers is decided by canAs(), never by reading this. */
+  /** อวท. office, or null. Grants nothing by itself (0049); what it does is
+   *  SET the role — an admin assigning one promotes student -> aft. Read
+   *  `role` for authorization, never this. */
   position: MemberPosition | null;
   studentId: string | null;
   departmentId: string | null;

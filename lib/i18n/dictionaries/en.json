@@ -43,7 +43,8 @@
   "roles": {
     "guest": "Guest",
     "student": "Student",
-    "teacher": "AFT Student / Teacher",
+    "aft": "AFT Student Member",
+    "teacher": "Teacher",
     "admin": "Administrator"
   },
   "auth": {
@@ -393,7 +394,8 @@
     },
     "positionLabel": "Position",
     "noPosition": "General member",
-    "positionAdminOnly": "Only an administrator can assign a position."
+    "positionAdminOnly": "Only an administrator can assign a position.",
+    "positionHint": "Assigning a position automatically makes this member นักศึกษา อวท.; clearing it returns them to Student."
   },
   "activities": {
     "description": "Search and filter upcoming and past activities",

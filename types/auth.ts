@@ -4,10 +4,17 @@
  *   guest    not signed in — public/official content only
  *   student  signed in, READ-ONLY: own profile, notifications, and which
  *            activities they have missed. Cannot author content.
- *   teacher  นักศึกษา อวท. / ครู — submits project drafts, takes attendance,
- *            signs documents, reviews/comments/recommends, and manages
- *            activities and site content
+ *   aft      นักศึกษา อวท. — an อวท. student member. Submits project and
+ *            e-book drafts, takes attendance, signs documents,
+ *            reviews/comments/recommends, manages activities and site content
+ *   teacher  ครู — actual staff. IDENTICAL permissions to `aft`; the split
+ *            exists so reporting can tell a student member from staff
  *   admin    everything, including approving projects and documents
+ *
+ * `aft` is never assigned directly: an admin gives someone a ตำแหน่ง and
+ * `sync_role_with_position()` (0049) promotes student -> aft, or demotes back
+ * when the ตำแหน่ง is cleared. `teacher` and `admin` are left alone by that
+ * trigger, since `advisor` (ครู) is itself one of the eight ตำแหน่ง.
  *
  * `pending` and `aft_teacher` were removed (0046/0047): signing up no longer
  * needs approval, and nothing sits between teacher and admin. Both survive as
@@ -15,9 +22,9 @@
  * place — the `profiles_role_allowed` CHECK is what actually prevents either
  * from being stored, so this union is not merely a convention.
  */
-export type Role = "guest" | "student" | "teacher" | "admin";
+export type Role = "guest" | "student" | "aft" | "teacher" | "admin";
 
-export const roles: readonly Role[] = ["guest", "student", "teacher", "admin"];
+export const roles: readonly Role[] = ["guest", "student", "aft", "teacher", "admin"];
 
 /**
  * Narrow a role read from the database to the four the app knows.

@@ -160,6 +160,10 @@ export function MemberEditSheet({
                     ))}
                   </SelectContent>
                 </Select>
+                {/* Assigning a ตำแหน่ง is what makes someone นักศึกษา อวท. —
+                    sync_role_with_position() (0049) flips the role on save.
+                    Say so, or the role select above looks like it disagrees. */}
+                <FormDescription>{dict.members.positionHint}</FormDescription>
               </FormField>
             ) : null}
 

@@ -44,15 +44,16 @@ export function parseMembersSearchParams(
 /**
  * §5: admin/aft_teacher editing an already-approved member. Same
  * assignableRoles construction as schemas/approvals.ts (excludes "guest",
- * "pending" — this form edits members who already hold a real role, not
- * signup queue entries — and "admin", kept out-of-band from every UI).
+ * "admin", kept out-of-band from every UI, and "aft", which is not directly
+ * assignable — it is what assigning a ตำแหน่ง produces, via
+ * sync_role_with_position() (0049)).
  * Server-side actor narrowing (aft_teacher may not grant aft_teacher) lives
  * in actions/members.ts, mirroring actions/approvals.ts; the database-level
  * authority is prevent_role_self_escalation (0024).
  */
 const assignableRoles = roles.filter(
-  (r): r is Exclude<(typeof roles)[number], "guest" | "admin"> =>
-    r !== "guest" && r !== "admin"
+  (r): r is Exclude<(typeof roles)[number], "guest" | "aft" | "admin"> =>
+    r !== "guest" && r !== "aft" && r !== "admin"
 );
 
 export const updateMemberSchema = z.object({

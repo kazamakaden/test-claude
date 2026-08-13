@@ -2,7 +2,6 @@ import "server-only";
 import { cache } from "react";
 import { cookies } from "next/headers";
 import { tryCreateClient } from "@/lib/supabase/server";
-import type { Actor } from "@/lib/auth/permissions";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
 import type { MemberPosition, Role } from "@/types/auth";
 import { isMemberPosition, roles, toRole } from "@/types/auth";
@@ -41,10 +40,10 @@ export interface SessionProfile {
   userId: string | null;
   role: Role;
   /**
-   * อวท. office, or null for a general member. Independent of `role` — see
-   * MemberPosition in types/auth.ts. Read it through canAs(), never by
-   * comparing positions directly: which office someone holds does not change
-   * what they may do.
+   * อวท. office, or null. DISPLAY ONLY — it grants nothing by itself (0049
+   * removed the officer permission axis). What it does is set the role:
+   * an admin assigning a ตำแหน่ง promotes student -> aft via
+   * sync_role_with_position(), so authorization reads `role`, never this.
    */
   position: MemberPosition | null;
   fullName: string | null;
@@ -124,15 +123,7 @@ export async function getRole(): Promise<Role> {
   return profile.role;
 }
 
-/**
- * The viewer as an authorization subject — both axes together, which is what
- * canAs() takes. Prefer this over getRole() anywhere an officer should count:
- * getRole() alone silently drops the office and would deny a real officer.
- */
-export async function getActor(): Promise<Actor> {
-  const profile = await getSessionProfile();
-  return { role: profile.role, position: profile.position };
-}
+
 
 /**
  * The viewer's own id, for pages that render differently for the owner of a
