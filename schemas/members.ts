@@ -112,12 +112,13 @@ export const createMemberSchema = z.object({
 export type CreateMemberInput = z.infer<typeof createMemberSchema>;
 
 /**
- * A new รหัสวิชา added inline from /members/autoinput.
+ * A new department added inline from /members/autoinput.
  *
  * `code` is the app-side layer of the same rule enforced by
- * lib/student-id.ts (parsing) and departments_code_format (0042, the database
- * backstop) — §19's three layers. Exactly 7 digits, because the 2+7+remainder
- * split of a student ID depends on it.
+ * lib/student-id.ts (parsing) and departments_code_format (0043, the database
+ * backstop) — §19's three layers. Exactly 5 digits: a department is the first
+ * FIVE digits of a รหัสวิชา, the two after it being the student's group, so a
+ * 7-digit value here would create one department per group.
  *
  * Both names are required because `departments.name_th`/`name_en` are NOT NULL
  * and are what the members and activities filters actually display.
@@ -126,7 +127,7 @@ export const createDepartmentSchema = z.object({
   code: z
     .string()
     .trim()
-    .regex(/^[0-9]{7}$/, { message: "invalidDepartmentCode" }),
+    .regex(/^[0-9]{5}$/, { message: "invalidDepartmentCode" }),
   nameTh: z
     .string()
     .trim()

@@ -3,12 +3,12 @@
 -- consistently against them.
 
 insert into public.departments (code, name_th, name_en) values
-  ('3190100', 'ช่างยนต์', 'Automotive Technology'),
-  ('3190200', 'ช่างไฟฟ้ากำลัง', 'Electrical Power Technology'),
-  ('3190300', 'ช่างอิเล็กทรอนิกส์', 'Electronics Technology'),
-  ('3190400', 'ช่างก่อสร้าง', 'Construction Technology'),
-  ('3190500', 'เทคโนโลยีสารสนเทศ', 'Information Technology'),
-  ('3190600', 'การบัญชี', 'Accounting');
+  ('31901', 'ช่างยนต์', 'Automotive Technology'),
+  ('31902', 'ช่างไฟฟ้ากำลัง', 'Electrical Power Technology'),
+  ('31903', 'ช่างอิเล็กทรอนิกส์', 'Electronics Technology'),
+  ('31904', 'ช่างก่อสร้าง', 'Construction Technology'),
+  ('31905', 'เทคโนโลยีสารสนเทศ', 'Information Technology'),
+  ('31906', 'การบัญชี', 'Accounting');
 
 insert into public.clubs (name_th, name_en) values
   ('ชมรมอาสาพัฒนา', 'Community Service Club'),
@@ -24,17 +24,17 @@ insert into public.clubs (name_th, name_en) values
 -- lib/dev-fixtures.ts's old (removed) comment that falsely claimed this.
 
 insert into public.activities (title, description, department_id, status, academic_year, starts_at, ends_at, location, is_public) values
-  ('ค่ายอาสาพัฒนาชุมชน', 'กิจกรรมจิตอาสาพัฒนาชุมชนรอบวิทยาลัย', (select id from public.departments where code = '3190100'), 'completed', 69, now() - interval '45 days', now() - interval '44 days', 'ชุมชนรอบวิทยาลัย', true),
-  ('อบรมความปลอดภัยในโรงฝึกงาน', 'อบรมมาตรฐานความปลอดภัยสำหรับนักเรียนแผนกช่างไฟฟ้า', (select id from public.departments where code = '3190200'), 'completed', 69, now() - interval '20 days', now() - interval '20 days', 'ห้องปฏิบัติการไฟฟ้า', false),
-  ('อบรมเตรียมความพร้อมกิจกรรม QR เข้าแถว', 'อบรมการใช้งานระบบ QR สำหรับเข้าร่วมกิจกรรม', (select id from public.departments where code = '3190500'), 'pending', 69, now() + interval '6 days', now() + interval '6 days', 'ห้องปฏิบัติการคอมพิวเตอร์ 2', true),
+  ('ค่ายอาสาพัฒนาชุมชน', 'กิจกรรมจิตอาสาพัฒนาชุมชนรอบวิทยาลัย', (select id from public.departments where code = '31901'), 'completed', 69, now() - interval '45 days', now() - interval '44 days', 'ชุมชนรอบวิทยาลัย', true),
+  ('อบรมความปลอดภัยในโรงฝึกงาน', 'อบรมมาตรฐานความปลอดภัยสำหรับนักเรียนแผนกช่างไฟฟ้า', (select id from public.departments where code = '31902'), 'completed', 69, now() - interval '20 days', now() - interval '20 days', 'ห้องปฏิบัติการไฟฟ้า', false),
+  ('อบรมเตรียมความพร้อมกิจกรรม QR เข้าแถว', 'อบรมการใช้งานระบบ QR สำหรับเข้าร่วมกิจกรรม', (select id from public.departments where code = '31905'), 'pending', 69, now() + interval '6 days', now() + interval '6 days', 'ห้องปฏิบัติการคอมพิวเตอร์ 2', true),
   ('ประชุมคณะกรรมการ อวท. ประจำเดือน', 'ประชุมติดตามความคืบหน้าโครงการประจำเดือน', null, 'pending', 69, now() + interval '3 days', now() + interval '3 days', 'ห้องประชุมใหญ่ อาคาร 1', true),
-  ('กิจกรรมจิตอาสาทำความสะอาดวัด', 'กิจกรรมบำเพ็ญประโยชน์ร่วมกับชุมชน', (select id from public.departments where code = '3190100'), 'completed', 69, now() - interval '6 days', now() - interval '6 days', 'วัดในชุมชน', false),
-  ('ส่งเอกสารโครงการประจำภาคเรียน', 'กำหนดส่งเอกสารสรุปโครงการ', (select id from public.departments where code = '3190400'), 'cancelled', 69, now() - interval '90 days', now() - interval '90 days', 'ตึกบริหาร', false);
+  ('กิจกรรมจิตอาสาทำความสะอาดวัด', 'กิจกรรมบำเพ็ญประโยชน์ร่วมกับชุมชน', (select id from public.departments where code = '31901'), 'completed', 69, now() - interval '6 days', now() - interval '6 days', 'วัดในชุมชน', false),
+  ('ส่งเอกสารโครงการประจำภาคเรียน', 'กำหนดส่งเอกสารสรุปโครงการ', (select id from public.departments where code = '31904'), 'cancelled', 69, now() - interval '90 days', now() - interval '90 days', 'ตึกบริหาร', false);
 
 insert into public.projects (title, description, status, department_id) values
-  ('โครงการค่ายอาสาพัฒนาชุมชน', 'สรุปผลกิจกรรมค่ายอาสาพัฒนาชุมชนประจำปี', 'official', (select id from public.departments where code = '3190100')),
-  ('โครงการอบรมทักษะดิจิทัลสำหรับนักเรียน', 'โครงการอบรมทักษะดิจิทัลพื้นฐาน', 'teacher_review', (select id from public.departments where code = '3190500')),
-  ('โครงการซ่อมบำรุงอุปกรณ์ไฟฟ้าชุมชน', 'โครงการซ่อมบำรุงอุปกรณ์ไฟฟ้าให้ชุมชนรอบวิทยาลัย', 'draft', (select id from public.departments where code = '3190200'));
+  ('โครงการค่ายอาสาพัฒนาชุมชน', 'สรุปผลกิจกรรมค่ายอาสาพัฒนาชุมชนประจำปี', 'official', (select id from public.departments where code = '31901')),
+  ('โครงการอบรมทักษะดิจิทัลสำหรับนักเรียน', 'โครงการอบรมทักษะดิจิทัลพื้นฐาน', 'teacher_review', (select id from public.departments where code = '31905')),
+  ('โครงการซ่อมบำรุงอุปกรณ์ไฟฟ้าชุมชน', 'โครงการซ่อมบำรุงอุปกรณ์ไฟฟ้าให้ชุมชนรอบวิทยาลัย', 'draft', (select id from public.departments where code = '31902'));
 
 insert into public.documents (title, status) values
   ('รายงานสรุปกิจกรรมค่ายอาสา', 'draft'),

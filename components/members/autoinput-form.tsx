@@ -76,7 +76,14 @@ export function AutoInputForm({
 
   const parsed = useMemo(() => parseStudentId(email), [email]);
   const matchedDepartment = useMemo(
-    () => (parsed ? departments.find((dep) => dep.code === parsed.programCode) ?? null : null),
+    () =>
+      parsed
+        ? // The 5-digit department code, NOT parsed.programCode: the two
+          // digits after it are the student's group, so matching on all 7
+          // would miss every student outside group "00" and offer to create
+          // a department that already exists (0043).
+          departments.find((dep) => dep.code === parsed.departmentCode) ?? null
+        : null,
     [parsed, departments]
   );
 
@@ -95,7 +102,7 @@ export function AutoInputForm({
     if (!parsed) return;
     startAddDept(async () => {
       const result = await createDepartmentAction(lang, {
-        code: parsed.programCode,
+        code: parsed.departmentCode,
         nameTh: newNameTh,
         nameEn: newNameEn,
       });
@@ -140,6 +147,8 @@ export function AutoInputForm({
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
             <DetectedValue label={d.yearLabel} value={parsed.year} />
             <DetectedValue label={d.programCodeLabel} value={parsed.programCode} />
+            <DetectedValue label={d.departmentCodeLabel} value={parsed.departmentCode} />
+            <DetectedValue label={d.groupCodeLabel} value={parsed.groupCode} />
             <DetectedValue label={d.studentNumberLabel} value={parsed.studentNumber} />
             <DetectedValue label={d.studentIdLabel} value={parsed.studentId} />
             {/* ปวช./ปวส. comes from รหัสวิชา's first digit. An unrecognised
@@ -164,7 +173,7 @@ export function AutoInputForm({
               <p className="text-sm font-medium text-foreground">{d.addDepartmentTitle}</p>
               <FormField name="newDepartmentCode">
                 <FormLabel>{d.departmentCodeLabel}</FormLabel>
-                <Input value={parsed.programCode} readOnly className="font-mono" />
+                <Input value={parsed.departmentCode} readOnly className="font-mono" />
               </FormField>
               <FormField name="newDepartmentNameTh">
                 <FormLabel>{d.departmentNameThLabel}</FormLabel>
