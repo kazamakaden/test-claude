@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { toRole } from "@/types/auth";
 import { createClient } from "@/lib/supabase/server";
 import { signedInLandingTarget } from "@/lib/auth/require-role";
 import { isLocale, defaultLocale } from "@/lib/i18n/config";
@@ -102,6 +103,6 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     return NextResponse.redirect(new URL(`/${lang}/set-password`, request.url));
   }
 
-  const target = signedInLandingTarget(profile?.role ?? "guest", lang);
+  const target = signedInLandingTarget(toRole(profile?.role), lang);
   return NextResponse.redirect(new URL(target, request.url));
 }

@@ -42,10 +42,8 @@
   },
   "roles": {
     "guest": "Guest",
-    "pending": "Pending Approval",
-    "student": "AFT Student/Member",
-    "teacher": "Teacher",
-    "aft_teacher": "AFT Advisor Teacher",
+    "student": "Student",
+    "teacher": "AFT Student / Teacher",
     "admin": "Administrator"
   },
   "auth": {
@@ -107,10 +105,6 @@
     "orgName": "Association of Future Thai Professionals",
     "collegeName": "Udon Thani Technical College",
     "copyright": "All rights reserved"
-  },
-  "pending": {
-    "title": "Your account is awaiting approval",
-    "description": "You're signed in, but an administrator still needs to approve your account and assign your role before you can use the rest of the dashboard. Contact an administrator if this takes longer than expected."
   },
   "dashboard": {
     "welcomeTitle": "Welcome",
@@ -333,19 +327,6 @@
         "unknown": "Something went wrong. Please try again."
       }
     },
-    "revoke": {
-      "revokeButton": "Stop approve",
-      "title": "Stop approving this member?",
-      "description": "\"{name}\" will be sent back to pending and lose access until an administrator approves them again. This does not delete their account.",
-      "cancel": "Cancel",
-      "confirmRevoke": "Stop approve",
-      "revoked": "Member's approval was revoked",
-      "errors": {
-        "selfRevoke": "You cannot revoke your own approval",
-        "adminRevoke": "Administrator accounts cannot be revoked",
-        "unknown": "Something went wrong. Please try again."
-      }
-    },
     "edit": {
       "title": "Edit member",
       "editButton": "Edit",
@@ -363,7 +344,6 @@
       "saved": "Member updated",
       "errors": {
         "invalidRole": "Please choose a role",
-        "forbiddenRole": "An AFT teacher cannot assign this role. Please contact an administrator.",
         "invalidStudentId": "Student ID format is invalid",
         "studentIdTaken": "This student ID is already in use",
         "fullNameTooLong": "Full name is too long (100 characters max)",
@@ -642,7 +622,7 @@
   "aft11": {
     "title": "11 Good 11 Skilled — AFT",
     "empty": "No content yet",
-    "emptyDescription": "An administrator or อาจารย์ อวท. can add content below.",
+    "emptyDescription": "An administrator or teacher can add content below.",
     "editor": {
       "title": "Edit content",
       "titleThLabel": "Title (Thai)",
@@ -664,7 +644,7 @@
   "profile": {
     "title": "Profile",
     "description": "Your account information",
-    "readOnlyNote": "Only an administrator or อาจารย์ อวท. can change these, via the Members page.",
+    "readOnlyNote": "Only an administrator or an อวท. officer can change these, from the members page.",
     "notSet": "Not set",
     "fullNameLabel": "Full name",
     "emailLabel": "Email",
@@ -732,26 +712,6 @@
         "saveFailed": "Couldn't save the notification subscription",
         "unknown": "Something went wrong. Please try again."
       }
-    }
-  },
-  "approvals": {
-    "title": "Account Approvals",
-    "description": "Everyone who signs in with an @udontech.ac.th address waits for approval until an administrator assigns them a role. The list below is everyone currently waiting.",
-    "roleLabel": "Role",
-    "departmentLabel": "Department (optional)",
-    "noDepartment": "No department",
-    "approve": "Approve",
-    "approving": "Approving...",
-    "approved": "Account approved",
-    "columnStudentId": "Student ID",
-    "signedUpAt": "First signed in",
-    "empty": "No accounts awaiting approval",
-    "errors": {
-      "invalidRole": "Please choose a role",
-      "forbiddenRole": "An AFT teacher cannot assign this role. Please contact an administrator.",
-      "unknown": "Something went wrong. Please try again.",
-      "invalidPosition": "Invalid position.",
-      "forbiddenPosition": "Only an administrator can assign a position."
     }
   },
   "positions": {

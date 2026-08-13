@@ -1,13 +1,6 @@
 import type { Role } from "@/types/auth";
 
-export interface PendingProfile {
-  id: string;
-  email: string;
-  fullName: string | null;
-  avatarUrl: string | null;
-  studentId: string | null;
-  createdAt: string;
-}
+
 
 /**
  * Task 3: the /profile page's own read. Deliberately has NO citizen_id

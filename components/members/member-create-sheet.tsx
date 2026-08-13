@@ -33,8 +33,8 @@ const NO_DEPARTMENT = "__none__";
 const NO_CLUB = "__none__";
 // Unlike member-edit-sheet.tsx's assignableRoles, this is not narrowed by
 // actor role — createMemberAction is gated on member:manage, which only
-// admin holds, so aft_teacher is always a legal choice here.
-const ASSIGNABLE_ROLES = ["student", "teacher", "aft_teacher"] as const;
+// `admin` is deliberately absent — granting it stays out-of-band.
+const ASSIGNABLE_ROLES = ["student", "teacher"] as const;
 
 // See the identical note in member-edit-sheet.tsx: useFormStatus only
 // tracks the <form> it's a DOM descendant of.

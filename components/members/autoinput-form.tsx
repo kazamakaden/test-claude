@@ -25,7 +25,7 @@ import type { Dictionary } from "@/types/i18n";
 import type { Club, Department } from "@/types/members";
 
 const NO_CLUB = "__none__";
-const ASSIGNABLE_ROLES = ["student", "teacher", "aft_teacher"] as const;
+const ASSIGNABLE_ROLES = ["student", "teacher"] as const;
 
 function SubmitButton({ label, pendingLabel }: { label: string; pendingLabel: string }) {
   const { pending } = useFormStatus();

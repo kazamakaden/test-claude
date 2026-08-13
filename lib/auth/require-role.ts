@@ -5,14 +5,18 @@ import { canAs, type Permission } from "@/lib/auth/permissions";
 import type { Locale } from "@/lib/i18n/config";
 import type { Role } from "@/types/auth";
 
-/** Where a viewer without `permission` gets sent — signed-in-but-unapproved goes to the waiting page, not back to a login they already used. */
-function deniedRedirectTarget(role: Role, lang: Locale): string {
-  return role === "pending" ? `/${lang}/pending` : `/${lang}/login`;
+/**
+ * Where a viewer without `permission` gets sent. Always /login now: with the
+ * `pending` role gone there is no signed-in-but-unapproved state to route to
+ * a waiting page — anyone signed in already holds a real role.
+ */
+function deniedRedirectTarget(_role: Role, lang: Locale): string {
+  return `/${lang}/login`;
 }
 
-/** Where an already-signed-in viewer belongs instead of a guest-facing page (homepage, login, signup) — mirrors deniedRedirectTarget's pending/dashboard split. */
-export function signedInLandingTarget(role: Role, lang: Locale): string {
-  return role === "pending" ? `/${lang}/pending` : `/${lang}/dashboard`;
+/** Where an already-signed-in viewer belongs instead of a guest-facing page (homepage, login, signup). */
+export function signedInLandingTarget(_role: Role, lang: Locale): string {
+  return `/${lang}/dashboard`;
 }
 
 /**

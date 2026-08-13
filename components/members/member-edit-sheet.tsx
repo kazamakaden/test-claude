@@ -33,11 +33,10 @@ const NO_DEPARTMENT = "__none__";
 // a real value for "none". actions/members.ts maps it back to null.
 const NO_POSITION = "__none__";
 const NO_CLUB = "__none__";
-// Same construction as components/approvals/approve-user-card.tsx's
-// ASSIGNABLE_ROLES — granting aft_teacher itself stays admin-only
-// (prevent_role_self_escalation, 0024), so a non-admin actor never even
-// sees it as a choice.
-const ASSIGNABLE_ROLES = ["student", "teacher", "aft_teacher"] as const;
+// `admin` stays out of every UI — promote in the database, out of band
+// (prevent_role_self_escalation, 0046). `guest` is not a storable member
+// role. That leaves exactly these two.
+const ASSIGNABLE_ROLES = ["student", "teacher"] as const;
 
 // useFormStatus only reports the correct pending state for a DOM descendant
 // of the <form> it tracks — a `form="id"`-wired button outside the tree
@@ -75,8 +74,9 @@ export function MemberEditSheet({
   );
   const d = dict.members.edit;
   const roleOptions = dict.roles;
-  const assignableRoles =
-    actorRole === "admin" ? ASSIGNABLE_ROLES : ASSIGNABLE_ROLES.filter((r) => r !== "aft_teacher");
+  // Both entries are assignable by anyone who can reach this form
+  // (admin or a ตำแหน่ง holder), so no actor-based narrowing is needed.
+  const assignableRoles = ASSIGNABLE_ROLES;
 
   const errorMessage = state && !state.ok ? d.errors[state.messageKey] : undefined;
 
