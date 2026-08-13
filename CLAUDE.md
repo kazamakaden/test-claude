@@ -1,9 +1,22 @@
 # CLAUDE.md — AFT UDONTECH Dashboard
 
-## 0. Phase 1 Status (as of 2026-08-01)
+## 0. Phase 1 Status (as of 2026-08-13)
 
 Tracked against the §30 build plan. Grouped by done vs. remaining so status is
 scannable at a glance — each item still tags its §30.x subsection for detail.
+
+> **§0 is a running log, not a spec.** Entries are accurate for when they were
+> written and are NOT revised afterwards. Two subjects have since changed
+> underneath older entries — read the authoritative section instead:
+>
+> * **Roles and permissions → §6.** `pending` and `aft_teacher` no longer
+>   exist (removed in `0046`; a CHECK constraint refuses them). `aft`
+>   (นักศึกษา อวท.) and an อวท. ตำแหน่ง axis were added. Any older entry
+>   describing `pending`, `aft_teacher`, `approved_accounts` or `/approvals`
+>   as current is describing removed machinery.
+> * **Student IDs and สาขา → §14.** Department codes are the real OVEC list
+>   and สาขา is resolved automatically at sign-in; the codes `31901`–`31906`
+>   that appear in older entries were invalid demo data, deleted in `0050`.
 
 ### ✔ Done
 
@@ -2167,6 +2180,83 @@ Verified in a real browser over CDP at 1280px in both themes: logo width
 starts at the same x in both. The rebuilt file is also slightly smaller on
 disk (517KB vs 527KB). `npm run check:responsive` 72/72, lint and build clean.
 
+**Role model rebuilt twice, and an อวท. ตำแหน่ง axis added (migrations
+`0044`–`0049`). §6 is the current contract; read it rather than the history
+below, which records how it got here.**
+
+`0044`/`0045` added `member_position` (8 offices: ประธาน, รองประธาน, ปฏิคม,
+นายทะเบียน, ประชาสัมพันธ์, เลขานุการ, ครู→`advisor`, กรรมการ) with
+`prevent_position_change` making assignment admin-only. At that point holding
+an office also granted `member:approve`, via a `canAs(actor, permission)`
+predicate and a `profiles_update_officer` policy.
+
+`0046`/`0047` then collapsed the roles: `pending` went away (signup no longer
+needs approval — any `@udontech.ac.th` Google account is in immediately) and
+`aft_teacher` went away, its authority redistributed across all 18 policies
+that named it. **PostgreSQL cannot drop an enum value in place**, so both
+labels survive in `user_role` and a `profiles_role_allowed` CHECK is what
+actually prevents storing them; `toRole()` narrows at the DB boundary and
+fails closed to `guest`.
+
+`0048`/`0049` re-split what `0046` had merged: `aft` (นักศึกษา อวท.) became
+its own role alongside `teacher` (ครู), sharing **one** permission list. The
+officer axis was then removed entirely — `canAs`, `Actor`, `getActor`,
+`officerPermissions`, `profiles_update_officer` and `current_position()` are
+all gone; `can(role, permission)` is the whole predicate again and member
+editing is admin-only. In its place `sync_role_with_position()` makes a
+ตำแหน่ง **set** the role: `student` → `aft` on assignment, back on clearing,
+with `teacher`/`admin` deliberately untouched since `advisor` (ครู) is itself
+one of the eight.
+
+Proven live under real JWT claims with `set local role authenticated`, not
+service role: the full sync matrix including teacher+advisor staying
+`teacher`; `aft` can submit drafts, create activities and recommend but
+cannot approve to `official` or edit a member; a student, an `aft` and a
+`teacher` each refused when granting a ตำแหน่ง; writing `role='pending'` or
+`'aft_teacher'` refused by the CHECK. All test accounts torn down.
+
+**Three real bugs found while doing it**, each fixed rather than worked
+around: `projects_update_teacher_recommend` tested `= 'teacher'` exactly, so
+an อวท. member could submit a draft and then be unable to move it forward;
+`updateMember` had no `position` field and silently dropped it, making the
+whole ตำแหน่ง UI non-functional (TypeScript could not catch it — excess-property
+checks do not apply to a variable); and book creation was gated on
+`workspace:access`, which a read-only student holds, so `document:draft:submit`
+was added and the RLS narrowed to match.
+
+**Real OVEC department codes, and สาขา auto-filled at sign-in
+(`0050`/`0051`).** The seeded codes `31901`–`31906` were invented demo data
+and every one was invalid — OVEC numbering is a qualification digit (`2` ปวช.,
+`3` ปวส., `4` ทล.บ.) plus a 4-digit programme id, with no `31xxx` block.
+`0050` loads the 29 official codes, remaps the demo activities/projects, and
+deletes the invalid rows in that order so no FK dangles. Profiles were
+**cleared rather than remapped**, because `student_id` is authoritative:
+remapping `66209010020` the way its activities went would have put a ปวช.
+student into the ปวส. IT department.
+
+`0051` makes `handle_new_user()` resolve `departments.code = substring(
+local_part, 3, 5)` as a scalar subquery, so an unregistered code yields NULL
+and the sign-in still succeeds. Verified live: `66209010021` → `20901` ปวช.
+IT, `69309010015` → `30901` ปวส. IT, `69401010007` → `40101` ทล.บ.,
+`69319010099` (invalid `31901`) → signs in with no สาขา, staff address → no
+student_id at all. `lib/student-id.ts` gained ทล.บ. as a third level.
+
+**Note on `31901`:** it is not an OVEC code (ปวส. IT is `30901`). Two
+Supabase-created admin accounts carry it and resolve to no สาขา, which is
+correct — they are not students.
+
+**Corrections to this file's own earlier claims**, made here rather than left
+to be rediscovered:
+
+* Everything describing `approved_accounts`, the `pending` waiting-room and
+  the `/approvals` page as *current* is **historical only**. The table is
+  dropped, the role is unstorable, and `/approvals` is a bare `redirect()` to
+  `/members` kept solely because `0036`'s notification rows link to it.
+* Every `aft_teacher` permission description above is superseded by §6.
+* §6 itself previously attributed "submit project drafts / QR attendance /
+  digital signature" to **Student**. That was written before `aft` existed
+  and is now wrong: a plain `student` is read-only.
+
 ### ❌ Remaining
 
 * **RLS policy performance (`auth_rls_initplan`, `multiple_permissive_policies`)**
@@ -2182,7 +2272,7 @@ disk (517KB vs 527KB). `npm run check:responsive` 72/72, lint and build clean.
   security-critical access-control layer itself — the risk of introducing an
   actual RLS gap while chasing a query-planner optimization outweighs the
   current benefit. A correct fix needs its own pass: rewrite each policy,
-  then re-run the full guest/student/teacher/aft_teacher/admin × table
+  then re-run the full guest/student/aft/teacher/admin × table
   verification matrix this project has already established the pattern for
   (see the `0005`/`0008` citizen_id and attendance column-grant proofs
   above) before trusting it.
@@ -2472,40 +2562,48 @@ Guest = read-only official content.
 
 ## 6. AUTHORIZATION
 
-### Guest
+Two independent axes: a **role** (what tier of system access you have) and an
+**อวท. ตำแหน่ง** (what office you hold). They are not ranks of one another.
 
-Read official/public content only.
+### Roles
 
-### Student
+| Role | Thai | Can do |
+|---|---|---|
+| `guest` | ผู้เยี่ยมชม | Read official/public content only |
+| `student` | นักเรียน/นักศึกษา | **Read-only.** Signed in: own profile, notifications, and which activities they have missed |
+| `aft` | **นักศึกษา อวท.** | Student + submit project drafts, QR attendance, digital signature, review/comment/recommend, manage activities and site content |
+| `teacher` | **ครู** | **Identical permissions to `aft`** |
+| `admin` | ผู้ดูแลระบบ | Everything, incl. approving projects/documents and member management |
 
-Can:
+**A plain `student` cannot submit drafts, take QR attendance or sign
+documents.** Those belong to นักศึกษา อวท. and ครู. An earlier version of this
+section attributed them to "Student", written before `aft` existed — that was
+wrong and is corrected here.
 
-* submit project drafts
-* view activities
-* QR attendance
-* digital signature
-* notifications
-* profile
+`aft` and `teacher` share ONE permission list in `lib/auth/permissions.ts`
+(`organisationPermissions`), referenced twice. They are separate roles so
+reporting can tell an อวท. student member from staff, not so they differ in
+power. If they ever must diverge, that should be a deliberate split of that
+constant.
 
-Cannot:
+Approval sits **above** whoever submits: `aft`/`teacher` submit and recommend,
+`admin` approves to `official`. That is what keeps "send a project and it stays
+a draft" true.
 
-* approve
-* delete
-* manage users
+### ตำแหน่ง (8 offices)
 
-### Teacher
+ประธาน · รองประธาน · ปฏิคม · นายทะเบียน · ประชาสัมพันธ์ · เลขานุการ · ครู ·
+กรรมการ — `member_position` enum. `null` = general member.
 
-Student permissions +
+Two rules, both enforced in the database rather than the UI:
 
-* review drafts
-* comment
-* recommend
-
-Cannot manage system.
-
-### Administrator
-
-Full management access.
+* **A ตำแหน่ง SETS the role.** `sync_role_with_position()` promotes
+  `student` → `aft` when one is assigned, and demotes back when cleared.
+  `teacher` and `admin` are deliberately left alone — `advisor` (ครู) is
+  itself one of the eight, precisely so a real teacher can hold an office.
+* **Assigning a ตำแหน่ง is therefore a privilege grant**, so
+  `prevent_position_change` restricts it to `admin`. Holding one grants
+  nothing by itself; `aft` is never assignable directly.
 
 Always enforce permissions with **Supabase RLS**, not only UI checks.
 
@@ -2671,23 +2769,48 @@ Do not trust client-side validation alone.
 
 ## 14. STUDENT ID
 
-Example:
+A student's college email local part **is** their student ID.
 
 ```text
-69319010015
+66209010020@udontech.ac.th
+66      20901        00       20
+└ year  └ programme  └ group  └ running number
+2       5 digits     2        2+ digits
 ```
 
-Validation:
+Validation: `^[0-9]{11,}$` — 11 **or more**, since the running number grows.
 
-```regex
-^[0-9]{11,}$
-```
+Parse (`lib/student-id.ts`, isomorphic — one implementation, used by both the
+client form and the server):
 
-Parse:
+* **Year** = first 2 digits (`66`) — also drives the generated
+  `profiles.academic_year`
+* **Programme code** = next **5** digits (`20901`) — the OVEC (สอศ.)
+  `รหัสสาขาวิชา`, matched against `departments.code`
+* **Group** = next 2 (`00`) — the student's classroom index
+* **Running number** = whatever remains (`20`)
 
-* Year = `69`
-* Department = `3190100`
-* Number = `15`
+The middle 7 digits together are the `รหัสวิชา` as usually written, but only
+the first **five** identify the สาขา. Treating all 7 as the department is the
+bug 0043 fixed — it made every student outside group `00` look like they
+belonged to a สาขา that did not exist.
+
+**The first digit of the programme code is the qualification:**
+
+| Digit | Level | Example |
+|---|---|---|
+| `2` | ปวช. — ประกาศนียบัตรวิชาชีพ | `20901` เทคโนโลยีสารสนเทศ |
+| `3` | ปวส. — ประกาศนียบัตรวิชาชีพชั้นสูง | `30901` เทคโนโลยีสารสนเทศ |
+| `4` | ทล.บ. — เทคโนโลยีบัณฑิต | `40101` เทคโนโลยีเครื่องยนต์ |
+
+Any other digit yields an unknown level — deliberately **not** a parse
+failure, so a future qualification can never block admitting a real student.
+
+**สาขา is resolved automatically at sign-in.** `handle_new_user()` looks the
+5-digit code up in `departments` and fills `profiles.department_id`. An
+unregistered code yields NULL and the sign-in still succeeds — a สาขา the
+college has not registered must never lock out a student. Admins register new
+codes inline from `/members` → กรอกอัตโนมัติ, which pre-fills the code.
 
 Citizen ID:
 
@@ -2805,21 +2928,23 @@ Never rely on UI permission checks for security.
 Core tables:
 
 ```text
-profiles
-roles
-departments
-clubs
-activities
-attendance
-projects
-project_drafts
-documents
-document_drafts
-notifications
-audit_logs
-qr_sessions
-signature_records
+profiles            departments        clubs
+activities          attendance         projects
+documents           document_drafts    signature_records
+books               content_blocks
+notifications       notification_reads push_subscriptions
 ```
+
+Not built yet (§30.10): `qr_sessions`, `audit_logs`.
+
+Deviations from the original list, deliberate and already shipped:
+
+* `roles` was never created — role is the `user_role` enum on `profiles`,
+  with `member_position` as a second, independent column (§6).
+* `project_drafts` was never created — a project's stage is
+  `projects.status`, the same shape `document_drafts` uses for its half.
+* `approved_accounts` existed briefly as a signup allow-list and was
+  **dropped** when approval-on-signup was removed; nothing reads it.
 
 Use foreign keys, indexes and RLS appropriately.
 
