@@ -370,6 +370,37 @@
         "classNameTooLong": "Class is too long (50 characters max)",
         "unknown": "Something went wrong. Please try again."
       }
+    },
+    "autoinput": {
+      "title": "Auto input",
+      "description": "Type a student email; the year, program code and number are split out automatically.",
+      "emailLabel": "Student email",
+      "emailPlaceholder": "69319010015@udontech.ac.th",
+      "detected": "Detected",
+      "yearLabel": "Academic year",
+      "programCodeLabel": "Program code",
+      "studentNumberLabel": "Student number",
+      "studentIdLabel": "Student ID",
+      "notStudentEmail": "This is not a student ID format (needs at least 11 digits).",
+      "departmentMatched": "This program code is already registered.",
+      "departmentNew": "This program code is new — add it below.",
+      "addDepartmentTitle": "Add a new program code",
+      "departmentCodeLabel": "Program code",
+      "departmentNameThLabel": "Department name (Thai)",
+      "departmentNameEnLabel": "Department name (English)",
+      "addDepartment": "Add program code",
+      "addingDepartment": "Adding...",
+      "departmentAdded": "Program code added",
+      "submit": "Create account",
+      "backToMembers": "Back to members",
+      "errors": {
+        "invalidDepartmentCode": "Program code must be exactly 7 digits.",
+        "departmentNameRequired": "Department name is required.",
+        "departmentNameTooLong": "Department name is too long.",
+        "departmentCodeTaken": "That program code already exists.",
+        "notAllowed": "You do not have permission to do this.",
+        "unknown": "Something went wrong. Please try again."
+      }
     }
   },
   "activities": {

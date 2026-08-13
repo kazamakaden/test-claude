@@ -2,8 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import { requirePermission } from "@/lib/auth/require-role";
-import { updateMemberSchema, createMemberSchema } from "@/schemas/members";
-import { updateMember, createMember, deleteMember } from "@/services/members";
+import { updateMemberSchema, createMemberSchema, createDepartmentSchema } from "@/schemas/members";
+import { updateMember, createMember, deleteMember, createDepartment } from "@/services/members";
 import { revokeProfileApproval } from "@/services/profiles";
 import { createClient } from "@/lib/supabase/server";
 import { isLocale, defaultLocale, type Locale } from "@/lib/i18n/config";
@@ -249,4 +249,69 @@ export async function revokeMemberAction(lang: Locale, id: string): Promise<Revo
   revalidatePath(`/${lang}/members`);
   revalidatePath(`/${lang}/approvals`);
   return { ok: true };
+}
+
+type CreateDepartmentErrorKey =
+  | "invalidDepartmentCode"
+  | "departmentNameRequired"
+  | "departmentNameTooLong"
+  | "departmentCodeTaken"
+  | "notAllowed"
+  | "unknown";
+
+export type CreateDepartmentResult =
+  | { ok: true; department: { id: string; code: string; nameTh: string; nameEn: string } }
+  | { ok: false; messageKey: CreateDepartmentErrorKey };
+
+function isCreateDepartmentErrorKey(v: unknown): v is CreateDepartmentErrorKey {
+  return (
+    v === "invalidDepartmentCode" ||
+    v === "departmentNameRequired" ||
+    v === "departmentNameTooLong" ||
+    v === "departmentCodeTaken" ||
+    v === "notAllowed" ||
+    v === "unknown"
+  );
+}
+
+/**
+ * Adds a new รหัสวิชา from /members/autoinput.
+ *
+ * `member:manage` (admin), not `member:approve` — creating a department
+ * reshapes the directory for every user, so it belongs with account management
+ * rather than with approving an individual member. Re-checked here regardless
+ * of what the page rendered, and again by departments_insert_admin (0042) at
+ * the database.
+ *
+ * Plain-argument signature rather than FormData: this is submitted from the
+ * autoinput form's own client state, which is JavaScript-only by nature (the
+ * whole feature is live parsing as you type), the same justified deviation
+ * actions/push.ts already documents.
+ */
+export async function createDepartmentAction(
+  lang: Locale,
+  input: unknown
+): Promise<CreateDepartmentResult> {
+  const safeLang: Locale = isLocale(lang) ? lang : defaultLocale;
+  await requirePermission("member:manage", safeLang);
+
+  const parsed = createDepartmentSchema.safeParse(input);
+  if (!parsed.success) {
+    const rawKey = parsed.error.issues[0]?.message;
+    return { ok: false, messageKey: isCreateDepartmentErrorKey(rawKey) ? rawKey : "unknown" };
+  }
+
+  const result = await createDepartment(parsed.data);
+  if (!result.ok) {
+    return {
+      ok: false,
+      messageKey: isCreateDepartmentErrorKey(result.error) ? result.error : "unknown",
+    };
+  }
+
+  // Both pages render a department filter built from this table.
+  revalidatePath(`/${safeLang}/members`);
+  revalidatePath(`/${safeLang}/activities`);
+
+  return { ok: true, department: result.department };
 }
