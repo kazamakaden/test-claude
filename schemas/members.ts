@@ -156,3 +156,24 @@ export const createDepartmentSchema = z.object({
 });
 
 export type CreateDepartmentInput = z.infer<typeof createDepartmentSchema>;
+
+/**
+ * Renaming a สาขา. No `code` field, deliberately — a member's สาขา is resolved
+ * by matching that code against their student ID (0051), so editing it would
+ * silently detach everyone who resolves through it. Fixing a wrong code is a
+ * delete-and-re-add.
+ */
+export const updateDepartmentSchema = z.object({
+  id: z.uuid(),
+  nameTh: z
+    .string()
+    .trim()
+    .min(1, { message: "departmentNameRequired" })
+    .max(100, { message: "departmentNameTooLong" }),
+  nameEn: z
+    .string()
+    .trim()
+    .min(1, { message: "departmentNameRequired" })
+    .max(100, { message: "departmentNameTooLong" }),
+});
+export type UpdateDepartmentInput = z.infer<typeof updateDepartmentSchema>;

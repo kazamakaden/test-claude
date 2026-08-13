@@ -7,6 +7,18 @@ export interface Department {
   nameEn: string;
 }
 
+/**
+ * A สาขา plus how much is attached to it. The counts exist to answer "can this
+ * be deleted, and if not why" — every FK into departments is NO ACTION, so the
+ * database refuses the delete regardless; these turn that refusal into a
+ * sentence the admin can act on.
+ */
+export interface DepartmentUsage extends Department {
+  memberCount: number;
+  activityCount: number;
+  projectCount: number;
+}
+
 export interface Club {
   id: string;
   nameTh: string;

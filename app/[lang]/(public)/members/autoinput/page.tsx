@@ -2,8 +2,9 @@ import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { getDictionary } from "@/lib/i18n/get-dictionary";
 import { requirePermission } from "@/lib/auth/require-role";
-import { getDepartments, getClubs } from "@/services/members";
+import { getDepartments, getClubs, getDepartmentsWithUsage } from "@/services/members";
 import { AutoInputForm } from "@/components/members/autoinput-form";
+import { DepartmentsTable } from "@/components/members/departments-table";
 import type { Locale } from "@/lib/i18n/config";
 
 /**
@@ -23,15 +24,16 @@ export default async function AutoInputPage({
 
   // Both already fail soft to [] via tryCreateClient, so an unconfigured or
   // unreachable Supabase renders an empty picker rather than crashing the page.
-  const [dict, departments, clubs] = await Promise.all([
+  const [dict, departments, clubs, departmentUsage] = await Promise.all([
     getDictionary(lang),
     getDepartments(),
     getClubs(),
+    getDepartmentsWithUsage(),
   ]);
   const d = dict.members.autoinput;
 
   return (
-    <div className="mx-auto flex max-w-2xl flex-col gap-6 px-4 py-8 sm:px-6 lg:px-8">
+    <div className="mx-auto flex max-w-4xl flex-col gap-6 px-4 py-8 sm:px-6 lg:px-8">
       <div className="flex flex-col gap-2">
         <Link
           href={`/${lang}/members`}
@@ -47,6 +49,13 @@ export default async function AutoInputPage({
       </div>
 
       <AutoInputForm departments={departments} clubs={clubs} lang={lang} dict={dict} />
+
+      <div className="divider-metal" />
+
+      {/* The สาขา table lives here rather than on /members: this is the page
+          that already explains the ID format, and registering a new รหัสสาขา
+          is part of the same job as admitting the student who needs it. */}
+      <DepartmentsTable departments={departmentUsage} lang={lang} dict={dict} />
     </div>
   );
 }

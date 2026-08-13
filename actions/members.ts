@@ -2,8 +2,20 @@
 
 import { revalidatePath } from "next/cache";
 import { requirePermission } from "@/lib/auth/require-role";
-import { updateMemberSchema, createMemberSchema, createDepartmentSchema } from "@/schemas/members";
-import { updateMember, createMember, deleteMember, createDepartment } from "@/services/members";
+import {
+  updateMemberSchema,
+  createMemberSchema,
+  createDepartmentSchema,
+  updateDepartmentSchema,
+} from "@/schemas/members";
+import {
+  updateMember,
+  createMember,
+  deleteMember,
+  createDepartment,
+  updateDepartment,
+  deleteDepartment,
+} from "@/services/members";
 import { createClient } from "@/lib/supabase/server";
 import { isLocale, defaultLocale, type Locale } from "@/lib/i18n/config";
 
@@ -228,6 +240,7 @@ export async function deleteMemberAction(lang: Locale, id: string): Promise<Dele
 
 type CreateDepartmentErrorKey =
   | "invalidDepartmentCode"
+  | "departmentInUse"
   | "departmentNameRequired"
   | "departmentNameTooLong"
   | "departmentCodeTaken"
@@ -241,6 +254,7 @@ export type CreateDepartmentResult =
 function isCreateDepartmentErrorKey(v: unknown): v is CreateDepartmentErrorKey {
   return (
     v === "invalidDepartmentCode" ||
+    v === "departmentInUse" ||
     v === "departmentNameRequired" ||
     v === "departmentNameTooLong" ||
     v === "departmentCodeTaken" ||
@@ -289,4 +303,62 @@ export async function createDepartmentAction(
   revalidatePath(`/${safeLang}/activities`);
 
   return { ok: true, department: result.department };
+}
+
+/**
+ * Rename a สาขา. Admin-only, re-checked here and enforced again by
+ * departments_update_admin (0052) — the table hiding the control is UX (§19).
+ * The 5-digit code is not editable; see updateDepartmentSchema for why.
+ */
+export async function updateDepartmentAction(
+  lang: Locale,
+  input: unknown
+): Promise<CreateDepartmentResult | { ok: true }> {
+  const safeLang: Locale = isLocale(lang) ? lang : defaultLocale;
+  await requirePermission("member:manage", safeLang);
+
+  const parsed = updateDepartmentSchema.safeParse(input);
+  if (!parsed.success) {
+    const rawKey = parsed.error.issues[0]?.message;
+    return { ok: false, messageKey: isCreateDepartmentErrorKey(rawKey) ? rawKey : "unknown" };
+  }
+
+  const result = await updateDepartment(parsed.data);
+  if (!result.ok) {
+    return {
+      ok: false,
+      messageKey: isCreateDepartmentErrorKey(result.error) ? result.error : "unknown",
+    };
+  }
+
+  // Both pages render a สาขา filter built from this table.
+  revalidatePath(`/${safeLang}/members`);
+  revalidatePath(`/${safeLang}/activities`);
+  return { ok: true };
+}
+
+/**
+ * Remove a สาขา. Admin-only. The count check is for a useful message only —
+ * every FK into departments is NO ACTION, so the database refuses regardless
+ * and deleteDepartment still maps 23503 to "departmentInUse" for the race
+ * between checking and deleting.
+ */
+export async function deleteDepartmentAction(
+  lang: Locale,
+  id: string
+): Promise<CreateDepartmentResult | { ok: true }> {
+  const safeLang: Locale = isLocale(lang) ? lang : defaultLocale;
+  await requirePermission("member:manage", safeLang);
+
+  const result = await deleteDepartment(id);
+  if (!result.ok) {
+    return {
+      ok: false,
+      messageKey: isCreateDepartmentErrorKey(result.error) ? result.error : "unknown",
+    };
+  }
+
+  revalidatePath(`/${safeLang}/members`);
+  revalidatePath(`/${safeLang}/activities`);
+  return { ok: true };
 }

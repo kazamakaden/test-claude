@@ -384,7 +384,8 @@
         "departmentNameTooLong": "Department name is too long.",
         "departmentCodeTaken": "That department already exists.",
         "notAllowed": "You do not have permission to do this.",
-        "unknown": "Something went wrong. Please try again."
+        "unknown": "Something went wrong. Please try again.",
+        "departmentInUse": "This department still has members, activities or projects attached and cannot be deleted."
       },
       "levelLabel": "Level",
       "levels": {
@@ -397,7 +398,40 @@
     "positionLabel": "Position",
     "noPosition": "General member",
     "positionAdminOnly": "Only an administrator can assign a position.",
-    "positionHint": "Assigning a position automatically makes this member นักศึกษา อวท.; clearing it returns them to Student."
+    "positionHint": "Assigning a position automatically makes this member นักศึกษา อวท.; clearing it returns them to Student.",
+    "departments": {
+      "title": "Department table",
+      "description": "Every รหัสสาขา the system knows. A student email is matched against these automatically.",
+      "patternTitle": "Student ID pattern",
+      "patternYear": "Year",
+      "patternSubject": "Department",
+      "patternNumber": "Number",
+      "patternNote": "Example 66209010020 = year 66 + department 20901 + number 0020",
+      "columnCode": "Code",
+      "columnNameTh": "Name (Thai)",
+      "columnNameEn": "Name (English)",
+      "columnMembers": "Members",
+      "columnActions": "Actions",
+      "addTitle": "Add a department",
+      "addHint": "Enter the 5-digit code and both names, then add.",
+      "add": "Add department",
+      "adding": "Adding…",
+      "added": "Department added",
+      "edit": "Edit",
+      "save": "Save",
+      "saving": "Saving…",
+      "saved": "Saved",
+      "cancel": "Cancel",
+      "delete": "Delete",
+      "deleting": "Deleting…",
+      "deleted": "Department deleted",
+      "deleteTitle": "Delete this department?",
+      "deleteDescription": "This cannot be undone. A department with members or activities attached cannot be deleted.",
+      "deleteBlocked": "Cannot delete — still in use",
+      "codeLocked": "The code cannot be changed: it is what matches students to this department.",
+      "empty": "No departments yet",
+      "inUse": "{count} linked"
+    }
   },
   "activities": {
     "description": "Search and filter upcoming and past activities",
