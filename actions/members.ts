@@ -10,6 +10,7 @@ import { isLocale, defaultLocale, type Locale } from "@/lib/i18n/config";
 type UpdateMemberErrorKey =
   | "invalidRole"
   | "invalidPosition"
+  | "forbidden"
   | "forbiddenPosition"
   | "invalidStudentId"
   | "studentIdTaken"
@@ -23,6 +24,7 @@ function isUpdateMemberErrorKey(value: string | undefined): value is UpdateMembe
   return (
     value === "invalidRole" ||
     value === "invalidPosition" ||
+    value === "forbidden" ||
     value === "forbiddenPosition" ||
     value === "invalidStudentId" ||
     value === "studentIdTaken" ||
