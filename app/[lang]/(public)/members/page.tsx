@@ -1,3 +1,6 @@
+import Link from "next/link";
+import { Wand2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { Suspense } from "react";
 import { getDictionary } from "@/lib/i18n/get-dictionary";
 import { getRole } from "@/lib/auth/get-role";
@@ -106,7 +109,17 @@ export default async function MembersPage({
           <p className="text-sm text-muted-foreground">{dict.members.description}</p>
         </div>
         {canManage ? (
-          <MemberCreateSheet departments={departments} clubs={clubs} lang={lang} dict={dict} />
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Plain <Link>, not a dialog: the autoinput page is a real route,
+                so it works with JS disabled up to the point the live parsing
+                itself needs it. Same member:manage gate as Add user, and
+                re-checked server-side by the page and both its actions. */}
+            <Button variant="secondary" size="sm" render={<Link href={`/${lang}/members/autoinput`} />}>
+              <Wand2 className="size-4" aria-hidden />
+              {dict.members.autoinput.title}
+            </Button>
+            <MemberCreateSheet departments={departments} clubs={clubs} lang={lang} dict={dict} />
+          </div>
         ) : null}
       </div>
 

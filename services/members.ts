@@ -3,7 +3,7 @@ import { createClient, tryCreateClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { Club, Department, Member, MemberFilters, MembersResult } from "@/types/members";
 import type { Role } from "@/types/auth";
-import { PER_PAGE_SIZE, type CreateMemberInput } from "@/schemas/members";
+import { PER_PAGE_SIZE, type CreateMemberInput, type CreateDepartmentInput } from "@/schemas/members";
 
 /**
  * §9 → snake_case column mapping. Whitelisted in schemas/members.ts so an
@@ -321,4 +321,43 @@ export async function getFilterOptions(): Promise<{ years: number[]; classNames:
   const classNames = [...new Set(data.map((r) => r.class_name).filter((c): c is string => c !== null))];
 
   return { years, classNames };
+}
+
+/**
+ * Adds a new รหัสวิชา to the shared department list.
+ *
+ * Uses the CALLER's client, not the admin client: departments_insert_admin
+ * (0042) is what actually authorises this, so a non-admin must be refused by
+ * the database rather than only by the action's own permission check. Routing
+ * it through the service-role client would bypass the very policy this feature
+ * added.
+ *
+ * A zero-row result is treated as failure. RLS denials surface as "no rows"
+ * rather than an error, so a bare `if (error)` would report success on a
+ * silently-blocked insert — the same trap updateMember and
+ * revokeProfileApproval already guard against.
+ */
+export async function createDepartment(
+  input: CreateDepartmentInput
+): Promise<{ ok: true; department: Department } | { ok: false; error: string }> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("departments")
+    .insert({ code: input.code, name_th: input.nameTh, name_en: input.nameEn })
+    .select("id, code, name_th, name_en")
+    .maybeSingle();
+
+  if (error) {
+    // 23505 = unique_violation: the รหัสวิชา already exists, which is a
+    // meaningful answer for the caller (select it) rather than a failure.
+    if (error.code === "23505") return { ok: false, error: "departmentCodeTaken" };
+    if (error.code === "23514") return { ok: false, error: "invalidDepartmentCode" };
+    return { ok: false, error: "unknown" };
+  }
+  if (!data) return { ok: false, error: "notAllowed" };
+
+  return {
+    ok: true,
+    department: { id: data.id, code: data.code, nameTh: data.name_th, nameEn: data.name_en },
+  };
 }

@@ -110,3 +110,33 @@ export const createMemberSchema = z.object({
 });
 
 export type CreateMemberInput = z.infer<typeof createMemberSchema>;
+
+/**
+ * A new รหัสวิชา added inline from /members/autoinput.
+ *
+ * `code` is the app-side layer of the same rule enforced by
+ * lib/student-id.ts (parsing) and departments_code_format (0042, the database
+ * backstop) — §19's three layers. Exactly 7 digits, because the 2+7+remainder
+ * split of a student ID depends on it.
+ *
+ * Both names are required because `departments.name_th`/`name_en` are NOT NULL
+ * and are what the members and activities filters actually display.
+ */
+export const createDepartmentSchema = z.object({
+  code: z
+    .string()
+    .trim()
+    .regex(/^[0-9]{7}$/, { message: "invalidDepartmentCode" }),
+  nameTh: z
+    .string()
+    .trim()
+    .min(1, { message: "departmentNameRequired" })
+    .max(100, { message: "departmentNameTooLong" }),
+  nameEn: z
+    .string()
+    .trim()
+    .min(1, { message: "departmentNameRequired" })
+    .max(100, { message: "departmentNameTooLong" }),
+});
+
+export type CreateDepartmentInput = z.infer<typeof createDepartmentSchema>;

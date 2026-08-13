@@ -370,6 +370,37 @@
         "classNameTooLong": "ระดับชั้นยาวเกินไป (ไม่เกิน 50 ตัวอักษร)",
         "unknown": "เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง"
       }
+    },
+    "autoinput": {
+      "title": "กรอกอัตโนมัติ",
+      "description": "พิมพ์อีเมลนักเรียน ระบบจะแยกปี รหัสวิชา และเลขที่ให้อัตโนมัติ",
+      "emailLabel": "อีเมลนักเรียน",
+      "emailPlaceholder": "69319010015@udontech.ac.th",
+      "detected": "ผลการตรวจสอบ",
+      "yearLabel": "ปีการศึกษา",
+      "programCodeLabel": "รหัสวิชา",
+      "studentNumberLabel": "เลขที่",
+      "studentIdLabel": "รหัสนักเรียน",
+      "notStudentEmail": "อีเมลนี้ไม่ใช่รูปแบบรหัสนักเรียน (ต้องเป็นตัวเลขอย่างน้อย 11 หลัก)",
+      "departmentMatched": "พบรหัสวิชานี้ในระบบแล้ว",
+      "departmentNew": "ยังไม่มีรหัสวิชานี้ในระบบ — เพิ่มด้านล่างได้เลย",
+      "addDepartmentTitle": "เพิ่มรหัสวิชาใหม่",
+      "departmentCodeLabel": "รหัสวิชา",
+      "departmentNameThLabel": "ชื่อแผนก (ไทย)",
+      "departmentNameEnLabel": "ชื่อแผนก (อังกฤษ)",
+      "addDepartment": "เพิ่มรหัสวิชา",
+      "addingDepartment": "กำลังเพิ่ม...",
+      "departmentAdded": "เพิ่มรหัสวิชาแล้ว",
+      "submit": "สร้างบัญชี",
+      "backToMembers": "กลับไปหน้าสมาชิก",
+      "errors": {
+        "invalidDepartmentCode": "รหัสวิชาต้องเป็นตัวเลข 7 หลัก",
+        "departmentNameRequired": "กรุณากรอกชื่อแผนก",
+        "departmentNameTooLong": "ชื่อแผนกยาวเกินไป",
+        "departmentCodeTaken": "มีรหัสวิชานี้อยู่แล้ว",
+        "notAllowed": "ไม่มีสิทธิ์ดำเนินการนี้",
+        "unknown": "เกิดข้อผิดพลาด กรุณาลองใหม่"
+      }
     }
   },
   "activities": {
