@@ -410,17 +410,27 @@ export async function deleteDepartment(
   id: string
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   const supabase = await createClient();
-  const { error, count } = await supabase
+  // .select("id").maybeSingle(), not `{ count: "exact" }` — the same shape
+  // services/books.ts#deleteBook uses. A PostgREST delete's count rides on a
+  // response header; a returned row does not. If that header were ever
+  // absent, a successful delete would read as zero rows and report
+  // "notAllowed" while the row was genuinely gone.
+  const { data, error } = await supabase
     .from("departments")
-    .delete({ count: "exact" })
-    .eq("id", id);
+    .delete()
+    .eq("id", id)
+    .select("id")
+    .maybeSingle();
 
   if (error) {
-    // 23503 = foreign_key_violation: something still points at it.
+    // 23503 = foreign_key_violation: something still points at it. This is
+    // the real guard — every FK into departments is NO ACTION — so it stays
+    // even though callers check usage first, for the race between the two.
     if (error.code === "23503") return { ok: false, error: "departmentInUse" };
     return { ok: false, error: "unknown" };
   }
-  if (!count) return { ok: false, error: "notAllowed" };
+  // No row back means RLS refused or the id is stale, never a silent success.
+  if (!data) return { ok: false, error: "notAllowed" };
   return { ok: true };
 }
 

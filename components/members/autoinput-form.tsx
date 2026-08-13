@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useEffect, useMemo, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { useFormStatus } from "react-dom";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -63,13 +64,17 @@ export function AutoInputForm({
   lang: Locale;
   dict: Dictionary;
 }) {
+  const router = useRouter();
   const d = dict.members.autoinput;
   const dCreate = dict.members.create;
 
   const [email, setEmail] = useState("");
-  // Local copy so a newly added รหัสวิชา is usable immediately, without a
-  // reload that would discard the email and every other field already typed.
-  const [departments, setDepartments] = useState(initialDepartments);
+  // NO local copy: router.refresh() re-renders the Server Components with the
+  // new list while preserving client state, so the email and every other
+  // typed field survive — which is what the local copy existed to protect.
+  // Keeping one meant this form and the สาขา table below it could disagree
+  // about which codes exist, on the same screen.
+  const departments = initialDepartments;
   const [newNameTh, setNewNameTh] = useState("");
   const [newNameEn, setNewNameEn] = useState("");
   const [addingDept, startAddDept] = useTransition();
@@ -110,9 +115,9 @@ export function AutoInputForm({
         toast.error(d.errors[result.messageKey]);
         return;
       }
-      setDepartments((prev) => [...prev, result.department]);
       setNewNameTh("");
       setNewNameEn("");
+      router.refresh();
       toast.success(d.departmentAdded);
     });
   }
