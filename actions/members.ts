@@ -298,9 +298,12 @@ export async function createDepartmentAction(
     };
   }
 
-  // Both pages render a department filter built from this table.
+  // Three paths, not two: the Auto Input page shows the สาขา table AND a form
+  // that matches student emails against the same list. Missing it is what let
+  // the two drift apart on one screen.
   revalidatePath(`/${safeLang}/members`);
   revalidatePath(`/${safeLang}/activities`);
+  revalidatePath(`/${safeLang}/members/autoinput`);
 
   return { ok: true, department: result.department };
 }
@@ -331,9 +334,13 @@ export async function updateDepartmentAction(
     };
   }
 
-  // Both pages render a สาขา filter built from this table.
+  // Both pages render a สาขา filter built from this table — and so does the
+  // Auto Input page itself, which shows the สาขา table AND a form that
+  // matches student emails against the same list. Missing that third path is
+  // what let the two drift apart on one screen.
   revalidatePath(`/${safeLang}/members`);
   revalidatePath(`/${safeLang}/activities`);
+  revalidatePath(`/${safeLang}/members/autoinput`);
   return { ok: true };
 }
 
@@ -360,5 +367,6 @@ export async function deleteDepartmentAction(
 
   revalidatePath(`/${safeLang}/members`);
   revalidatePath(`/${safeLang}/activities`);
+  revalidatePath(`/${safeLang}/members/autoinput`);
   return { ok: true };
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Pencil, Trash2, Plus, Check, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -83,11 +84,16 @@ export function DepartmentsTable({
 }) {
   const d = dict.members.departments;
   const errors = dict.members.autoinput.errors;
+  const router = useRouter();
   const [pending, start] = useTransition();
+  // Which row is mid-flight, so saving one row does not disable all 29.
+  const [busyId, setBusyId] = useState<string | null>(null);
 
-  // Local copy so an add/rename/delete shows immediately; the Server Action
-  // revalidates /members and /activities, but this page is not one of them.
-  const [rows, setRows] = useState(departments);
+  // NO local copy of `departments`. The Server Actions revalidate this page
+  // and router.refresh() re-renders it, so the server stays the single source
+  // of truth — the AutoInputForm above reads the same list, and a private
+  // copy here is exactly how the two ended up disagreeing on one screen.
+  const rows = departments;
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draftTh, setDraftTh] = useState("");
   const [draftEn, setDraftEn] = useState("");
@@ -107,39 +113,39 @@ export function DepartmentsTable({
         nameEn: newEn,
       });
       if (!result.ok) return fail(result.messageKey);
-      setRows((prev) =>
-        [...prev, { ...result.department, memberCount: 0, activityCount: 0, projectCount: 0 }].sort(
-          (a, b) => a.code.localeCompare(b.code)
-        )
-      );
       setNewCode("");
       setNewTh("");
       setNewEn("");
+      // Re-renders the Server Components with the new list while preserving
+      // client state (the email half-typed in the form above survives).
+      router.refresh();
       toast.success(d.added);
     });
   }
 
   function handleSave(id: string) {
+    setBusyId(id);
     start(async () => {
       const result = await updateDepartmentAction(lang, {
         id,
         nameTh: draftTh,
         nameEn: draftEn,
       });
+      setBusyId(null);
       if (!result.ok) return fail(result.messageKey);
-      setRows((prev) =>
-        prev.map((r) => (r.id === id ? { ...r, nameTh: draftTh, nameEn: draftEn } : r))
-      );
       setEditingId(null);
+      router.refresh();
       toast.success(d.saved);
     });
   }
 
   function handleDelete(id: string) {
+    setBusyId(id);
     start(async () => {
       const result = await deleteDepartmentAction(lang, id);
+      setBusyId(null);
       if (!result.ok) return fail(result.messageKey);
-      setRows((prev) => prev.filter((r) => r.id !== id));
+      router.refresh();
       toast.success(d.deleted);
     });
   }
@@ -210,9 +216,9 @@ export function DepartmentsTable({
                   <TableCell>
                     {editing ? (
                       <div className="flex gap-1">
-                        <Button size="sm" disabled={pending} onClick={() => handleSave(row.id)}>
+                        <Button size="sm" disabled={busyId === row.id} onClick={() => handleSave(row.id)}>
                           <Check className="size-4" aria-hidden />
-                          {pending ? d.saving : d.save}
+                          {busyId === row.id ? d.saving : d.save}
                         </Button>
                         <Button
                           size="sm"
@@ -277,10 +283,10 @@ export function DepartmentsTable({
                               <AlertDialogFooter>
                                 <AlertDialogCancel>{d.cancel}</AlertDialogCancel>
                                 <AlertDialogAction
-                                  disabled={pending}
+                                  disabled={busyId === row.id}
                                   onClick={() => handleDelete(row.id)}
                                 >
-                                  {pending ? d.deleting : d.delete}
+                                  {busyId === row.id ? d.deleting : d.delete}
                                 </AlertDialogAction>
                               </AlertDialogFooter>
                             </AlertDialogContent>
