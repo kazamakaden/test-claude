@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { roles } from "@/types/auth";
+import { memberPositions, roles } from "@/types/auth";
 import { emailSchema, newPasswordField } from "@/schemas/auth";
 
 const PER_PAGE = 10;
@@ -58,6 +58,20 @@ const assignableRoles = roles.filter(
 export const updateMemberSchema = z.object({
   id: z.uuid(),
   role: z.enum(assignableRoles, { message: "invalidRole" }),
+  /**
+   * อวท. office. Nullable = "general member".
+   *
+   * `.optional()` matters: the ตำแหน่ง select is only RENDERED for an admin,
+   * so a non-admin's form submits no `position` field at all. Optional lets
+   * that submission validate and leave the stored office untouched, rather
+   * than parsing a missing field as null and silently stripping the member's
+   * office on every edit a non-admin makes.
+   *
+   * Who may actually SET it is not decided here — actions/members.ts narrows
+   * to admin, and prevent_position_change (0044) is the authority that holds
+   * even if both app layers were bypassed.
+   */
+  position: z.enum(memberPositions, { message: "invalidPosition" }).nullable().optional(),
   departmentId: z.uuid().nullable().catch(null),
   clubId: z.uuid().nullable().catch(null),
   // §14 format, same pattern as profiles_student_id_check (0003) — a

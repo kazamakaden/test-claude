@@ -1,4 +1,4 @@
-import type { Role } from "@/types/auth";
+import type { MemberPosition, Role } from "@/types/auth";
 
 /**
  * Authorization matrix — the single source of truth for §6.
@@ -142,6 +142,45 @@ export const permissionsByRole: Record<Role, readonly Permission[]> = {
  */
 export function can(role: Role, permission: Permission): boolean {
   return (permissionsByRole[role] ?? []).includes(permission);
+}
+
+/**
+ * What holding ANY อวท. position grants, on top of whatever the role gives.
+ *
+ * Exactly one permission, deliberately. `member:approve` already means "edit
+ * an approved member, approve a pending one" — precisely the officer remit —
+ * so officers inherit the whole existing implementation, RLS included, rather
+ * than needing a parallel one.
+ *
+ * What is NOT here matters as much: `member:manage` stays out, so permanent
+ * account deletion remains admin-only. An officer can add, edit and revoke;
+ * they cannot destroy.
+ *
+ * Which position someone holds does not change what they may do — ประธาน and
+ * กรรมการ have identical rights. The office is recorded for display; the
+ * authority is binary.
+ */
+const officerPermissions = ["member:approve"] as const satisfies readonly Permission[];
+
+/** Who is acting: their system role AND their องค์การ office (null = none). */
+export interface Actor {
+  role: Role;
+  position: MemberPosition | null;
+}
+
+/**
+ * The real predicate. `can(role, …)` still answers the role half and every
+ * existing caller keeps working; this ORs in the officer grant.
+ *
+ * NOT SECURITY ON ITS OWN — see the note at the bottom of this file. The
+ * database backs this with `profiles_update_officer` (0045) plus the
+ * `prevent_position_change` / `prevent_role_self_escalation` /
+ * `prevent_member_identity_change` triggers, which are what actually stop an
+ * officer minting officers or editing an admin.
+ */
+export function canAs(actor: Actor, permission: Permission): boolean {
+  if (can(actor.role, permission)) return true;
+  return actor.position !== null && (officerPermissions as readonly Permission[]).includes(permission);
 }
 
 /**

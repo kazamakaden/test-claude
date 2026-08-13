@@ -11,6 +11,8 @@ import { isLocale, defaultLocale, type Locale } from "@/lib/i18n/config";
 type UpdateMemberErrorKey =
   | "invalidRole"
   | "forbiddenRole"
+  | "invalidPosition"
+  | "forbiddenPosition"
   | "invalidStudentId"
   | "studentIdTaken"
   | "fullNameTooLong"
@@ -23,6 +25,8 @@ function isUpdateMemberErrorKey(value: string | undefined): value is UpdateMembe
   return (
     value === "invalidRole" ||
     value === "forbiddenRole" ||
+    value === "invalidPosition" ||
+    value === "forbiddenPosition" ||
     value === "invalidStudentId" ||
     value === "studentIdTaken" ||
     value === "fullNameTooLong" ||
@@ -101,6 +105,17 @@ export async function updateMemberAction(
     studentId: formData.get("studentId") || null,
     className: formData.get("className") || null,
     fullName: formData.get("fullName") || null,
+    // Absent for a non-admin (the select isn't rendered for them), which the
+    // schema's .optional() turns into "leave the office as it is".
+    // "__none__" is the Select's "no office" sentinel (member-edit-sheet.tsx);
+    // it must become null rather than reach z.enum, which would reject it as
+    // an invalid position and make "remove someone's office" impossible.
+    ...(formData.has("position")
+      ? {
+          position:
+            formData.get("position") === "__none__" ? null : formData.get("position") || null,
+        }
+      : {}),
   });
 
   if (!parsed.success) {
@@ -110,6 +125,16 @@ export async function updateMemberAction(
 
   if (actorRole !== "admin" && parsed.data.role === "aft_teacher") {
     return { ok: false, messageKey: "forbiddenRole" };
+  }
+
+  // Only an admin may assign an อวท. office. Hiding the select from everyone
+  // else is UX; THIS is the app-layer guard, and prevent_position_change
+  // (0044) is the one that holds regardless of both. Without it an officer —
+  // who reaches this action via member:approve — could POST a `position`
+  // field by hand and mint officers, turning one appointment into unbounded
+  // authority.
+  if (parsed.data.position !== undefined && actorRole !== "admin") {
+    return { ok: false, messageKey: "forbiddenPosition" };
   }
 
   const result = await updateMember(parsed.data);
@@ -246,8 +271,10 @@ export async function revokeMemberAction(lang: Locale, id: string): Promise<Revo
     return { ok: false, messageKey: "unknown" };
   }
 
+  // One path now: a revoked member drops out of the directory list and
+  // reappears in the pending-approvals section, both of which live on
+  // /members since /approvals was folded into it.
   revalidatePath(`/${lang}/members`);
-  revalidatePath(`/${lang}/approvals`);
   return { ok: true };
 }
 

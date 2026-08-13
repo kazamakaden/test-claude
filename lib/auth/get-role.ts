@@ -2,9 +2,10 @@ import "server-only";
 import { cache } from "react";
 import { cookies } from "next/headers";
 import { tryCreateClient } from "@/lib/supabase/server";
+import type { Actor } from "@/lib/auth/permissions";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
-import type { Role } from "@/types/auth";
-import { roles } from "@/types/auth";
+import type { MemberPosition, Role } from "@/types/auth";
+import { isMemberPosition, roles } from "@/types/auth";
 
 async function getDevCookieRole(): Promise<Role> {
   if (process.env.NODE_ENV !== "development") return "guest";
@@ -19,12 +20,33 @@ async function getDevCookieRole(): Promise<Role> {
   return "guest";
 }
 
+/**
+ * Dev-only counterpart to `dev_role`, so the officer half of the matrix is
+ * exercisable without a live Supabase project. Same production guard: this
+ * returns null outside development, so no cookie can ever confer an office.
+ */
+async function getDevCookiePosition(): Promise<MemberPosition | null> {
+  if (process.env.NODE_ENV !== "development") return null;
+
+  const cookieStore = await cookies();
+  const value = cookieStore.get("dev_position")?.value;
+
+  return isMemberPosition(value) ? value : null;
+}
+
 export interface SessionProfile {
   /** Signed-in user's id, or null for a guest / unconfigured Supabase.
    * Pages that only need "who is looking at this" read it via
    * getSessionUserId() instead of opening their own client. */
   userId: string | null;
   role: Role;
+  /**
+   * อวท. office, or null for a general member. Independent of `role` — see
+   * MemberPosition in types/auth.ts. Read it through canAs(), never by
+   * comparing positions directly: which office someone holds does not change
+   * what they may do.
+   */
+  position: MemberPosition | null;
   fullName: string | null;
   avatarUrl: string | null;
   email: string | null;
@@ -37,6 +59,7 @@ export interface SessionProfile {
 const GUEST_PROFILE: SessionProfile = {
   userId: null,
   role: "guest",
+  position: null,
   fullName: null,
   avatarUrl: null,
   email: null,
@@ -54,8 +77,16 @@ const GUEST_PROFILE: SessionProfile = {
  */
 export const getSessionProfile = cache(async (): Promise<SessionProfile> => {
   if (!isSupabaseConfigured) {
-    const role = await getDevCookieRole();
-    return { userId: null, role, fullName: null, avatarUrl: null, email: null, passwordSet: false };
+    const [role, position] = await Promise.all([getDevCookieRole(), getDevCookiePosition()]);
+    return {
+      userId: null,
+      role,
+      position,
+      fullName: null,
+      avatarUrl: null,
+      email: null,
+      passwordSet: false,
+    };
   }
 
   // tryCreateClient(), not createClient() — createClient() throws
@@ -71,7 +102,7 @@ export const getSessionProfile = cache(async (): Promise<SessionProfile> => {
 
   const { data, error } = await supabase
     .from("profiles")
-    .select("role, full_name, avatar_url, password_set")
+    .select("role, position, full_name, avatar_url, password_set")
     .eq("id", user.id)
     .single();
 
@@ -80,6 +111,7 @@ export const getSessionProfile = cache(async (): Promise<SessionProfile> => {
   return {
     userId: user.id,
     role: data.role,
+    position: data.position,
     fullName: data.full_name,
     avatarUrl: data.avatar_url,
     email: user.email ?? null,
@@ -90,6 +122,16 @@ export const getSessionProfile = cache(async (): Promise<SessionProfile> => {
 export async function getRole(): Promise<Role> {
   const profile = await getSessionProfile();
   return profile.role;
+}
+
+/**
+ * The viewer as an authorization subject — both axes together, which is what
+ * canAs() takes. Prefer this over getRole() anywhere an officer should count:
+ * getRole() alone silently drops the office and would deny a real officer.
+ */
+export async function getActor(): Promise<Actor> {
+  const profile = await getSessionProfile();
+  return { role: profile.role, position: profile.position };
 }
 
 /**

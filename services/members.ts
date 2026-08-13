@@ -28,7 +28,7 @@ const SORT_COLUMNS = {
 // total: 0 }` on any error), which would look like "no members exist"
 // rather than "you can't see this column". This split is what avoids that.
 const MEMBER_COLUMNS_BASE =
-  "id, full_name, avatar_url, role, student_id, department_id, class_name, club_id, academic_year, departments(name_th), clubs(name_th)";
+  "id, full_name, avatar_url, role, position, student_id, department_id, class_name, club_id, academic_year, departments(name_th), clubs(name_th)";
 const MEMBER_COLUMNS_WITH_EMAIL = `${MEMBER_COLUMNS_BASE}, email`;
 
 /**
@@ -85,6 +85,7 @@ export async function getMembers(
       email: m.email,
       avatarUrl: m.avatar_url,
       role: m.role,
+      position: m.position,
       studentId: m.student_id,
       departmentId: m.department_id,
       departmentName: m.departments?.name_th ?? null,
@@ -123,6 +124,7 @@ export async function getMembers(
     email: null,
     avatarUrl: m.avatar_url,
     role: m.role,
+    position: m.position,
     studentId: m.student_id,
     departmentId: m.department_id,
     departmentName: m.departments?.name_th ?? null,

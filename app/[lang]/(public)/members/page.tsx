@@ -3,13 +3,14 @@ import { Wand2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Suspense } from "react";
 import { getDictionary } from "@/lib/i18n/get-dictionary";
-import { getRole } from "@/lib/auth/get-role";
-import { can } from "@/lib/auth/permissions";
+import { getActor } from "@/lib/auth/get-role";
+import { can, canAs, type Actor } from "@/lib/auth/permissions";
 import type { Locale } from "@/lib/i18n/config";
 import type { Dictionary } from "@/types/i18n";
-import type { Role } from "@/types/auth";
 import { parseMembersSearchParams, PER_PAGE_SIZE } from "@/schemas/members";
 import { getClubs, getDepartments, getFilterOptions, getMembers } from "@/services/members";
+import { listPendingProfiles } from "@/services/profiles";
+import { ApproveUserCard } from "@/components/approvals/approve-user-card";
 import { MembersFilters } from "@/components/members/members-filters";
 import { MembersTable } from "@/components/members/members-table";
 import { MemberCreateSheet } from "@/components/members/member-create-sheet";
@@ -23,7 +24,7 @@ async function MembersResults({
   searchParams,
   departments,
   clubs,
-  role,
+  actor,
   lang,
   dict,
 }: {
@@ -32,16 +33,18 @@ async function MembersResults({
   searchParams: URLSearchParams;
   departments: Awaited<ReturnType<typeof getDepartments>>;
   clubs: Awaited<ReturnType<typeof getClubs>>;
-  role: Role;
+  actor: Actor;
   lang: Locale;
   dict: Dictionary;
 }) {
   // §5: guests read name/student id/class/year/department/club only —
   // email stays hidden. includeEmail is decided here, by role, not left to
   // the service (services/members.ts stays role-agnostic by design).
-  const includeEmail = can(role, "workspace:access");
-  const canEdit = can(role, "member:approve");
-  const canManage = can(role, "member:manage");
+  const includeEmail = can(actor.role, "workspace:access");
+  // canAs: an อวท. officer holds member:approve through their office, which
+  // can() (role-only) would miss — the officer would see a read-only table.
+  const canEdit = canAs(actor, "member:approve");
+  const canManage = can(actor.role, "member:manage");
   const { rows, total } = await getMembers(filters, { includeEmail });
 
   return (
@@ -55,7 +58,7 @@ async function MembersResults({
         clubs={clubs}
         canEdit={canEdit}
         canManage={canManage}
-        actorRole={role}
+        actorRole={actor.role}
         lang={lang}
         dict={dict}
       />
@@ -71,6 +74,46 @@ async function MembersResults({
   );
 }
 
+/**
+ * Pending signups, folded in from the old /approvals route so member
+ * management lives in one place. Rendered only for member:approve holders —
+ * officers and admin — and its own async component so the (possibly slow)
+ * pending query never blocks the directory table beside it.
+ */
+async function PendingApprovals({
+  actor,
+  lang,
+  dict,
+}: {
+  actor: Actor;
+  lang: Locale;
+  dict: Dictionary;
+}) {
+  const [pending, departments] = await Promise.all([listPendingProfiles(), getDepartments()]);
+  if (pending.length === 0) return null;
+
+  const d = dict.approvals;
+
+  return (
+    <section className="flex flex-col gap-3 rounded-xl border border-border bg-card p-4 shadow-sm">
+      <div className="flex flex-col gap-1">
+        <h2 className="font-heading text-lg font-semibold tracking-tight">{d.title}</h2>
+        <p className="text-sm text-muted-foreground">{d.description}</p>
+      </div>
+      {pending.map((profile) => (
+        <ApproveUserCard
+          key={profile.id}
+          profile={profile}
+          departments={departments}
+          actorRole={actor.role}
+          lang={lang}
+          dict={dict}
+        />
+      ))}
+    </section>
+  );
+}
+
 export default async function MembersPage({
   params,
   searchParams: rawSearchParams,
@@ -81,9 +124,9 @@ export default async function MembersPage({
   const { lang: rawLang } = await params;
   const lang = rawLang as Locale;
   const rawParams = await rawSearchParams;
-  const [dict, role, departments, clubs, filterOptions] = await Promise.all([
+  const [dict, actor, departments, clubs, filterOptions] = await Promise.all([
     getDictionary(lang),
-    getRole(),
+    getActor(),
     getDepartments(),
     getClubs(),
     getFilterOptions(),
@@ -97,7 +140,8 @@ export default async function MembersPage({
     ) as [string, string][]
   );
   const suspenseKey = JSON.stringify(filters);
-  const canManage = can(role, "member:manage");
+  const canManage = can(actor.role, "member:manage");
+  const canApprove = canAs(actor, "member:approve");
 
   return (
     <div className="mx-auto flex max-w-7xl flex-col gap-6 px-4 py-8 sm:px-6 lg:px-8">
@@ -122,6 +166,14 @@ export default async function MembersPage({
           </div>
         ) : null}
       </div>
+
+      {canApprove ? (
+        <CardBoundary errorTitle={dict.common.errorTitle} retryLabel={dict.common.errorRetry}>
+          <Suspense fallback={null}>
+            <PendingApprovals actor={actor} lang={lang} dict={dict} />
+          </Suspense>
+        </CardBoundary>
+      ) : null}
 
       {/* Each isolated behind its own CardBoundary so a throw in one
           (a render bug, or a Supabase call that starts failing) degrades
@@ -148,7 +200,7 @@ export default async function MembersPage({
             searchParams={searchParams}
             departments={departments}
             clubs={clubs}
-            role={role}
+            actor={actor}
             lang={lang}
             dict={dict}
           />

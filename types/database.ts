@@ -1,6 +1,6 @@
 /**
  * Generated from the live project (hmkciwgzbdszsgnbeakc) via
- * `generate_typescript_types` after migrations 0001–0038 were applied live
+ * `generate_typescript_types` after migrations 0001–0045 were applied live
  * (2026-08-03/04, 0030 applied 2026-08-09, 0036–0038 applied 2026-08-11).
  * Genuinely regenerated each time a migration adds/removes a column or
  * table — do not hand-patch this file; the discipline that broke down
@@ -582,6 +582,7 @@ export type Database = {
           full_name: string | null
           id: string
           password_set: boolean
+          position: Database["public"]["Enums"]["member_position"] | null
           role: Database["public"]["Enums"]["user_role"]
           student_id: string | null
           updated_at: string
@@ -598,6 +599,7 @@ export type Database = {
           full_name?: string | null
           id: string
           password_set?: boolean
+          position?: Database["public"]["Enums"]["member_position"] | null
           role?: Database["public"]["Enums"]["user_role"]
           student_id?: string | null
           updated_at?: string
@@ -614,6 +616,7 @@ export type Database = {
           full_name?: string | null
           id?: string
           password_set?: boolean
+          position?: Database["public"]["Enums"]["member_position"] | null
           role?: Database["public"]["Enums"]["user_role"]
           student_id?: string | null
           updated_at?: string
@@ -777,6 +780,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      current_position: {
+        Args: never
+        Returns: Database["public"]["Enums"]["member_position"]
+      }
       current_role: {
         Args: never
         Returns: Database["public"]["Enums"]["user_role"]
@@ -841,6 +848,15 @@ export type Database = {
         | "approval"
         | "announcement"
       project_status: "draft" | "teacher_review" | "admin_approval" | "official"
+      member_position:
+        | "president"
+        | "vice_president"
+        | "receptionist"
+        | "registrar"
+        | "public_relations"
+        | "secretary"
+        | "advisor"
+        | "committee"
       user_role:
         | "guest"
         | "pending"
@@ -986,6 +1002,16 @@ export const Constants = {
         "announcement",
       ],
       project_status: ["draft", "teacher_review", "admin_approval", "official"],
+      member_position: [
+        "president",
+        "vice_president",
+        "receptionist",
+        "registrar",
+        "public_relations",
+        "secretary",
+        "advisor",
+        "committee",
+      ],
       user_role: [
         "guest",
         "pending",
