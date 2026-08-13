@@ -390,6 +390,7 @@
       "levels": {
         "vocational": "ปวช. (Vocational Certificate)",
         "diploma": "ปวส. (High Vocational Diploma)",
+        "bachelor": "Bachelor of Technology",
         "unknown": "Unknown level"
       }
     },

@@ -41,15 +41,16 @@ export const PROGRAM_CODE_LENGTH = DEPARTMENT_CODE_LENGTH + GROUP_CODE_LENGTH;
  * Education level, encoded in the FIRST digit of the department code (i.e.
  * the 3rd digit of the whole ID):
  *
- *   69 31901 00 15  → department starts 3 → ปวส.
  *   66 20901 00 20  → department starts 2 → ปวช.
+ *   69 30901 00 15  → department starts 3 → ปวส.
+ *   69 40101 00 07  → department starts 4 → ทล.บ.
  *
  * `null` means "a digit we don't have a name for". That is deliberately NOT a
  * parse failure: a department code starting with some future digit must never
  * block admitting a real student, so the rest of the ID stays valid and usable
  * and the UI simply says the level is unknown.
  */
-export type StudentLevel = "vocational" | "diploma" | null;
+export type StudentLevel = "vocational" | "diploma" | "bachelor" | null;
 
 export function studentLevelFromProgramCode(programCode: string): StudentLevel {
   switch (programCode.charAt(0)) {
@@ -57,6 +58,8 @@ export function studentLevelFromProgramCode(programCode: string): StudentLevel {
       return "vocational"; // ปวช.
     case "3":
       return "diploma"; // ปวส.
+    case "4":
+      return "bachelor"; // ทล.บ. — เทคโนโลยีบัณฑิต (40101, 40104)
     default:
       return null;
   }
