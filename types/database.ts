@@ -861,6 +861,7 @@ export type Database = {
         | "guest"
         | "pending"
         | "student"
+        | "aft"
         | "teacher"
         | "aft_teacher"
         | "admin"
@@ -1016,6 +1017,7 @@ export const Constants = {
         "guest",
         "pending",
         "student",
+        "aft",
         "teacher",
         "aft_teacher",
         "admin",

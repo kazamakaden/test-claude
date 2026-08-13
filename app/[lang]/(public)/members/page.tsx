@@ -3,8 +3,9 @@ import { Wand2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Suspense } from "react";
 import { getDictionary } from "@/lib/i18n/get-dictionary";
-import { getActor } from "@/lib/auth/get-role";
-import { can, canAs, type Actor } from "@/lib/auth/permissions";
+import { getRole } from "@/lib/auth/get-role";
+import { can } from "@/lib/auth/permissions";
+import type { Role } from "@/types/auth";
 import type { Locale } from "@/lib/i18n/config";
 import type { Dictionary } from "@/types/i18n";
 import { parseMembersSearchParams, PER_PAGE_SIZE } from "@/schemas/members";
@@ -22,7 +23,7 @@ async function MembersResults({
   searchParams,
   departments,
   clubs,
-  actor,
+  role,
   lang,
   dict,
 }: {
@@ -31,18 +32,17 @@ async function MembersResults({
   searchParams: URLSearchParams;
   departments: Awaited<ReturnType<typeof getDepartments>>;
   clubs: Awaited<ReturnType<typeof getClubs>>;
-  actor: Actor;
+  role: Role;
   lang: Locale;
   dict: Dictionary;
 }) {
   // §5: guests read name/student id/class/year/department/club only —
   // email stays hidden. includeEmail is decided here, by role, not left to
   // the service (services/members.ts stays role-agnostic by design).
-  const includeEmail = can(actor.role, "workspace:access");
-  // canAs: an อวท. officer holds member:approve through their office, which
-  // can() (role-only) would miss — the officer would see a read-only table.
-  const canEdit = canAs(actor, "member:approve");
-  const canManage = can(actor.role, "member:manage");
+  const includeEmail = can(role, "workspace:access");
+  // Admin-only again: a ตำแหน่ง no longer grants member editing (0049).
+  const canEdit = can(role, "member:approve");
+  const canManage = can(role, "member:manage");
   const { rows, total } = await getMembers(filters, { includeEmail });
 
   return (
@@ -56,7 +56,7 @@ async function MembersResults({
         clubs={clubs}
         canEdit={canEdit}
         canManage={canManage}
-        actorRole={actor.role}
+        actorRole={role}
         lang={lang}
         dict={dict}
       />
@@ -82,9 +82,9 @@ export default async function MembersPage({
   const { lang: rawLang } = await params;
   const lang = rawLang as Locale;
   const rawParams = await rawSearchParams;
-  const [dict, actor, departments, clubs, filterOptions] = await Promise.all([
+  const [dict, role, departments, clubs, filterOptions] = await Promise.all([
     getDictionary(lang),
-    getActor(),
+    getRole(),
     getDepartments(),
     getClubs(),
     getFilterOptions(),
@@ -98,7 +98,7 @@ export default async function MembersPage({
     ) as [string, string][]
   );
   const suspenseKey = JSON.stringify(filters);
-  const canManage = can(actor.role, "member:manage");
+  const canManage = can(role, "member:manage");
 
   return (
     <div className="mx-auto flex max-w-7xl flex-col gap-6 px-4 py-8 sm:px-6 lg:px-8">
@@ -149,7 +149,7 @@ export default async function MembersPage({
             searchParams={searchParams}
             departments={departments}
             clubs={clubs}
-            actor={actor}
+            role={role}
             lang={lang}
             dict={dict}
           />

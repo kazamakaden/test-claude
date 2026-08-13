@@ -1,4 +1,4 @@
-import type { MemberPosition, Role } from "@/types/auth";
+import type { Role } from "@/types/auth";
 
 /**
  * Authorization matrix — the single source of truth for §6.
@@ -100,19 +100,26 @@ const studentPermissions = [
 ] as const satisfies readonly Permission[];
 
 /**
- * นักศึกษา อวท. / ครู — the people who actually run the organisation.
+ * The people who actually run the organisation — shared by BOTH `aft`
+ * (นักศึกษา อวท.) and `teacher` (ครู).
+ *
+ * ONE list, deliberately, referenced twice below. The two roles are identical
+ * for authorization; they exist as separate roles so reporting can tell an
+ * อวท. student member from actual staff. Keeping a single list means a future
+ * edit cannot silently give one of them something the other lacks — if they
+ * ever need to diverge, that should be a deliberate split of this constant.
  *
  * Everything a student has, plus authoring (project drafts, e-book drafts,
  * attendance, digital signature), the review stage of §11/§12, and management
  * of activities and public page copy.
  *
  * Deliberately NOT here: project:approve / document:approve. The approver has
- * to sit above whoever submits, and this role submits — so approval is
+ * to sit above whoever submits, and these roles submit — so approval is
  * admin's. That is what keeps "send a project and it stays a draft" true.
- * Also not here: member:approve, which is admin's or comes from holding a
- * ตำแหน่ง (0044/0045).
+ * Also not here: member:approve — admin-only, since a ตำแหน่ง no longer
+ * grants member editing (0049).
  */
-const teacherPermissions = [
+const organisationPermissions = [
   ...studentPermissions,
   "project:draft:submit",
   "document:draft:submit",
@@ -126,7 +133,7 @@ const teacherPermissions = [
 ] as const satisfies readonly Permission[];
 
 const adminPermissions = [
-  ...teacherPermissions,
+  ...organisationPermissions,
   "project:approve",
   "document:approve",
   "member:approve",
@@ -138,7 +145,9 @@ const adminPermissions = [
 export const permissionsByRole: Record<Role, readonly Permission[]> = {
   guest: guestPermissions,
   student: studentPermissions,
-  teacher: teacherPermissions,
+  // Same list on purpose — see organisationPermissions above.
+  aft: organisationPermissions,
+  teacher: organisationPermissions,
   admin: adminPermissions,
 };
 
@@ -156,44 +165,7 @@ export function can(role: Role, permission: Permission): boolean {
   return (permissionsByRole[role] ?? []).includes(permission);
 }
 
-/**
- * What holding ANY อวท. position grants, on top of whatever the role gives.
- *
- * Exactly one permission, deliberately. `member:approve` already means "edit
- * an approved member, approve a pending one" — precisely the officer remit —
- * so officers inherit the whole existing implementation, RLS included, rather
- * than needing a parallel one.
- *
- * What is NOT here matters as much: `member:manage` stays out, so permanent
- * account deletion remains admin-only. An officer can add, edit and revoke;
- * they cannot destroy.
- *
- * Which position someone holds does not change what they may do — ประธาน and
- * กรรมการ have identical rights. The office is recorded for display; the
- * authority is binary.
- */
-const officerPermissions = ["member:approve"] as const satisfies readonly Permission[];
 
-/** Who is acting: their system role AND their องค์การ office (null = none). */
-export interface Actor {
-  role: Role;
-  position: MemberPosition | null;
-}
-
-/**
- * The real predicate. `can(role, …)` still answers the role half and every
- * existing caller keeps working; this ORs in the officer grant.
- *
- * NOT SECURITY ON ITS OWN — see the note at the bottom of this file. The
- * database backs this with `profiles_update_officer` (0045) plus the
- * `prevent_position_change` / `prevent_role_self_escalation` /
- * `prevent_member_identity_change` triggers, which are what actually stop an
- * officer minting officers or editing an admin.
- */
-export function canAs(actor: Actor, permission: Permission): boolean {
-  if (can(actor.role, permission)) return true;
-  return actor.position !== null && (officerPermissions as readonly Permission[]).includes(permission);
-}
 
 /**
  * NOT SECURITY ON ITS OWN.
