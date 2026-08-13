@@ -400,6 +400,12 @@
         "departmentCodeTaken": "มีรหัสวิชานี้อยู่แล้ว",
         "notAllowed": "ไม่มีสิทธิ์ดำเนินการนี้",
         "unknown": "เกิดข้อผิดพลาด กรุณาลองใหม่"
+      },
+      "levelLabel": "ระดับชั้น",
+      "levels": {
+        "vocational": "ปวช.",
+        "diploma": "ปวส.",
+        "unknown": "ไม่ทราบระดับชั้น"
       }
     }
   },
