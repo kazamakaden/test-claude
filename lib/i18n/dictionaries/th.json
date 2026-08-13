@@ -390,6 +390,7 @@
       "levels": {
         "vocational": "ปวช.",
         "diploma": "ปวส.",
+        "bachelor": "ทล.บ.",
         "unknown": "ไม่ทราบระดับชั้น"
       }
     },

@@ -3,12 +3,39 @@
 -- consistently against them.
 
 insert into public.departments (code, name_th, name_en) values
-  ('31901', 'ช่างยนต์', 'Automotive Technology'),
-  ('31902', 'ช่างไฟฟ้ากำลัง', 'Electrical Power Technology'),
-  ('31903', 'ช่างอิเล็กทรอนิกส์', 'Electronics Technology'),
-  ('31904', 'ช่างก่อสร้าง', 'Construction Technology'),
-  ('31905', 'เทคโนโลยีสารสนเทศ', 'Information Technology'),
-  ('31906', 'การบัญชี', 'Accounting');
+  -- ปวช. — ประกาศนียบัตรวิชาชีพ (OVEC qualification digit 2)
+  ('20101', 'ช่างยนต์',                'Automotive Technology'),
+  ('20102', 'ช่างกลโรงงาน',            'Machine Shop Technology'),
+  ('20103', 'ช่างเชื่อมโลหะ',           'Metal Welding Technology'),
+  ('20104', 'ช่างไฟฟ้า',               'Electrical Technology'),
+  ('20105', 'ช่างอิเล็กทรอนิกส์',        'Electronics Technology'),
+  ('20106', 'ช่างก่อสร้าง',             'Building Construction'),
+  ('20107', 'โยธา',                    'Civil Engineering'),
+  ('20108', 'สถาปัตยกรรม',             'Architecture'),
+  ('20109', 'ช่างซ่อมบำรุง',            'Maintenance Technology'),
+  ('20128', 'ช่างเทคนิคคอมพิวเตอร์',    'Computer Technician'),
+  ('20214', 'โลจิสติกส์',               'Logistics'),
+  ('20901', 'เทคโนโลยีสารสนเทศ',        'Information Technology'),
+  -- ปวส. — ประกาศนียบัตรวิชาชีพชั้นสูง (digit 3)
+  ('30101', 'เทคนิคเครื่องกล',          'Mechanical Technology'),
+  ('30102', 'เทคนิคการผลิต',           'Production Technology'),
+  ('30103', 'เทคนิคโลหะ',              'Metal Technology'),
+  ('30104', 'ไฟฟ้า (ไฟฟ้ากำลัง)',       'Electrical Power'),
+  ('30105', 'เทคโนโลยีอิเล็กทรอนิกส์',   'Electronics Technology'),
+  ('30106', 'ช่างก่อสร้าง',             'Building Construction'),
+  ('30107', 'โยธา',                    'Civil Engineering'),
+  ('30108', 'เทคนิคสถาปัตยกรรม',        'Architectural Technology'),
+  ('30110', 'เทคนิคอุตสาหกรรม',         'Industrial Technology'),
+  ('30121', 'เทคนิคยานยนต์ไฟฟ้า',       'Electric Vehicle Technology'),
+  ('30128', 'เทคโนโลยีคอมพิวเตอร์',      'Computer Technology'),
+  ('30901', 'เทคโนโลยีสารสนเทศ',        'Information Technology'),
+  ('30902', 'คอมพิวเตอร์เกมและแอนิเมชั่น', 'Computer Game and Animation'),
+  ('30903', 'เครือข่ายคอมพิวเตอร์และความปลอดภัย', 'Computer Network and Security'),
+  ('30905', 'การจัดการโลจิสติกส์และซัพพลายเชน',  'Logistics and Supply Chain Management'),
+  -- ทล.บ. — เทคโนโลยีบัณฑิต (digit 4)
+  ('40101', 'เทคโนโลยีเครื่องยนต์',      'Engine Technology'),
+  ('40104', 'เทคโนโลยีไฟฟ้า',           'Electrical Technology')
+on conflict (code) do nothing;
 
 insert into public.clubs (name_th, name_en) values
   ('ชมรมอาสาพัฒนา', 'Community Service Club'),
@@ -24,17 +51,17 @@ insert into public.clubs (name_th, name_en) values
 -- lib/dev-fixtures.ts's old (removed) comment that falsely claimed this.
 
 insert into public.activities (title, description, department_id, status, academic_year, starts_at, ends_at, location, is_public) values
-  ('ค่ายอาสาพัฒนาชุมชน', 'กิจกรรมจิตอาสาพัฒนาชุมชนรอบวิทยาลัย', (select id from public.departments where code = '31901'), 'completed', 69, now() - interval '45 days', now() - interval '44 days', 'ชุมชนรอบวิทยาลัย', true),
-  ('อบรมความปลอดภัยในโรงฝึกงาน', 'อบรมมาตรฐานความปลอดภัยสำหรับนักเรียนแผนกช่างไฟฟ้า', (select id from public.departments where code = '31902'), 'completed', 69, now() - interval '20 days', now() - interval '20 days', 'ห้องปฏิบัติการไฟฟ้า', false),
-  ('อบรมเตรียมความพร้อมกิจกรรม QR เข้าแถว', 'อบรมการใช้งานระบบ QR สำหรับเข้าร่วมกิจกรรม', (select id from public.departments where code = '31905'), 'pending', 69, now() + interval '6 days', now() + interval '6 days', 'ห้องปฏิบัติการคอมพิวเตอร์ 2', true),
+  ('ค่ายอาสาพัฒนาชุมชน', 'กิจกรรมจิตอาสาพัฒนาชุมชนรอบวิทยาลัย', (select id from public.departments where code = '30101'), 'completed', 69, now() - interval '45 days', now() - interval '44 days', 'ชุมชนรอบวิทยาลัย', true),
+  ('อบรมความปลอดภัยในโรงฝึกงาน', 'อบรมมาตรฐานความปลอดภัยสำหรับนักเรียนแผนกช่างไฟฟ้า', (select id from public.departments where code = '30104'), 'completed', 69, now() - interval '20 days', now() - interval '20 days', 'ห้องปฏิบัติการไฟฟ้า', false),
+  ('อบรมเตรียมความพร้อมกิจกรรม QR เข้าแถว', 'อบรมการใช้งานระบบ QR สำหรับเข้าร่วมกิจกรรม', (select id from public.departments where code = '30901'), 'pending', 69, now() + interval '6 days', now() + interval '6 days', 'ห้องปฏิบัติการคอมพิวเตอร์ 2', true),
   ('ประชุมคณะกรรมการ อวท. ประจำเดือน', 'ประชุมติดตามความคืบหน้าโครงการประจำเดือน', null, 'pending', 69, now() + interval '3 days', now() + interval '3 days', 'ห้องประชุมใหญ่ อาคาร 1', true),
-  ('กิจกรรมจิตอาสาทำความสะอาดวัด', 'กิจกรรมบำเพ็ญประโยชน์ร่วมกับชุมชน', (select id from public.departments where code = '31901'), 'completed', 69, now() - interval '6 days', now() - interval '6 days', 'วัดในชุมชน', false),
-  ('ส่งเอกสารโครงการประจำภาคเรียน', 'กำหนดส่งเอกสารสรุปโครงการ', (select id from public.departments where code = '31904'), 'cancelled', 69, now() - interval '90 days', now() - interval '90 days', 'ตึกบริหาร', false);
+  ('กิจกรรมจิตอาสาทำความสะอาดวัด', 'กิจกรรมบำเพ็ญประโยชน์ร่วมกับชุมชน', (select id from public.departments where code = '30101'), 'completed', 69, now() - interval '6 days', now() - interval '6 days', 'วัดในชุมชน', false),
+  ('ส่งเอกสารโครงการประจำภาคเรียน', 'กำหนดส่งเอกสารสรุปโครงการ', (select id from public.departments where code = '30106'), 'cancelled', 69, now() - interval '90 days', now() - interval '90 days', 'ตึกบริหาร', false);
 
 insert into public.projects (title, description, status, department_id) values
-  ('โครงการค่ายอาสาพัฒนาชุมชน', 'สรุปผลกิจกรรมค่ายอาสาพัฒนาชุมชนประจำปี', 'official', (select id from public.departments where code = '31901')),
-  ('โครงการอบรมทักษะดิจิทัลสำหรับนักเรียน', 'โครงการอบรมทักษะดิจิทัลพื้นฐาน', 'teacher_review', (select id from public.departments where code = '31905')),
-  ('โครงการซ่อมบำรุงอุปกรณ์ไฟฟ้าชุมชน', 'โครงการซ่อมบำรุงอุปกรณ์ไฟฟ้าให้ชุมชนรอบวิทยาลัย', 'draft', (select id from public.departments where code = '31902'));
+  ('โครงการค่ายอาสาพัฒนาชุมชน', 'สรุปผลกิจกรรมค่ายอาสาพัฒนาชุมชนประจำปี', 'official', (select id from public.departments where code = '30101')),
+  ('โครงการอบรมทักษะดิจิทัลสำหรับนักเรียน', 'โครงการอบรมทักษะดิจิทัลพื้นฐาน', 'teacher_review', (select id from public.departments where code = '30901')),
+  ('โครงการซ่อมบำรุงอุปกรณ์ไฟฟ้าชุมชน', 'โครงการซ่อมบำรุงอุปกรณ์ไฟฟ้าให้ชุมชนรอบวิทยาลัย', 'draft', (select id from public.departments where code = '30104'));
 
 insert into public.documents (title, status) values
   ('รายงานสรุปกิจกรรมค่ายอาสา', 'draft'),
