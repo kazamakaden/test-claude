@@ -25,10 +25,13 @@ import {
 import { updateMemberAction, type UpdateMemberResult } from "@/actions/members";
 import type { Locale } from "@/lib/i18n/config";
 import type { Dictionary } from "@/types/i18n";
-import type { Role } from "@/types/auth";
+import { memberPositions, type Role } from "@/types/auth";
 import type { Club, Department, Member } from "@/types/members";
 
 const NO_DEPARTMENT = "__none__";
+// Same sentinel shape as NO_DEPARTMENT/NO_CLUB above: a Base UI Select needs
+// a real value for "none". actions/members.ts maps it back to null.
+const NO_POSITION = "__none__";
 const NO_CLUB = "__none__";
 // Same construction as components/approvals/approve-user-card.tsx's
 // ASSIGNABLE_ROLES — granting aft_teacher itself stays admin-only
@@ -128,6 +131,37 @@ export function MemberEditSheet({
               </Select>
               <FormError>{errorMessage}</FormError>
             </FormField>
+
+            {/* ตำแหน่ง — rendered ONLY for an admin, because only an admin may
+                assign one (prevent_position_change, 0044). For everyone else
+                the field is absent entirely rather than disabled, so the form
+                submits no `position` key and updateMemberSchema's .optional()
+                leaves the member's existing office untouched. The absence is
+                UX; actions/members.ts re-checks the actor server-side. */}
+            {actorRole === "admin" ? (
+              <FormField name="position">
+                <FormLabel>{dict.members.positionLabel}</FormLabel>
+                <Select name="position" defaultValue={member.position ?? NO_POSITION}>
+                  <SelectTrigger aria-label={dict.members.positionLabel}>
+                    <SelectValue placeholder={dict.members.positionLabel}>
+                      {(value: string) =>
+                        value === NO_POSITION
+                          ? dict.members.noPosition
+                          : dict.positions[value as keyof typeof dict.positions]
+                      }
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={NO_POSITION}>{dict.members.noPosition}</SelectItem>
+                    {memberPositions.map((position) => (
+                      <SelectItem key={position} value={position}>
+                        {dict.positions[position]}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </FormField>
+            ) : null}
 
             <FormField name="departmentId">
               <FormLabel>{d.departmentLabel}</FormLabel>

@@ -42,7 +42,9 @@ export const navItems: readonly NavItem[] = [
   // filters"/edit affordances stay role-gated inside the page itself.
   { key: "members", href: "/members" },
   { key: "reports", href: "/reports", permission: "workspace:access" },
-  { key: "approvals", href: "/approvals", permission: "member:approve" },
+  // No "approvals" entry: approving a pending signup moved onto /members,
+  // which is already in this list and public. The old route still exists as a
+  // redirect (app/[lang]/(app)/approvals/page.tsx) for stale links.
 ];
 
 /**

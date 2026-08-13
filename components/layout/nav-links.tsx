@@ -12,7 +12,6 @@ import {
   FolderKanban,
   Home,
   Megaphone,
-  ShieldCheck,
   Sparkles,
   Users,
 } from "lucide-react";
@@ -37,7 +36,6 @@ const iconByKey: Partial<Record<keyof Dictionary["nav"], typeof Home>> = {
   aft11: Sparkles,
   members: Users,
   reports: BarChart3,
-  approvals: ShieldCheck,
 };
 
 /** gap-1 between items, in px — used when measuring what fits. */

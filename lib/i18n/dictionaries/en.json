@@ -368,7 +368,9 @@
         "studentIdTaken": "This student ID is already in use",
         "fullNameTooLong": "Full name is too long (100 characters max)",
         "classNameTooLong": "Class is too long (50 characters max)",
-        "unknown": "Something went wrong. Please try again."
+        "unknown": "Something went wrong. Please try again.",
+        "invalidPosition": "Invalid position.",
+        "forbiddenPosition": "Only an administrator can assign a position."
       }
     },
     "autoinput": {
@@ -408,7 +410,10 @@
         "diploma": "ปวส. (High Vocational Diploma)",
         "unknown": "Unknown level"
       }
-    }
+    },
+    "positionLabel": "Position",
+    "noPosition": "General member",
+    "positionAdminOnly": "Only an administrator can assign a position."
   },
   "activities": {
     "description": "Search and filter upcoming and past activities",
@@ -744,7 +749,19 @@
     "errors": {
       "invalidRole": "Please choose a role",
       "forbiddenRole": "An AFT teacher cannot assign this role. Please contact an administrator.",
-      "unknown": "Something went wrong. Please try again."
+      "unknown": "Something went wrong. Please try again.",
+      "invalidPosition": "Invalid position.",
+      "forbiddenPosition": "Only an administrator can assign a position."
     }
+  },
+  "positions": {
+    "president": "President",
+    "vice_president": "Vice President",
+    "receptionist": "Receptionist",
+    "registrar": "Registrar",
+    "public_relations": "Public Relations",
+    "secretary": "Secretary",
+    "advisor": "Teacher / Advisor",
+    "committee": "Committee Member"
   }
 }

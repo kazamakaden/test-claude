@@ -1,7 +1,7 @@
 import "server-only";
 import { redirect } from "next/navigation";
-import { getRole } from "@/lib/auth/get-role";
-import { can, type Permission } from "@/lib/auth/permissions";
+import { getActor } from "@/lib/auth/get-role";
+import { canAs, type Permission } from "@/lib/auth/permissions";
 import type { Locale } from "@/lib/i18n/config";
 import type { Role } from "@/types/auth";
 
@@ -26,13 +26,16 @@ export async function requirePermission(
   permission: Permission,
   lang: Locale
 ): Promise<Role> {
-  const role = await getRole();
+  // canAs, not can: an อวท. officer holds member:approve through their office
+  // rather than their role, and can() sees only the role half — it would turn
+  // a real officer away from a page they are entitled to.
+  const actor = await getActor();
 
-  if (!can(role, permission)) {
-    redirect(deniedRedirectTarget(role, lang));
+  if (!canAs(actor, permission)) {
+    redirect(deniedRedirectTarget(actor.role, lang));
   }
 
-  return role;
+  return actor.role;
 }
 
 /**
@@ -45,11 +48,11 @@ export async function requireAnyPermission(
   permissions: readonly Permission[],
   lang: Locale
 ): Promise<Role> {
-  const role = await getRole();
+  const actor = await getActor();
 
-  if (!permissions.some((permission) => can(role, permission))) {
-    redirect(deniedRedirectTarget(role, lang));
+  if (!permissions.some((permission) => canAs(actor, permission))) {
+    redirect(deniedRedirectTarget(actor.role, lang));
   }
 
-  return role;
+  return actor.role;
 }

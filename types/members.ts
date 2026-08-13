@@ -1,4 +1,4 @@
-import type { Role } from "@/types/auth";
+import type { MemberPosition, Role } from "@/types/auth";
 
 export interface Department {
   id: string;
@@ -28,6 +28,9 @@ export interface Member {
   email: string | null;
   avatarUrl: string | null;
   role: Role;
+  /** อวท. office, or null for a general member. Display + edit only — the
+   *  authority it confers is decided by canAs(), never by reading this. */
+  position: MemberPosition | null;
   studentId: string | null;
   departmentId: string | null;
   departmentName: string | null;

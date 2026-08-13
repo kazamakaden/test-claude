@@ -102,6 +102,7 @@ export function MembersTable({
               </TableHead>
             );
           })}
+          <TableHead>{d.positionLabel}</TableHead>
           <TableHead>{d.columnDepartment}</TableHead>
           <TableHead>{d.columnClub}</TableHead>
           {canEdit || canManage ? <TableHead>{d.columnActions}</TableHead> : null}
@@ -124,6 +125,18 @@ export function MembersTable({
             <TableCell className="text-muted-foreground">{m.studentId ?? "—"}</TableCell>
             <TableCell className="text-muted-foreground">{m.className ?? "—"}</TableCell>
             <TableCell className="text-muted-foreground">{m.academicYear ?? "—"}</TableCell>
+            {/* Office is public information — who the committee is — so it
+                renders for every viewer, guests included. Assigning one stays
+                admin-only (0044); this is display. */}
+            <TableCell>
+              {m.position ? (
+                <span className="inline-flex items-center rounded-full border border-border bg-muted/40 px-2 py-0.5 text-xs font-medium text-foreground">
+                  {dict.positions[m.position]}
+                </span>
+              ) : (
+                <span className="text-muted-foreground">—</span>
+              )}
+            </TableCell>
             <TableCell className="text-muted-foreground">{m.departmentName ?? "—"}</TableCell>
             <TableCell className="text-muted-foreground">{m.clubName ?? "—"}</TableCell>
             {canEdit || canManage ? (

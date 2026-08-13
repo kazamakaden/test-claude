@@ -57,6 +57,6 @@ export async function approveUser(
     };
   }
 
-  revalidatePath(`/${lang}/approvals`);
+  revalidatePath(`/${lang}/members`);
   return { ok: true };
 }
