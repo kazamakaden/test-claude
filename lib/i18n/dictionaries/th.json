@@ -38,6 +38,12 @@
       "summary": "แสดง {start}–{end} จาก {total} รายการ",
       "previousPage": "หน้าก่อนหน้า",
       "nextPage": "หน้าถัดไป"
+    },
+    "levels": {
+      "vocational": "ปวช.",
+      "diploma": "ปวส.",
+      "bachelor": "ทล.บ.",
+      "unknown": "ไม่ทราบระดับชั้น"
     }
   },
   "roles": {
@@ -387,13 +393,7 @@
         "unknown": "เกิดข้อผิดพลาด กรุณาลองใหม่",
         "departmentInUse": "ไม่สามารถลบสาขานี้ได้ เนื่องจากยังมีสมาชิก กิจกรรม หรือโครงการอยู่ในสาขานี้"
       },
-      "levelLabel": "ระดับชั้น",
-      "levels": {
-        "vocational": "ปวช.",
-        "diploma": "ปวส.",
-        "bachelor": "ทล.บ.",
-        "unknown": "ไม่ทราบระดับชั้น"
-      }
+      "levelLabel": "ระดับชั้น"
     },
     "positionLabel": "ตำแหน่ง",
     "noPosition": "สมาชิกทั่วไป",
@@ -408,6 +408,7 @@
       "patternNumber": "ลำดับ",
       "patternNote": "ตัวอย่าง 66209010020 = ปี 66 + สาขา 20901 + ลำดับ 0020",
       "columnCode": "รหัสสาขา",
+      "columnLevel": "ระดับ",
       "columnNameTh": "ชื่อสาขา (ไทย)",
       "columnNameEn": "ชื่อสาขา (อังกฤษ)",
       "columnMembers": "สมาชิก",

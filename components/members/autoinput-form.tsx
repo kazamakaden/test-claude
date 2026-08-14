@@ -20,7 +20,7 @@ import {
   createDepartmentAction,
   type CreateMemberResult,
 } from "@/actions/members";
-import { parseStudentId } from "@/lib/student-id";
+import { departmentOptionLabel, parseStudentId } from "@/lib/student-id";
 import type { Locale } from "@/lib/i18n/config";
 import type { Dictionary } from "@/types/i18n";
 import type { Club, Department } from "@/types/members";
@@ -161,13 +161,13 @@ export function AutoInputForm({
                 future level must not stop a real student being admitted. */}
             <DetectedValue
               label={d.levelLabel}
-              value={parsed.level ? d.levels[parsed.level] : d.levels.unknown}
+              value={parsed.level ? dict.common.levels[parsed.level] : dict.common.levels.unknown}
             />
           </div>
 
           <p className="text-sm text-muted-foreground">
             {matchedDepartment
-              ? `${d.departmentMatched} — ${lang === "th" ? matchedDepartment.nameTh : matchedDepartment.nameEn}`
+              ? `${d.departmentMatched} — ${departmentOptionLabel(matchedDepartment.code, lang === "th" ? matchedDepartment.nameTh : matchedDepartment.nameEn, dict.common.levels)}`
               : d.departmentNew}
           </p>
 

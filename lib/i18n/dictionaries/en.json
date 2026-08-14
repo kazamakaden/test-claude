@@ -38,6 +38,12 @@
       "summary": "Showing {start}–{end} of {total}",
       "previousPage": "Previous page",
       "nextPage": "Next page"
+    },
+    "levels": {
+      "vocational": "ปวช. (Vocational Certificate)",
+      "diploma": "ปวส. (High Vocational Diploma)",
+      "bachelor": "Bachelor of Technology",
+      "unknown": "Unknown level"
     }
   },
   "roles": {
@@ -387,13 +393,7 @@
         "unknown": "Something went wrong. Please try again.",
         "departmentInUse": "This department still has members, activities or projects attached and cannot be deleted."
       },
-      "levelLabel": "Level",
-      "levels": {
-        "vocational": "ปวช. (Vocational Certificate)",
-        "diploma": "ปวส. (High Vocational Diploma)",
-        "bachelor": "Bachelor of Technology",
-        "unknown": "Unknown level"
-      }
+      "levelLabel": "Level"
     },
     "positionLabel": "Position",
     "noPosition": "General member",
@@ -408,6 +408,7 @@
       "patternNumber": "Number",
       "patternNote": "Example 66209010020 = year 66 + department 20901 + number 0020",
       "columnCode": "Code",
+      "columnLevel": "Level",
       "columnNameTh": "Name (Thai)",
       "columnNameEn": "Name (English)",
       "columnMembers": "Members",
