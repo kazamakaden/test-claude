@@ -3,7 +3,8 @@ import { CalendarHeart } from "lucide-react";
 import { format } from "date-fns";
 import { th, enUS } from "date-fns/locale";
 import { CardEmpty } from "@/components/dashboard/card-states";
-import type { Holiday } from "@/types/holidays";
+import { HolidayNotice } from "@/components/dashboard/holiday-notice";
+import type { HolidayFeed } from "@/types/holidays";
 import type { Locale } from "@/lib/i18n/config";
 import type { Dictionary } from "@/types/i18n";
 
@@ -14,7 +15,8 @@ import type { Dictionary } from "@/types/i18n";
  * fetched once by CalendarCard and shared with CalendarGrid, so this list
  * and the grid's day markers can never disagree.
  */
-export function HolidayList({ holidays, lang, dict }: { holidays: Holiday[]; lang: Locale; dict: Dictionary }) {
+export function HolidayList({ feed, lang, dict }: { feed: HolidayFeed; lang: Locale; dict: Dictionary }) {
+  const { holidays, status } = feed;
   const d = dict.dashboard.holidays;
   const locale = lang === "th" ? th : enUS;
 
@@ -51,6 +53,8 @@ export function HolidayList({ holidays, lang, dict }: { holidays: Holiday[]; lan
           </ul>
         )}
       </div>
+
+      <HolidayNotice status={status} dict={dict} />
 
       {upcoming.length > 0 ? (
         <Link
