@@ -2475,6 +2475,67 @@ label logic was proven by direct unit execution instead. Confirm after deploy
 that the ระดับ column reads ปวช./ปวส./ทล.บ. correctly and that the three
 same-name สาขา are now distinguishable in both dropdowns.
 
+**The set-password step was skippable — now gated on every guarded route and
+action.** Reported: on a first-time sign-in you land on `/set-password` but can
+click the nav and carry straight on. Confirmed exactly:
+`auth/callback/route.ts` redirects there **once**, `/set-password` renders
+inside the `(public)` layout which includes the full `TopNav`, and
+`(app)/layout.tsx` guards on role only. `passwordSet` *was* already fetched by
+`getSessionProfile()` and threaded through the layouts — but used **only to
+pick label text** in `change-password-section.tsx`. It had never been a guard.
+
+**Live evidence, not hypothetical:** two accounts were already through —
+`69319010003@` (**admin**) and `66209010020@` (student), both
+`password_set = false`.
+
+Fixed **without** resurrecting the `pending` role (`0046` removed it
+deliberately; a CHECK refuses it, `/pending` is deleted, and signup was changed
+so any `@udontech.ac.th` account is in immediately). No migration, no RLS
+change. Two layers:
+
+1. `lib/auth/require-role.ts` — new `requirePasswordSet()`, called by both
+   `requirePermission` and `requireAnyPermission` **before** the permission
+   check, redirecting to `/set-password`. Both switched from `getRole()` to
+   `getSessionProfile()`, which is `cache()`d and which `getRole()` already
+   wraps — the same one round trip, not a second query. This covers pages and
+   Server Actions together; every `actions/*.ts` file already calls one of the
+   two (verified by count, not assumption).
+2. `lib/auth/get-role.ts` — `getRole()` now reports **`guest`** for a
+   half-onboarded account. Needed because `requirePermission` is **not** the
+   universal chokepoint the first design assumed: `/members`, `/documents`,
+   `/aft-11` and `/` are `(public)` pages that call `getRole()` + `can()`
+   directly and render privileged controls from it, so a password-less admin
+   would have been shown Add/Edit/Delete buttons whose actions then bounce
+   them. Reporting `guest` makes the UI agree with what the guards allow.
+
+**`profile.userId !== null` is load-bearing, not defensive noise.** Both
+`GUEST_PROFILE` and the `dev_role` cookie stub report `passwordSet: false`
+alongside a null `userId`; without that clause the gate would fire for every
+guest and **break local development outright**. Verified directly: all four
+dev roles still reach all five `(app)` routes with 200.
+
+**A false conclusion avoided, worth recording.** Mid-verification
+`/th/notifications` and `/th/profile` returned 200 while four sibling routes
+correctly 307'd — reproducibly. It looked like a real hole in the fix. It was
+**dev-server module staleness** from editing the auth files while `next dev`
+ran: after `rm -rf .next` and a restart, all five gate identically. Confirm a
+suspicious result against a clean build before treating it as a defect.
+
+Proven by simulation, since this session cannot reach a live Supabase session:
+the `dev_role` stub was temporarily given a non-null `userId` to impersonate a
+signed-in account with no password, which reproduced the exact reported
+behaviour and then its fix; reverted after (`grep TEMP_SELF_TEST` -> 0). Also
+confirmed no redirect loop is possible — `/set-password`, `/reset-password`,
+`/forgot-password` and `/login` reach **zero** `requirePermission` calls, and
+the `(public)` layout is ungated.
+
+**Accepted limit, stated rather than implied:** this is an
+**application-layer** gate, chosen knowingly over the `pending` alternative. A
+half-onboarded account still holds a valid JWT whose stored role passes RLS, so
+it is not a database boundary — reads through the Supabase API directly are
+still possible. Closing that would require changing the role itself. Same shape
+as the already-documented Turnstile-with-JS-off trade-off.
+
 ### ❌ Remaining
 
 * **RLS policy performance (`auth_rls_initplan`, `multiple_permissive_policies`)**
