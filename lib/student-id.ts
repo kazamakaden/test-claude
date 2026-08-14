@@ -49,6 +49,10 @@ export const PROGRAM_CODE_LENGTH = DEPARTMENT_CODE_LENGTH + GROUP_CODE_LENGTH;
  * parse failure: a department code starting with some future digit must never
  * block admitting a real student, so the rest of the ID stays valid and usable
  * and the UI simply says the level is unknown.
+ *
+ * Adding a level (ป.ตรี or any future qualification) is a four-step change
+ * documented in `docs/add-education-level.md`. Widen `StudentLevel` first and
+ * let `tsc` name the remaining edits — it does, by file and line.
  */
 export type StudentLevel = "vocational" | "diploma" | "bachelor" | null;
 

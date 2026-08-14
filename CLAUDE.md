@@ -3051,6 +3051,11 @@ belonged to a สาขา that did not exist.
 
 Any other digit yields an unknown level — deliberately **not** a parse
 failure, so a future qualification can never block admitting a real student.
+Naming a new digit (ป.ตรี or anything later) is a four-step, compiler-guided
+change — `StudentLevel`, the `switch`, `LevelLabels`, and `common.levels` in
+both dictionaries — written up in `docs/add-education-level.md`. Note `4`
+(ทล.บ. — เทคโนโลยีบัณฑิต) is *already* a bachelor's degree, so a ป.ตรี request
+is usually a new **สาขา** under an existing level, which needs no code at all.
 
 **สาขา is resolved automatically at sign-in.** `handle_new_user()` looks the
 5-digit code up in `departments` and fills `profiles.department_id`. An
