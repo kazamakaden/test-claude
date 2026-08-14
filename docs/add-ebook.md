@@ -1,77 +1,78 @@
-# How to add an e-book to the /documents shelf
+# Adding an e-book to the shelf
 
-Books are published on [FlipHTML5](https://fliphtml5.com) (a flipbook host)
-and attached to a document through the app's own §12 draft workflow — there
-is no separate upload/link form outside that workflow anymore. This
-replaces the earlier AnyFlip-based, Table-Editor-only flow (see `CLAUDE.md`
-§0 for why).
+Books on `/documents` are plain PDF files. Clicking a book opens its PDF in
+a new tab using the browser's own viewer — there is no flipbook host and no
+embedded reader (removed in `0053_remove_fliphtml5.sql`).
 
-## 1. Publish the book on FlipHTML5
+You need the **นักศึกษา อวท. (`aft`)**, **ครู (`teacher`)** or
+**ผู้ดูแลระบบ (`admin`)** role. A plain `student` is read-only and will not
+see the "เพิ่มหนังสือ" button.
 
-1. Go to [fliphtml5.com](https://fliphtml5.com) and sign in (or create a
-   free account for the college).
-2. Upload the PDF and let it convert to a flipbook.
-3. Once published, copy the book's share link. It looks like:
+## 1. Create the book
 
-   ```text
-   https://fliphtml5.com/<id>/<book>/
-   ```
+1. Go to **เอกสาร / Documents** and click **เพิ่มหนังสือ**.
+2. Enter the title, academic year (Buddhist, e.g. `2569`) and semester.
+3. Save. The book is created as a **draft** and you land on its detail page.
 
-   (The reader itself may live at `online.fliphtml5.com/<id>/<book>/` —
-   either form is accepted, see the Notes below.)
+A draft is visible only to you and to staff. It does not appear on the
+public shelf.
 
-## 2. Attach it through the draft workflow (the normal path)
+## 2. Upload the PDF
 
-1. Sign in as a student, teacher, `aft_teacher`, or admin and go to
-   `/documents/manage` → **create a new document** (or open an existing
-   draft you own).
-2. Fill in the title, content, an optional description, and paste the
-   FlipHTML5 link from step 1 into **Flipbook URL**. Leaving it blank is
-   fine — the document still saves as a draft with "book not attached".
-3. The document then follows the normal §12/§17 path: **sign** it
-   (digital-signature confirmation), **submit for approval**, and an
-   `aft_teacher` or admin reviews it — the reviewer sees a live preview of
-   the attached book on the document's detail page before approving —
-   and either **approves** (status becomes `official`, visible on the
-   public `/documents` shelf) or **rejects** it back to the owner with a
-   reason.
+On the book's detail page, use the **ไฟล์ PDF** field.
 
-Only an `official` document is public. This is the same RLS-enforced rule
-`docs/add-ebook.md` has always documented
-(`documents_select_official`, `0008_dashboard_rls.sql`) — it now also means
-a book can no longer be pushed straight to the public shelf by editing a row
-directly; it must pass through sign → review → approve first.
-
-## 3. Fallback: Table Editor (admin only, bypasses the workflow)
-
-For a one-off fix or a row that predates this workflow, an admin can still
-edit `public.documents` directly in the Supabase dashboard → **Table
-Editor**. This skips the draft/sign/review steps entirely, so use it
-sparingly — the in-app flow above is the intended path for anything new.
-
-| column | value |
+| Limit | Value |
 |---|---|
-| `title` | The book's title, as it should appear on the shelf |
-| `description` | Optional short description (shown on the reader page) |
-| `status` | **`official`** — anything else stays hidden from the public shelf |
-| `flipbook_url` | The FlipHTML5 URL from step 1, e.g. `https://fliphtml5.com/aasdd/luel/` |
-| `published_at` | The date to show on the shelf — usually just now |
+| Format | PDF only |
+| Maximum size | 25 MB |
 
-## Notes
+Optionally add a description and a cover image (JPEG/PNG/WebP, max 2 MB).
+Without a cover, the shelf draws a generated placeholder from the title.
 
-- **Only `status = 'official'` documents are public**, enforced by database
-  RLS (`documents_select_official`, `0008_dashboard_rls.sql`), not just the
-  UI.
-- **`flipbook_url` must be a real FlipHTML5 link** — the database itself
-  refuses anything else (`documents_flipbook_url_is_fliphtml5` constraint,
-  `0021_documents_fliphtml5.sql`), and the in-app form validates the same
-  pattern before it ever reaches the database
-  (`lib/fliphtml5.ts`/`schemas/documents.ts`). Both `fliphtml5.com/<id>/<book>`
-  and `online.fliphtml5.com/<id>/<book>` are accepted and normalized to the
-  `online.` reader host on save. Pasting a Google Drive link, a raw PDF URL,
-  an AnyFlip link, or any other host will fail validation, not silently save.
-- Removing a book from public view is the same as before: change its
-  `status` away from `official` (or clear `flipbook_url` and re-submit
-  through the workflow), or delete the row.
-- There's no cover-image upload yet — every book on the shelf shows a
-  designed placeholder cover instead. See `CLAUDE.md` §0 for why.
+The file uploads straight from your browser to Storage, then the form saves
+its path — so the 25 MB limit is not constrained by the Server Action body
+size.
+
+Once a PDF is attached you can open it yourself from the detail page
+(**เปิดไฟล์ PDF**) to check it before anyone else sees it.
+
+## 3. Publish
+
+Publishing requires `document:approve` — **admin only**. An owner cannot
+publish their own book; that separation is what keeps a submitted book a
+draft until someone else has looked at it.
+
+An admin opens the book and clicks **เผยแพร่**.
+
+**A book with no PDF cannot be published.** The database refuses it
+(`books_published_needs_pdf`), and the form will say so rather than failing
+silently. This is what guarantees a visitor never sees a book with nothing
+behind it.
+
+## Admin fallback: the Table Editor
+
+For a one-off fix you can edit `public.books` directly in the Supabase
+dashboard.
+
+| Column | Value |
+|---|---|
+| `title` | The book's name |
+| `academic_year` | 4-digit Buddhist year, e.g. `2569` |
+| `season` | `1`, `2` or `3` (ภาคเรียนที่ 1 / 2 / ฤดูร้อน) |
+| `pdf_path` | Storage object path in the `books` bucket |
+| `status` | `draft` or `published` |
+
+Notes:
+
+- `pdf_path` is a **path inside the private bucket**, not a URL. The app
+  mints a signed URL per request; pasting a public URL here will not work.
+- Setting `status = 'published'` with `pdf_path` empty is rejected by
+  `books_published_needs_pdf`.
+- Uploads follow the path convention `{owner_id}/{book_id}/{uuid}.pdf` —
+  the first folder segment is the ownership check in the Storage policies
+  (`0029_books_storage.sql`), so a hand-made path should match it.
+
+## Removing a book
+
+Owners and staff get a delete control on both the shelf card and the detail
+page. Deleting removes the row and then cleans up its Storage objects.

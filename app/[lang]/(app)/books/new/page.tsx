@@ -16,7 +16,9 @@ export default async function NewBookPage({
   const { lang: rawLang } = await params;
   const lang = rawLang as Locale;
 
-  await requirePermission("workspace:access", lang);
+  // document:draft:submit — books_insert_own (0028/0049) admits only
+  // aft/teacher/admin, and a read-only student holds workspace:access.
+  await requirePermission("document:draft:submit", lang);
 
   const dict = await getDictionary(lang);
   const d = dict.documents.manage;

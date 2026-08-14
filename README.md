@@ -99,11 +99,14 @@ confirmed live via `information_schema.role_routine_grants` immediately
 after applying `0011`, and worth knowing if you ever `CREATE OR REPLACE` a
 function that `0006` locked down: the revoke does not survive the replace.
 
-**`0021_documents_fliphtml5.sql`** switches the §12 e-book host from AnyFlip
-to FlipHTML5: it nulls out any existing `flipbook_url` that can't match the
-new pattern (there is no automatic cross-host URL translation), then
-replaces `0013`'s `documents_flipbook_url_is_anyflip` CHECK constraint with
-`documents_flipbook_url_is_fliphtml5`. See "E-books: FlipHTML5" below.
+**`0053_remove_fliphtml5.sql`** removes the third-party flipbook host
+entirely, superseding `0013` (AnyFlip) and `0021` (the switch to FlipHTML5).
+It drops `flipbook_url` from both `books` and `documents` along with their
+CHECK constraints, and replaces `books_published_needs_content` with
+`books_published_needs_pdf`. Any book that was published with only a
+flipbook link is returned to draft first, since there is nothing to convert
+a link on someone else's server into a PDF. See "E-books: uploaded PDFs"
+below.
 
 ## Sign-up rule: every new account lands pending, an admin approves and assigns a role
 
@@ -206,35 +209,44 @@ rejection path entirely — superseded, not deleted from history, because the
 `EXECUTE` grant, twice) even though the feature they were part of no longer
 exists as shipped.
 
-## E-books: FlipHTML5
+## E-books: uploaded PDFs
 
-The §12 e-book shelf (`/documents`) embeds books from
-[FlipHTML5](https://fliphtml5.com), replacing an earlier AnyFlip-based
-version (`0021_documents_fliphtml5.sql` supersedes `0013`'s AnyFlip CHECK
-constraint — see `CLAUDE.md` §0). `lib/fliphtml5.ts` is the single source of
-truth for what counts as a valid embed URL, shared by the write-time Zod
-check (`schemas/documents.ts`) and the reader iframe
-(`components/documents/flipbook-viewer.tsx`); both `fliphtml5.com/<id>/<book>`
-(the share link a person copies out of their dashboard) and
-`online.fliphtml5.com/<id>/<book>` (the reader host FlipHTML5's own embed
-code points at) are accepted and normalized to the `online.` form on save.
+The shelf at `/documents` serves plain PDF files. Clicking a book opens its
+PDF in a new tab, handed to the browser's own viewer — no flipbook, no
+iframe, no third-party origin. This replaced a FlipHTML5 integration
+(itself preceded by AnyFlip) in `0053_remove_fliphtml5.sql`, because the
+hosted flipbook did not meet the project's technical requirements or Thai
+government web compliance.
 
-Unlike the AnyFlip era, attaching a book is no longer a Table-Editor-only
-step — it's a field on the owner's draft (`components/documents/document-form.tsx`)
-that flows through the existing §12 draft → sign → submit → review →
-approve workflow, so a book can't reach the public shelf without a reviewer
-seeing it first (the document detail page renders a live preview via
-`FlipbookViewer` for anyone who isn't the owner mid-edit). See
-`docs/add-ebook.md` for the full walkthrough, including the Table Editor
-fallback that still exists for admin-only one-off fixes.
+Files live in the **private** `books` Storage bucket (`0029_books_storage.sql`),
+never a public one: a public bucket makes every object readable by path
+regardless of publish status, which would put a draft's PDF one URL guess
+away from the world. Reads go through a short-lived signed URL minted per
+request (`services/books.ts#getSignedPdfUrl`), and the shelf signs a whole
+page of them in one call (`getSignedUrlMap`) rather than one per card.
 
-**No verified demo book is seeded.** The previous AnyFlip-era seed carried
-one row with a real, checked-reachable book; this session's outbound
-network policy blocked every request to `fliphtml5.com` (proxy returned
-`403` on `CONNECT`), so no replacement FlipHTML5 URL could be verified
-before committing it — all three seeded rows currently have
-`flipbook_url = null` ("book not attached"). Attach a real one via
-`docs/add-ebook.md` once you can verify a URL by hand.
+Two guards decide who can open a file, and neither lives in the UI:
+
+* `books_select_published` / `books_select_own` / `books_select_staff`
+  (`0028`) decide whether the row is visible at all — a guest only ever
+  sees published books.
+* `books_published_needs_pdf` (`0053`) makes "published implies a PDF
+  exists" a database invariant, so the shelf can never render a card with
+  nothing behind it.
+
+`lib/books.ts#canOpenBookPdf` is the app-layer consequence of those two: a
+published book opens for anyone, and a draft opens only for its owner or
+staff, so a file can be checked before it goes public.
+
+Uploading is a field on the owner's own book (`components/books/book-edit-form.tsx`),
+flowing through the existing draft → publish workflow. **Publishing requires
+`document:approve`, which only `admin` holds** — `aft` and `teacher` can
+create and edit their own books but cannot publish one, so a book is always
+seen by someone else before it reaches the public shelf. See
+`docs/add-ebook.md` for the walkthrough.
+
+**No demo PDF is seeded.** The six existing books are demo rows and none
+has a file attached, so the shelf is empty until someone uploads one.
 
 ## Responsive check
 

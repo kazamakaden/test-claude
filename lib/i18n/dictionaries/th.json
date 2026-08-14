@@ -530,11 +530,11 @@
     "moreEvents": "อีก {count} รายการ"
   },
   "documents": {
-    "description": "หนังสือและเอกสารอิเล็กทรอนิกส์แบบพลิกหน้า",
+    "description": "หนังสือและเอกสารอิเล็กทรอนิกส์ของ อวท.",
     "empty": "ยังไม่มีเอกสารเผยแพร่",
     "readBook": "อ่านหนังสือ",
     "notAttached": "ยังไม่แนบไฟล์หนังสือ",
-    "notAttachedDescription": "เอกสารนี้ยังไม่มีลิงก์หนังสืออิเล็กทรอนิกส์แนบไว้",
+    "notAttachedDescription": "ยังไม่ได้อัปโหลดไฟล์ PDF สำหรับหนังสือเล่มนี้",
     "backToShelf": "กลับไปที่ชั้นหนังสือ",
     "publishedAt": "เผยแพร่เมื่อ",
     "searchPlaceholder": "ค้นหาด้วยชื่อหนังสือ",
@@ -551,9 +551,9 @@
     "confirmDelete": "ลบหนังสือ",
     "deleteFailed": "ไม่สามารถลบหนังสือได้ กรุณาลองใหม่อีกครั้ง",
     "deleted": "ลบหนังสือแล้ว",
-    "pdfInlineUnsupported": "เบราว์เซอร์ของคุณไม่รองรับการแสดง PDF แบบฝัง กรุณาเปิดในแท็บใหม่",
-    "openInNewTab": "เปิดไฟล์ PDF ในแท็บใหม่",
-    "download": "ดาวน์โหลด",
+    "openPdf": "เปิดไฟล์ PDF",
+    "opensInNewTab": "เปิดในแท็บใหม่",
+    "manageBook": "จัดการหนังสือ",
     "downloadPdf": "ดาวน์โหลดไฟล์ PDF",
     "manage": {
       "title": "จัดการเอกสารของฉัน",
@@ -579,8 +579,6 @@
         "titleLabel": "ชื่อเอกสาร",
         "contentLabel": "เนื้อหาเอกสาร",
         "descriptionLabel": "คำอธิบายเอกสาร (ไม่บังคับ)",
-        "flipbookUrlLabel": "ลิงก์หนังสือ FlipHTML5 (ไม่บังคับ)",
-        "flipbookUrlHint": "วางลิงก์จาก fliphtml5.com เช่น https://fliphtml5.com/xxxx/yyyy/",
         "pdfLabel": "ไฟล์ PDF (ไม่บังคับ)",
         "coverLabel": "ภาพปก (ไม่บังคับ)",
         "uploading": "กำลังอัปโหลด...",
@@ -600,9 +598,8 @@
           "seasonInvalid": "กรุณาเลือกภาคเรียน",
           "descriptionTooLong": "คำอธิบายยาวเกินไป (ไม่เกิน 2000 ตัวอักษร)",
           "unknown": "เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง",
-          "flipbookUrlInvalid": "ลิงก์ต้องเป็นลิงก์ FlipHTML5 ที่ถูกต้อง (fliphtml5.com)",
           "notFoundOrForbidden": "ไม่พบหนังสือนี้ หรือคุณไม่มีสิทธิ์แก้ไข",
-          "needsContent": "ต้องมีลิงก์หนังสือหรือไฟล์ PDF ก่อนจึงจะเผยแพร่ได้"
+          "needsContent": "ต้องแนบไฟล์ PDF ก่อนจึงจะเผยแพร่ได้"
         }
       },
       "actions": {
@@ -646,8 +643,7 @@
       "detail": {
         "backToList": "กลับไปที่รายการเอกสาร",
         "ownerLabel": "เจ้าของเอกสาร",
-        "viewPublished": "ดูเอกสารที่เผยแพร่แล้ว",
-        "bookPreviewTitle": "ตัวอย่างหนังสือที่แนบไว้"
+        "viewPublished": "ดูเอกสารที่เผยแพร่แล้ว"
       },
       "rejectedReasonLabel": "เหตุผลที่ตีกลับ"
     },

@@ -50,10 +50,8 @@ export function BookEditForm({
   const titleError = state && !state.ok && state.messageKey === "titleRequired" ? errorMessage : undefined;
   const yearError = state && !state.ok && state.messageKey === "yearInvalid" ? errorMessage : undefined;
   const seasonError = state && !state.ok && state.messageKey === "seasonInvalid" ? errorMessage : undefined;
-  const flipbookError =
-    state && !state.ok && state.messageKey === "flipbookUrlInvalid" ? errorMessage : undefined;
   const otherError =
-    state && !state.ok && !titleError && !yearError && !seasonError && !flipbookError ? errorMessage : undefined;
+    state && !state.ok && !titleError && !yearError && !seasonError ? errorMessage : undefined;
 
   useEffect(() => {
     if (otherError) toast.error(otherError);
@@ -106,18 +104,6 @@ export function BookEditForm({
           <FormError>{seasonError}</FormError>
         </FormField>
       </div>
-
-      <FormField name="flipbookUrl" invalid={Boolean(flipbookError)}>
-        <FormLabel>{d.form.flipbookUrlLabel}</FormLabel>
-        <Input
-          name="flipbookUrl"
-          type="url"
-          placeholder="https://fliphtml5.com/xxxx/yyyy/"
-          defaultValue={book.flipbookUrl ?? ""}
-        />
-        <p className="text-sm text-muted-foreground">{d.form.flipbookUrlHint}</p>
-        <FormError>{flipbookError}</FormError>
-      </FormField>
 
       <FormField name="pdfPath">
         <FormLabel>{d.form.pdfLabel}</FormLabel>

@@ -9,14 +9,19 @@
  * 2. `Content-Security-Policy-Report-Only` — the full strict policy,
  *    observed but not enforced.
  *
- * The split exists because the two riskiest allow-lists (Cloudflare
- * Turnstile on the login form, FlipHTML5 in the book reader) cannot be
- * verified from the build/dev environment — both hosts are unreachable
- * there, so a wrong entry looks identical to a correct one until it reaches
- * production and silently kills login. This project has already lost sign-in
- * once to a hostname allow-list (Turnstile error 110200 on a second Vercel
- * domain); doing that again with a CSP would be worse, because a blocked
- * script produces no server-side signal at all.
+ * The split exists because the riskiest allow-list — Cloudflare Turnstile
+ * on the login form — cannot be verified from the build/dev environment:
+ * the host is unreachable there, so a wrong entry looks identical to a
+ * correct one until it reaches production and silently kills login. This
+ * project has already lost sign-in once to a hostname allow-list (Turnstile
+ * error 110200 on a second Vercel domain); doing that again with a CSP
+ * would be worse, because a blocked script produces no server-side signal
+ * at all.
+ *
+ * FlipHTML5 used to be the second such allow-list. Migration 0053 removed
+ * that integration entirely — books are plain PDFs opened in a new tab now
+ * — so both its frame-src entries are gone, and with the inline <object>
+ * viewer gone too, object-src is 'none' in both policies.
  *
  * So the enforced half buys the wins that are free and immediate —
  * clickjacking, <base> injection, form exfiltration — while the half that
@@ -43,10 +48,11 @@ function supabaseWebsocket(): string {
  * Enforced now. Every directive here is either self-contained or was checked
  * against actual usage in this repo:
  *
- * - `object-src` is NOT 'none', the usual hardening default, because
- *   `components/books/pdf-viewer.tsx` renders the inline PDF with an
- *   `<object data={signedUrl}>` pointing at Supabase Storage. 'none' would
- *   silently blank the book reader.
+ * - `object-src 'none'` — the usual hardening default, and now actually
+ *   reachable. It used to be relaxed to allow Supabase Storage because
+ *   components/books/pdf-viewer.tsx embedded the PDF in an `<object>`;
+ *   that component is gone (0053) and the PDF opens in its own tab, so
+ *   nothing on any page needs a plugin/object source.
  * - `form-action 'self'` is safe for Google sign-in: that path is a 302
  *   redirect issued by Supabase, not a cross-origin form POST.
  * - `frame-ancestors 'none'` — nothing embeds this app.
@@ -57,7 +63,7 @@ export function enforcedCsp(): string {
     "base-uri 'none'",
     "form-action 'self'",
     "frame-ancestors 'none'",
-    `object-src 'self' ${supabaseOrigin()}`,
+    "object-src 'none'",
   ].join("; ");
 }
 
@@ -95,8 +101,8 @@ export function reportOnlyCsp(isDev: boolean): string {
     // wss: is not optional — 0035's realtime calendar subscription opens a
     // WebSocket, and connect-src governs it.
     `connect-src 'self' ${supabase} ${ws}`,
-    "frame-src 'self' https://challenges.cloudflare.com https://fliphtml5.com https://online.fliphtml5.com",
-    `object-src 'self' ${supabase}`,
+    "frame-src 'self' https://challenges.cloudflare.com",
+    "object-src 'none'",
     // public/sw.js
     "worker-src 'self'",
     "manifest-src 'self'",

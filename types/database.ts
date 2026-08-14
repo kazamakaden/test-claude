@@ -1,7 +1,8 @@
 /**
  * Generated from the live project (hmkciwgzbdszsgnbeakc) via
- * `generate_typescript_types` after migrations 0001–0045 were applied live
- * (2026-08-03/04, 0030 applied 2026-08-09, 0036–0038 applied 2026-08-11).
+ * `generate_typescript_types` after migrations 0001–0053 were applied live
+ * (2026-08-03/04, 0030 applied 2026-08-09, 0036–0038 applied 2026-08-11,
+ * 0053 applied 2026-08-14).
  * Genuinely regenerated each time a migration adds/removes a column or
  * table — do not hand-patch this file; the discipline that broke down
  * before (a hand-patched type drifting from the live schema) is exactly
@@ -43,12 +44,14 @@
  * the 0022 grant) since it is not sensitive, unlike citizen_id/attendance
  * above.
  *
- * `documents.flipbook_url`/`cover_url`/`description`/`published_at` (0013)
- * are public book metadata, not sensitive — no column-grant restriction
- * needed, unlike citizen_id/attendance above. `flipbook_url` also carries a
- * DB-level CHECK restricting it to the FlipHTML5 host pattern (0021,
- * superseding 0013's original AnyFlip constraint) — see lib/fliphtml5.ts
- * for the matching app-layer check.
+ * `documents.cover_url`/`description`/`published_at` (0013) are public book
+ * metadata, not sensitive — no column-grant restriction needed, unlike
+ * citizen_id/attendance above. `flipbook_url` is GONE from both `documents`
+ * and `books` as of 0053_remove_fliphtml5.sql, along with its CHECK
+ * constraints: the third-party flipbook host was removed and books are now
+ * plain PDFs in the private `books` Storage bucket. `books` additionally
+ * carries books_published_needs_pdf (0053), so a published book always has
+ * a pdf_path.
  *
  * `books` (0027–0029) is a separate table from `documents`, not an
  * extension of it — see 0027's header comment for why (documents.status is
@@ -250,7 +253,6 @@ export type Database = {
           cover_path: string | null
           created_at: string
           description: string | null
-          flipbook_url: string | null
           id: string
           owner_id: string | null
           pdf_path: string | null
@@ -267,7 +269,6 @@ export type Database = {
           cover_path?: string | null
           created_at?: string
           description?: string | null
-          flipbook_url?: string | null
           id?: string
           owner_id?: string | null
           pdf_path?: string | null
@@ -284,7 +285,6 @@ export type Database = {
           cover_path?: string | null
           created_at?: string
           description?: string | null
-          flipbook_url?: string | null
           id?: string
           owner_id?: string | null
           pdf_path?: string | null
@@ -447,7 +447,6 @@ export type Database = {
           cover_url: string | null
           created_at: string
           description: string | null
-          flipbook_url: string | null
           id: string
           owner_id: string | null
           published_at: string | null
@@ -460,7 +459,6 @@ export type Database = {
           cover_url?: string | null
           created_at?: string
           description?: string | null
-          flipbook_url?: string | null
           id?: string
           owner_id?: string | null
           published_at?: string | null
@@ -473,7 +471,6 @@ export type Database = {
           cover_url?: string | null
           created_at?: string
           description?: string | null
-          flipbook_url?: string | null
           id?: string
           owner_id?: string | null
           published_at?: string | null
