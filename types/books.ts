@@ -13,14 +13,18 @@ export interface BookSummary {
   season: number;
   status: BookStatus;
   coverPath: string | null;
+  /**
+   * Carried on the SUMMARY, not just BookDetail, because the shelf card
+   * links straight at the PDF — it needs to know whether one is attached
+   * without a second round trip, the same reason ownerId is here.
+   */
+  pdfPath: string | null;
   publishedAt: string | null;
   ownerId: string | null;
 }
 
 export interface BookDetail extends BookSummary {
   description: string | null;
-  flipbookUrl: string | null;
-  pdfPath: string | null;
   ownerName: string | null;
 }
 

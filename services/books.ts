@@ -12,7 +12,7 @@ const SORT_COLUMNS = {
 } as const;
 
 const BOOK_SUMMARY_COLUMNS =
-  "id, title, academic_year, season, status, cover_path, published_at, owner_id";
+  "id, title, academic_year, season, status, cover_path, pdf_path, published_at, owner_id";
 
 /**
  * RLS (books_select_published/own/staff, 0028) scopes visibility — same as
@@ -47,6 +47,7 @@ export async function listBooks(filters: BookFilters): Promise<BooksResult> {
     season: b.season,
     status: b.status,
     coverPath: b.cover_path,
+    pdfPath: b.pdf_path,
     publishedAt: b.published_at,
     ownerId: b.owner_id,
   }));
@@ -60,14 +61,20 @@ export async function listBooks(filters: BookFilters): Promise<BooksResult> {
  * error" contract as services/documents.ts#getDocument (§19).
  */
 export async function getBook(id: string): Promise<BookDetail | null> {
-  const supabase = await createClient();
+  // tryCreateClient, not createClient: this is a read path whose caller
+  // already handles null by calling notFound(), and createServerClient()
+  // throws *synchronously* when the env vars are absent — above the page's
+  // own boundary, so it surfaces as a bare 500 rather than a 404. Same
+  // convention (and same lesson) as listBooks/getBookYears/getMembers.
+  const supabase = await tryCreateClient();
+  if (!supabase) return null;
   // `profiles(full_name)` alone is ambiguous — books has two FKs to
   // profiles (owner_id, published_by) — so PostgREST needs the specific
   // relationship hinted, or this fails to type at compile time.
   const { data, error } = await supabase
     .from("books")
     .select(
-      "id, title, description, academic_year, season, status, flipbook_url, pdf_path, cover_path, owner_id, published_at, owner:profiles!books_owner_id_fkey(full_name)"
+      "id, title, description, academic_year, season, status, pdf_path, cover_path, owner_id, published_at, owner:profiles!books_owner_id_fkey(full_name)"
     )
     .eq("id", id)
     .maybeSingle();
@@ -81,7 +88,6 @@ export async function getBook(id: string): Promise<BookDetail | null> {
     academicYear: data.academic_year,
     season: data.season,
     status: data.status,
-    flipbookUrl: data.flipbook_url,
     pdfPath: data.pdf_path,
     coverPath: data.cover_path,
     ownerId: data.owner_id,
@@ -151,7 +157,6 @@ export async function updateBook(input: UpdateBookInput): Promise<{ ok: true } |
       description: input.description,
       academic_year: input.academicYear,
       season: input.season,
-      flipbook_url: input.flipbookUrl,
       pdf_path: input.pdfPath,
       cover_path: input.coverPath,
     })
@@ -261,6 +266,38 @@ export async function getSignedPdfUrl(path: string, downloadAs?: string): Promis
   if (error || !data) return null;
   if (!downloadAs) return data.signedUrl;
   return `${data.signedUrl}&download=${encodeURIComponent(downloadAs)}`;
+}
+
+/**
+ * Signs a whole page of objects in ONE Storage round trip.
+ *
+ * The shelf renders 12 cards, each needing a cover URL and (now that a card
+ * links straight at its file) a PDF URL — 24 sequential round trips if each
+ * card mints its own. `createSignedUrls` takes the batch instead. Callers
+ * pass the paths they already hold from the list query, so this adds no
+ * extra database read.
+ *
+ * Returns a path -> URL map; a path that failed to sign is simply absent,
+ * which callers treat the same as "no file", never as a hard error.
+ */
+export async function getSignedUrlMap(
+  bucket: "books" | "book-covers",
+  paths: string[]
+): Promise<Map<string, string>> {
+  const unique = [...new Set(paths)];
+  if (unique.length === 0) return new Map();
+
+  const supabase = await tryCreateClient();
+  if (!supabase) return new Map();
+
+  const { data, error } = await supabase.storage.from(bucket).createSignedUrls(unique, 3600);
+  if (error || !data) return new Map();
+
+  return new Map(
+    data.flatMap((entry) =>
+      entry.signedUrl && entry.path ? [[entry.path, entry.signedUrl] as [string, string]] : []
+    )
+  );
 }
 
 export async function getSignedCoverUrl(path: string): Promise<string | null> {

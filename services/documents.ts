@@ -14,8 +14,6 @@ import type {
   SaveDocumentDraftInput,
 } from "@/schemas/documents";
 import { DOCUMENTS_PER_PAGE_SIZE } from "@/schemas/documents";
-import { toFlipHtml5EmbedUrl } from "@/lib/fliphtml5";
-import { deriveAcademicYearAndSeason } from "@/lib/books";
 
 // ---------------------------------------------------------------------
 // §12/§17 draft -> signed -> pending_approval -> official workflow. The
@@ -33,7 +31,7 @@ const WORKFLOW_SORT_COLUMNS = {
 } as const;
 
 const WORKFLOW_COLUMNS =
-  "id, title, status, owner_id, rejected_reason, published_at, created_at, updated_at, description, flipbook_url, profiles(full_name)";
+  "id, title, status, owner_id, rejected_reason, published_at, created_at, updated_at, description, profiles(full_name)";
 
 type DocumentWorkflowRow = {
   id: string;
@@ -45,7 +43,6 @@ type DocumentWorkflowRow = {
   created_at: string;
   updated_at: string;
   description: string | null;
-  flipbook_url: string | null;
   profiles: { full_name: string | null } | null;
 };
 
@@ -159,7 +156,6 @@ export async function getDocumentForWorkflow(id: string): Promise<DocumentWorkfl
       : null,
     hasSignature: Boolean(signatureResult.data),
     description: row.description,
-    flipbookUrl: row.flipbook_url,
   };
 }
 
@@ -193,17 +189,9 @@ export async function saveDocumentDraft(
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   const supabase = await createClient();
 
-  // Normalize before writing so what lands in the column is always the
-  // canonical https://online.fliphtml5.com/x/y/ form regardless of which
-  // valid variant (bare share link, www., mixed case) the owner pasted —
-  // schemas/documents.ts already refused anything that fails
-  // isFlipHtml5EmbedUrl, so toFlipHtml5EmbedUrl here can't return null for
-  // a non-null input.
-  const flipbookUrl = input.flipbookUrl ? toFlipHtml5EmbedUrl(input.flipbookUrl) : null;
-
   const { data: docData, error: docError } = await supabase
     .from("documents")
-    .update({ title: input.title, description: input.description, flipbook_url: flipbookUrl })
+    .update({ title: input.title, description: input.description })
     .eq("id", input.documentId)
     .select("id")
     .maybeSingle();
@@ -255,54 +243,28 @@ export async function submitDocumentForApproval(documentId: string) {
 }
 
 /**
- * Sets published_at, then bridges onto the public books shelf (confirmed
- * decision: an approved document auto-lists as a book) — upserted on
- * source_document_id (0027's unique constraint) so this stays idempotent
- * rather than risking a duplicate. Only a document that actually has a
- * book link is bridged: one with neither a link nor a PDF would violate
- * books_published_needs_content (0027) outright, and there'd be nothing to
- * read anyway. The bridge is best-effort and never blocks or fails the
- * underlying document approval — the §12 trigger/RLS/UI stay untouched.
+ * Sets published_at. Nothing else.
+ *
+ * This used to also bridge onto the public books shelf, auto-listing an
+ * approved document as a book built from its flipbook_url. Migration 0053
+ * removed FlipHTML5 entirely, and `documents` has no file upload of its
+ * own — so there is no longer any content to carry across, and
+ * books_published_needs_pdf (0053) would reject a book with nothing
+ * attached anyway.
+ *
+ * To restore the bridge, `documents` needs its own Storage upload (a
+ * pdf_path column plus the two-phase upload flow components/books already
+ * has); the upsert on source_document_id (0027's unique constraint, still
+ * present) is what would keep it idempotent, and lib/books.ts's
+ * deriveAcademicYearAndSeason — removed with the bridge as dead code, see
+ * git history — is what derived a new book's year/season. Until then, staff
+ * publish a PDF through the shelf itself at /books/new.
  */
 export async function approveDocument(documentId: string) {
-  const result = await transitionDocument(documentId, {
+  return transitionDocument(documentId, {
     status: "official",
     published_at: new Date().toISOString(),
   });
-  if (!result.ok) return result;
-
-  const supabase = await createClient();
-  const { data: doc } = await supabase
-    .from("documents")
-    .select("title, description, flipbook_url, owner_id")
-    .eq("id", documentId)
-    .maybeSingle();
-
-  if (doc?.flipbook_url) {
-    const now = new Date();
-    const { academicYear, season } = deriveAcademicYearAndSeason(now);
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    await supabase.from("books").upsert(
-      {
-        source_document_id: documentId,
-        title: doc.title,
-        description: doc.description,
-        flipbook_url: doc.flipbook_url,
-        academic_year: academicYear,
-        season,
-        status: "published",
-        owner_id: doc.owner_id,
-        published_at: now.toISOString(),
-        published_by: user?.id ?? null,
-      },
-      { onConflict: "source_document_id" }
-    );
-  }
-
-  return result;
 }
 
 export async function rejectDocument(input: RejectDocumentInput) {

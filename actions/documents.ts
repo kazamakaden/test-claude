@@ -20,7 +20,7 @@ import {
 } from "@/services/documents";
 import { isLocale, defaultLocale, type Locale } from "@/lib/i18n/config";
 
-type DocumentErrorKey = "titleRequired" | "flipbookUrlInvalid" | "unknown";
+type DocumentErrorKey = "titleRequired" | "unknown";
 export type SaveDocumentResult = { ok: true; id: string } | { ok: false; messageKey: DocumentErrorKey };
 
 type SignErrorKey = "signatureRequired" | "signatureInvalid" | "confirmTextMismatch" | "unknown";
@@ -29,7 +29,7 @@ export type SignDocumentResult = { ok: true } | { ok: false; messageKey: SignErr
 export type RejectDocumentResult = { ok: true } | { ok: false; messageKey: "reasonRequired" | "unknown" };
 
 function isDocumentErrorKey(value: string | undefined): value is DocumentErrorKey {
-  return value === "titleRequired" || value === "flipbookUrlInvalid";
+  return value === "titleRequired";
 }
 
 function isSignErrorKey(value: string | undefined): value is SignErrorKey {
@@ -86,7 +86,6 @@ export async function saveDocumentDraftAction(
     title: formData.get("title"),
     content: formData.get("content") || null,
     description: formData.get("description") || null,
-    flipbookUrl: formData.get("flipbookUrl") || null,
   });
 
   if (!parsed.success) {

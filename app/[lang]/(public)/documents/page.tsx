@@ -6,7 +6,7 @@ import { getRole } from "@/lib/auth/get-role";
 import { can } from "@/lib/auth/permissions";
 import { tryCreateClient } from "@/lib/supabase/server";
 import { parseBooksSearchParams, BOOKS_PER_PAGE_SIZE } from "@/schemas/books";
-import { listBooks, getBookYears } from "@/services/books";
+import { listBooks, getBookYears, getSignedUrlMap } from "@/services/books";
 import { BooksFilters } from "@/components/books/books-filters";
 import { BooksFiltersSkeleton } from "@/components/books/books-filters-skeleton";
 import { BooksShelf } from "@/components/books/books-shelf";
@@ -50,9 +50,23 @@ async function BooksResults({
 
   const isStaff = can(role, "document:approve");
 
+  // Two batched Storage calls for the whole page rather than two per card.
+  const [coverUrls, pdfUrls] = await Promise.all([
+    getSignedUrlMap("book-covers", rows.flatMap((b) => (b.coverPath ? [b.coverPath] : []))),
+    getSignedUrlMap("books", rows.flatMap((b) => (b.pdfPath ? [b.pdfPath] : []))),
+  ]);
+
   return (
     <div className="flex flex-col gap-4">
-      <BooksShelf books={rows} viewerId={user?.id ?? null} isStaff={isStaff} lang={lang} dict={dict} />
+      <BooksShelf
+        books={rows}
+        coverUrls={coverUrls}
+        pdfUrls={pdfUrls}
+        viewerId={user?.id ?? null}
+        isStaff={isStaff}
+        lang={lang}
+        dict={dict}
+      />
       <Pagination
         page={filters.page}
         perPage={BOOKS_PER_PAGE_SIZE}
@@ -89,7 +103,10 @@ export default async function DocumentsPage({
     ) as [string, string][]
   );
   const suspenseKey = JSON.stringify(filters);
-  const canAdd = can(role, "workspace:access");
+  // document:draft:submit, NOT workspace:access — a read-only student holds
+  // the latter, but books_insert_own (0028/0049) only admits aft/teacher/admin,
+  // so the button would have opened a form whose save could never succeed.
+  const canAdd = can(role, "document:draft:submit");
 
   return (
     <div className="mx-auto flex max-w-7xl flex-col gap-6 px-4 py-8 sm:px-6 lg:px-8">

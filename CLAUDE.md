@@ -6,7 +6,7 @@ Tracked against the §30 build plan. Grouped by done vs. remaining so status is
 scannable at a glance — each item still tags its §30.x subsection for detail.
 
 > **§0 is a running log, not a spec.** Entries are accurate for when they were
-> written and are NOT revised afterwards. Two subjects have since changed
+> written and are NOT revised afterwards. Three subjects have since changed
 > underneath older entries — read the authoritative section instead:
 >
 > * **Roles and permissions → §6.** `pending` and `aft_teacher` no longer
@@ -17,6 +17,14 @@ scannable at a glance — each item still tags its §30.x subsection for detail.
 > * **Student IDs and สาขา → §14.** Department codes are the real OVEC list
 >   and สาขา is resolved automatically at sign-in; the codes `31901`–`31906`
 >   that appear in older entries were invalid demo data, deleted in `0050`.
+> * **E-books → §12 and the FlipHTML5-removal entry below.** There is no
+>   flipbook host any more: `flipbook_url` is dropped from both `books` and
+>   `documents` (`0053`), `lib/fliphtml5.ts` / `lib/anyflip.ts` /
+>   `flipbook-viewer.tsx` / `pdf-viewer.tsx` are deleted, and a book is a PDF
+>   in private Storage opened in a new tab. Any older entry describing an
+>   AnyFlip or FlipHTML5 embed URL, `resolveBookSource`, or the
+>   `books_published_needs_content` constraint is describing removed
+>   machinery.
 
 ### ✔ Done
 
@@ -2257,6 +2265,138 @@ to be rediscovered:
   digital signature" to **Student**. That was written before `aft` existed
   and is now wrong: a plain `student` is read-only.
 
+**FlipHTML5 removed entirely; a book is now a PDF opened in a new tab
+(migration `0053`).** The §12 e-book shelf embedded books from a third-party
+flipbook host inside an `<iframe>`. Reported as not meeting the project's
+technical requirements or Thai government web compliance, so the whole
+integration is gone — `lib/fliphtml5.ts`, `flipbook-viewer.tsx`, the
+`<object>`-based `pdf-viewer.tsx`, both `flipbook_url` columns and both host
+CHECK constraints. Clicking a book on `/documents` now opens its uploaded
+PDF in a new tab (`target="_blank" rel="noopener noreferrer"`), rendered by
+the browser's own viewer.
+
+**Two corrections to the brief, both stated up front rather than discovered
+mid-build.** The request described fetching a PDF *URL* from *MySQL*: this
+project has no MySQL (Supabase Postgres), and the PDF is not a URL column —
+it is `books.pdf_path`, a path into the **private** `books` Storage bucket,
+read through a signed URL minted per request. That is deliberate
+(`0029`): a public bucket makes every object readable by path regardless of
+publish status, so a draft's PDF would be one URL guess away from the
+public. Kept as-is and built on `pdf_path`.
+
+**The publish guard is a database invariant, not a UI check.**
+`books_published_needs_pdf` (0053) replaces `books_published_needs_content`:
+`check (status <> 'published' or pdf_path is not null)`. With
+`books_select_published` (0028) that yields **published ⇒ a PDF exists** and
+**a guest only ever sees published rows**, so the shelf cannot render a card
+with nothing behind it. `lib/books.ts#canOpenBookPdf` is the app-layer
+consequence: published opens for anyone, a draft opens only for its owner or
+staff (so a file can be checked before it goes public). Verified live in
+both directions, not just read off the constraint: publishing with
+`pdf_path IS NULL` is refused with **`23514`**, and with a path set it is
+accepted — run inside a self-rolling-back function, with the after-counts
+confirming zero residue (0 published, 0 with pdf).
+
+The one previously-published book was flipbook-only, so `0053` returned it
+to draft before rebuilding the constraint. **All six books therefore have no
+file and the public shelf is empty until someone uploads a PDF** — expected,
+not a regression.
+
+**`approveDocument`'s document → shelf bridge was removed, not silently
+broken.** It upserted a published book from the approved document's
+`flipbook_url`; with that column gone there is no content to carry, and
+`documents` has no upload of its own. `approveDocument` is now just the
+status transition, with a comment naming exactly what would restore the
+bridge (a `pdf_path` on `documents` plus the two-phase upload flow
+`components/books` already has). `lib/books.ts#deriveAcademicYearAndSeason`
+went with it as dead code.
+
+**Two real bugs found while reviewing this area, fixed in the same pass:**
+
+1. **A plain `student` was offered a "เพิ่มหนังสือ" button that could never
+   work.** This file already recorded that book authoring "was gated on
+   `workspace:access` ... so `document:draft:submit` was added and the RLS
+   narrowed to match" — but only the permission and the policy were ever
+   changed. **Five call sites still guarded on `workspace:access`**, which
+   `studentPermissions` includes, while `books_insert_own` (0028/0049)
+   admits only `aft`/`teacher`/`admin`. A student could open the form, fill
+   it in, submit, and get the generic `unknown` toast from an RLS refusal.
+   The database was right; the guard had not been updated. All five now use
+   `document:draft:submit`. Verified by HTTP status, not page text — the
+   false-pass this project has recorded before: `/th/books/new` is **307 →
+   /th/login** for student and guest, **200** for aft/teacher/admin, and the
+   add button renders 0 times for student, once for aft/teacher/admin.
+2. **The migration would have silently broken the publish error message.**
+   `publishBookAction` identifies "nothing to read" by string-matching the
+   constraint name; renaming it to `books_published_needs_pdf` would have
+   made that test always false, degrading "attach a file first" into the
+   misleading "not found or forbidden". Updated with the rename. Worth
+   noting the fragility rather than only patching it: an error message is
+   coupled to a database identifier with nothing enforcing the link —
+   matching on SQLSTATE `23514` plus the name would at least fail loudly.
+
+**A third, pre-existing defect surfaced during verification and was fixed
+because it blocked it:** `services/books.ts#getBook` used unguarded
+`createClient()`, which throws *synchronously* above the page's own
+boundary when the Supabase env vars are absent — so `/th/documents/<id>`
+returned a bare **500** instead of a 404. Same class as the `/members` and
+`/documents` shelf defects already recorded here; `getBook` was simply never
+converted. Now `tryCreateClient()` + a null guard, so its caller's existing
+`notFound()` handles it: the route returns **404**, confirmed. Write paths
+(`createBook`/`updateBook`/`deleteBook`/publish) deliberately keep
+`createClient()` — a write with no real client *should* throw.
+
+**Performance:** the shelf signed a cover URL per card and would have signed
+a PDF URL per card too — 24 Storage round trips for 12 books. New
+`services/books.ts#getSignedUrlMap` signs a whole page in one
+`createSignedUrls` call; the page makes exactly **two**, and `BookCard` is a
+synchronous component again.
+
+**CSP tightened as a side effect**: both FlipHTML5 hosts dropped from
+`frame-src`, and with the `<object>` embed gone `object-src` is now `'none'`
+in **both** the enforced and report-only policies (it had been relaxed to
+allow Supabase Storage solely for that embed).
+
+**Verified in a real browser against the real page**, using this project's
+established inject-then-revert self-test discipline — because outbound
+access to `*.supabase.co` is blocked from this session (`curl` returns
+`000`, same limitation prior passes record), so an unstubbed shelf renders
+empty and would prove nothing about the card. Fixtures were injected into
+`listBooks`/`getSignedUrlMap`/`getBook`/`getSignedPdfUrl`, the pages driven
+over a real dev server, then reverted (`grep TEMP_SELF_TEST` → 0, and the
+file restored from a pre-stub copy so only the deliberate `getBook` fix
+survives). Results, per role:
+
+* Guest / student / aft: exactly **1** storage link on the shelf — the
+  published book — with `target="_blank"` and `rel="noopener noreferrer"`.
+  Both drafts fall back to their detail page; **the draft that HAS a PDF
+  does not leak it.** 0 manage anchors, 0 delete buttons.
+* Admin (holds `document:approve`): **2** storage links — published plus the
+  draft-with-PDF, which is the point of letting staff check a file before
+  publishing — 3 manage anchors, 3 delete buttons.
+* Detail page: **0** `<iframe>`/`<object>`/`fliphtml5`; the open link carries
+  `target="_blank" rel="noopener noreferrer"`; the download link is a
+  **separate** signed URL carrying `&download=Published%20with%20PDF.pdf`
+  and deliberately no `target` — proving the two-URL design (forcing
+  `Content-Disposition: attachment` on the view URL would turn the open link
+  into a save prompt). The "not attached" empty state correctly did **not**
+  render for a book with a file — the apparent match was the serialized
+  dictionary, checked rather than assumed.
+
+`npx tsc --noEmit`, `npm run lint` and a fully observed `npm run build`
+(exit 0, `BUILD_ID` present, never piped through `head`) all pass, plus
+`npm run check:responsive` **72/72 with 0 overflow and the self-test
+passing**. Dictionary key parity re-checked programmatically (609 keys,
+both locales). `types/database.ts` regenerated against the live schema.
+
+**Not verified, stated plainly:** no PDF has ever been uploaded to this
+project, so the genuine end-to-end — upload a real file, publish it, open it
+as a guest, and observe the real `Content-Disposition` on a live Storage
+response — has **not** been done. Every URL above came from a stub; the
+signing call itself (`createSignedUrl`/`createSignedUrls`) is unexercised
+against real Storage. That is the first thing to confirm after deploy.
+
+
 ### ❌ Remaining
 
 * **RLS policy performance (`auth_rls_initplan`, `multiple_permissive_policies`)**
@@ -2726,6 +2866,34 @@ Admin Approval
  ↓
 Official
 ```
+
+### E-books are a separate thing from this workflow
+
+`documents` (above) and `books` (the `/documents` shelf) are two tables and
+two flows. Do not conflate them:
+
+* A **document** goes through the signature workflow above. It has no file
+  upload of its own.
+* A **book** is a **PDF in the private `books` Storage bucket**, read
+  through a signed URL minted per request and opened in a new tab by the
+  browser's own viewer. There is **no flipbook host** — the AnyFlip and
+  FlipHTML5 integrations were both removed in `0053`.
+
+A book's stage is `books.status` (`draft` → `published`), not the document
+statuses above. Two rules, both in the database rather than the UI:
+
+* `books_published_needs_pdf` (`0053`) — **published ⇒ a PDF exists**.
+* `books_select_published` (`0028`) — a guest only ever sees published rows.
+
+Publishing needs `document:approve`, which **only `admin`** holds, so a book
+is always seen by someone other than its author before going public.
+`lib/books.ts#canOpenBookPdf` is the app-layer read of those rules: a
+published book opens for anyone, a draft only for its owner or staff.
+
+`approveDocument` used to auto-list an approved document on the shelf from
+its `flipbook_url`. That bridge is **gone** — there is no such column, and
+`documents` has nothing to upload. Restoring it needs a `pdf_path` on
+`documents` plus the two-phase upload flow `components/books` already has.
 
 ---
 

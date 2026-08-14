@@ -42,8 +42,6 @@ export function DocumentForm({
 
   const errorMessage = state && !state.ok ? d.form.errors[state.messageKey] : undefined;
   const titleError = state && !state.ok && state.messageKey === "titleRequired" ? errorMessage : undefined;
-  const flipbookError =
-    state && !state.ok && state.messageKey === "flipbookUrlInvalid" ? errorMessage : undefined;
 
   useEffect(() => {
     if (errorMessage) toast.error(errorMessage);
@@ -82,17 +80,6 @@ export function DocumentForm({
             <Textarea name="description" maxLength={500} rows={3} defaultValue={document?.description ?? ""} />
           </FormField>
 
-          <FormField name="flipbookUrl" invalid={Boolean(flipbookError)}>
-            <FormLabel>{d.form.flipbookUrlLabel}</FormLabel>
-            <Input
-              name="flipbookUrl"
-              type="url"
-              placeholder="https://fliphtml5.com/xxxx/yyyy/"
-              defaultValue={document?.flipbookUrl ?? ""}
-            />
-            <p className="text-sm text-muted-foreground">{d.form.flipbookUrlHint}</p>
-            <FormError>{flipbookError}</FormError>
-          </FormField>
         </>
       ) : null}
 

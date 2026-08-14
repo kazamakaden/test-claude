@@ -1,5 +1,4 @@
 import { z } from "zod";
-import { isFlipHtml5EmbedUrl } from "@/lib/fliphtml5";
 
 const bookIdSchema = z.uuid();
 
@@ -67,16 +66,6 @@ export const updateBookSchema = z.object({
   description: z.string().trim().max(2000, { message: "descriptionTooLong" }).nullable(),
   academicYear: yearField,
   season: seasonField,
-  // "" (an empty form field) means "no link attached", not a validation
-  // error — only a genuinely non-empty value is checked against the
-  // FlipHTML5 allow-list, same shape as schemas/documents.ts's flipbookUrl.
-  flipbookUrl: z
-    .string()
-    .trim()
-    .nullable()
-    .catch(null)
-    .transform((value) => (value ? value : null))
-    .refine((value) => value === null || isFlipHtml5EmbedUrl(value), { message: "flipbookUrlInvalid" }),
   // Storage object paths, written by the two-phase upload flow (browser ->
   // Storage directly, then this hidden field carries the resulting path
   // into the ordinary Server Action) — never a raw file, since Server

@@ -530,11 +530,11 @@
     "moreEvents": "+{count} more"
   },
   "documents": {
-    "description": "Official e-books and flipbook documents",
+    "description": "Official AFT e-books and documents",
     "empty": "No published documents yet",
     "readBook": "Read book",
     "notAttached": "No book attached yet",
-    "notAttachedDescription": "This document doesn't have an e-book link attached yet.",
+    "notAttachedDescription": "No PDF file has been uploaded for this book yet.",
     "backToShelf": "Back to the shelf",
     "publishedAt": "Published",
     "searchPlaceholder": "Search by book title",
@@ -551,9 +551,9 @@
     "confirmDelete": "Delete book",
     "deleteFailed": "Couldn't delete the book — please try again",
     "deleted": "Book deleted",
-    "pdfInlineUnsupported": "Your browser can't display this PDF inline — please open it in a new tab.",
-    "openInNewTab": "Open PDF in a new tab",
-    "download": "Download",
+    "openPdf": "Open PDF",
+    "opensInNewTab": "opens in a new tab",
+    "manageBook": "Manage book",
     "downloadPdf": "Download PDF",
     "manage": {
       "title": "Manage my documents",
@@ -579,8 +579,6 @@
         "titleLabel": "Document title",
         "contentLabel": "Document content",
         "descriptionLabel": "Description (optional)",
-        "flipbookUrlLabel": "FlipHTML5 book link (optional)",
-        "flipbookUrlHint": "Paste a link from fliphtml5.com, e.g. https://fliphtml5.com/xxxx/yyyy/",
         "pdfLabel": "PDF file (optional)",
         "coverLabel": "Cover image (optional)",
         "uploading": "Uploading...",
@@ -600,9 +598,8 @@
           "seasonInvalid": "Please choose a semester",
           "descriptionTooLong": "Description is too long (2000 characters max)",
           "unknown": "Something went wrong — please try again",
-          "flipbookUrlInvalid": "The link must be a valid FlipHTML5 link (fliphtml5.com)",
           "notFoundOrForbidden": "This book doesn't exist, or you don't have permission to edit it",
-          "needsContent": "Attach a book link or PDF before publishing"
+          "needsContent": "Attach a PDF before publishing"
         }
       },
       "actions": {
@@ -646,8 +643,7 @@
       "detail": {
         "backToList": "Back to documents",
         "ownerLabel": "Document owner",
-        "viewPublished": "View published document",
-        "bookPreviewTitle": "Attached book preview"
+        "viewPublished": "View published document"
       },
       "rejectedReasonLabel": "Sent back — reason"
     },

@@ -2,16 +2,14 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { format } from "date-fns";
 import { th, enUS } from "date-fns/locale";
-import { ArrowLeft, FileWarning, Trash2 } from "lucide-react";
+import { ArrowLeft, Trash2 } from "lucide-react";
 import { getDictionary } from "@/lib/i18n/get-dictionary";
 import { getRole, getSessionUserId } from "@/lib/auth/get-role";
 import { can } from "@/lib/auth/permissions";
 import { getBook } from "@/services/books";
 import { parseBookId } from "@/schemas/books";
-import { resolveBookSource, SEASON_LABELS_TH, SEASON_LABELS_EN } from "@/lib/books";
-import { FlipbookViewer } from "@/components/documents/flipbook-viewer";
-import { PdfViewer } from "@/components/books/pdf-viewer";
-import { PdfDownloadLink } from "@/components/books/pdf-download-link";
+import { canOpenBookPdf, SEASON_LABELS_TH, SEASON_LABELS_EN } from "@/lib/books";
+import { BookFileActions } from "@/components/books/book-file-actions";
 import { BookNotAttached } from "@/components/books/book-not-attached";
 import { BookEditForm } from "@/components/books/book-edit-form";
 import { PublishControls } from "@/components/books/publish-controls";
@@ -49,8 +47,11 @@ export default async function BookDetailPage({
   const d = dict.documents;
   const locale = lang === "th" ? th : enUS;
   const seasonLabels = lang === "th" ? SEASON_LABELS_TH : SEASON_LABELS_EN;
-  const source = resolveBookSource(book);
   const showEditor = canEdit && viewerId !== null;
+  // canDelete is exactly "owner or staff" — the audience allowed to open an
+  // unpublished draft's file (lib/books.ts#canOpenBookPdf). RLS has already
+  // refused the row entirely to anyone else.
+  const canRead = canOpenBookPdf(book, canDelete);
 
   return (
     <div className="mx-auto flex max-w-4xl flex-col gap-6 px-4 py-8 sm:px-6 lg:px-8">
@@ -106,21 +107,19 @@ export default async function BookDetailPage({
         ) : null}
       </div>
 
-      {showEditor && source.kind !== "none" ? (
-        <h2 className="font-heading text-sm font-medium text-muted-foreground">{d.readBook}</h2>
-      ) : null}
-
-      {source.kind === "flipbook" ? (
-        <FlipbookViewer title={book.title} flipbookUrl={book.flipbookUrl} dict={dict} />
-      ) : source.kind === "pdf" ? (
-        <PdfViewer title={book.title} pdfPath={book.pdfPath} dict={dict} />
+      {canRead && book.pdfPath ? (
+        <div className="flex flex-col gap-2">
+          {showEditor ? (
+            <h2 className="font-heading text-sm font-medium text-muted-foreground">{d.readBook}</h2>
+          ) : null}
+          <BookFileActions pdfPath={book.pdfPath} title={book.title} dict={dict} />
+        </div>
       ) : showEditor ? null : (
-        <BookNotAttached icon={FileWarning} dict={dict} />
+        // Someone who cannot edit is only ever here for a published book,
+        // which books_published_needs_pdf (0053) guarantees has a file — so
+        // this is the "the file failed to sign" case, not a missing upload.
+        <BookNotAttached dict={dict} />
       )}
-
-      {source.kind === "flipbook" && book.pdfPath ? (
-        <PdfDownloadLink pdfPath={book.pdfPath} title={book.title} dict={dict} />
-      ) : null}
 
       {canEdit && viewerId ? <BookEditForm book={book} ownerId={viewerId} lang={lang} dict={dict} /> : null}
     </div>

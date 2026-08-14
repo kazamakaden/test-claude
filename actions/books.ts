@@ -24,7 +24,6 @@ type BookErrorKey =
   | "titleRequired"
   | "yearInvalid"
   | "seasonInvalid"
-  | "flipbookUrlInvalid"
   | "descriptionTooLong"
   | "notFoundOrForbidden"
   | "needsContent"
@@ -37,7 +36,6 @@ function isBookErrorKey(value: string | undefined): value is BookErrorKey {
     value === "titleRequired" ||
     value === "yearInvalid" ||
     value === "seasonInvalid" ||
-    value === "flipbookUrlInvalid" ||
     value === "descriptionTooLong"
   );
 }
@@ -47,13 +45,23 @@ function getLang(formData: FormData): Locale {
   return typeof raw === "string" && isLocale(raw) ? raw : defaultLocale;
 }
 
-/** Task 2's minimal create step. Any signed-in, non-pending user may add a book — workspace:access is the matching existing permission (student/teacher/aft_teacher/admin). */
+/**
+ * Authoring gate for all three book write actions below.
+ *
+ * document:draft:submit, NOT workspace:access. A read-only `student` holds
+ * workspace:access, but books_insert_own / books_update_own_draft /
+ * books_delete_own (0028, narrowed by 0049) only admit aft/teacher/admin —
+ * so guarding on workspace:access let a student through the app layer only
+ * for RLS to refuse the write, surfacing a generic error on a form that
+ * could never have saved. RLS was right; the guard was the part that had
+ * not been updated.
+ */
 export async function createBookAction(
   _prevState: BookActionResult | null,
   formData: FormData
 ): Promise<BookActionResult> {
   const lang = getLang(formData);
-  await requirePermission("workspace:access", lang);
+  await requirePermission("document:draft:submit", lang);
 
   const parsed = createBookSchema.safeParse({
     title: formData.get("title"),
@@ -84,7 +92,7 @@ export async function updateBookAction(
   formData: FormData
 ): Promise<BookActionResult> {
   const lang = getLang(formData);
-  await requirePermission("workspace:access", lang);
+  await requirePermission("document:draft:submit", lang);
 
   const parsed = updateBookSchema.safeParse({
     id: formData.get("id"),
@@ -92,7 +100,6 @@ export async function updateBookAction(
     description: formData.get("description") || null,
     academicYear: formData.get("academicYear"),
     season: formData.get("season"),
-    flipbookUrl: formData.get("flipbookUrl") || null,
     pdfPath: formData.get("pdfPath") || null,
     coverPath: formData.get("coverPath") || null,
   });
@@ -117,7 +124,7 @@ export async function updateBookAction(
 export type DeleteBookResult = { ok: true } | { ok: false; messageKey: "notFoundOrForbidden" | "unknown" };
 
 export async function deleteBookAction(lang: Locale, id: string): Promise<DeleteBookResult> {
-  await requirePermission("workspace:access", lang);
+  await requirePermission("document:draft:submit", lang);
 
   const parsed = deleteBookSchema.safeParse({ id });
   if (!parsed.success) return { ok: false, messageKey: "unknown" };
@@ -149,7 +156,10 @@ export async function publishBookAction(lang: Locale, id: string): Promise<Publi
 
   const result = await publishBookService(parsed.data.id, user.id);
   if (!result.ok) {
-    const key = result.error.includes("books_published_needs_content") ? "needsContent" : "notFoundOrForbidden";
+    // Matches the CHECK constraint name added in migration 0053. If that
+    // constraint is ever renamed again this string must move with it, or "attach a
+    // file first" silently degrades into the misleading "not found or forbidden".
+    const key = result.error.includes("books_published_needs_pdf") ? "needsContent" : "notFoundOrForbidden";
     return { ok: false, messageKey: key };
   }
 
