@@ -1,7 +1,7 @@
 import "server-only";
 import { endOfMonth, startOfMonth } from "date-fns";
 import type { Locale } from "@/lib/i18n/config";
-import type { Holiday } from "@/types/holidays";
+import type { Holiday, HolidayFeed } from "@/types/holidays";
 
 /**
  * §8 "ปฏิทินวันหยุด" — Thai public holidays, sourced from the same Google
@@ -126,13 +126,17 @@ async function fetchIcs(calendarId: string): Promise<string | null> {
  * function (`if (error || !data) return []`), so HolidayCard's existing
  * CardEmpty path is what a real outage looks like, not a crash.
  */
-export async function getHolidays(lang: Locale, month?: Date): Promise<Holiday[]> {
+export async function getHolidays(lang: Locale, month?: Date): Promise<HolidayFeed> {
   const preferredId = lang === "en" ? HOLIDAY_CALENDAR_ID_EN : HOLIDAY_CALENDAR_ID_TH;
   let ics = await fetchIcs(preferredId);
   if (!ics && preferredId !== HOLIDAY_CALENDAR_ID_TH) {
     ics = await fetchIcs(HOLIDAY_CALENDAR_ID_TH);
   }
-  if (!ics) return [];
+  // Reached only when every feed attempt failed — a network error, a non-2xx,
+  // or an egress policy blocking calendar.google.com. Reported as "unavailable"
+  // so the UI can say the data is unverified rather than silently implying
+  // that there are no holidays.
+  if (!ics) return { holidays: [], status: "unavailable" };
 
   const today = new Date();
 
@@ -156,7 +160,9 @@ export async function getHolidays(lang: Locale, month?: Date): Promise<Holiday[]
   const lowerIso = lower.toISOString().slice(0, 10);
   const upperIso = upper.toISOString().slice(0, 10);
 
-  return parseIcs(ics)
+  const holidays = parseIcs(ics)
     .filter((h) => h.date >= lowerIso && h.date <= upperIso)
     .sort((a, b) => a.date.localeCompare(b.date));
+
+  return { holidays, status: "ok" };
 }

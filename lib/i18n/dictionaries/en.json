@@ -167,7 +167,13 @@
       "title": "Holiday Calendar",
       "description": "Thai public holidays",
       "empty": "No holiday data found",
-      "emptyCta": "View full calendar"
+      "emptyCta": "View full calendar",
+      "notice": {
+        "syncBody": "Holiday dates sync automatically and may take up to 24 hours to reflect the latest government announcements.",
+        "verifyBody": "For official or legal scheduling, please verify against announcements from the Office of the Prime Minister.",
+        "unavailableTitle": "Holiday data could not be verified",
+        "unavailableBody": "Holiday information cannot be retrieved right now, so any dates shown may be incomplete. Please check official government announcements before relying on them."
+      }
     },
     "activityStats": {
       "title": "Activity Statistics",

@@ -44,7 +44,7 @@ export async function CalendarCard({
   dict: Dictionary;
 }) {
   const today = new Date();
-  const [events, role, holidays] = await Promise.all([
+  const [events, role, holidayFeed] = await Promise.all([
     getMonthActivities(month),
     getRole(),
     getHolidays(lang, month),
@@ -73,13 +73,13 @@ export async function CalendarCard({
             monthIso={month.toISOString()}
             todayIso={today.toISOString()}
             events={events}
-            holidays={holidays}
+            holidays={holidayFeed.holidays}
             canManage={canManage}
             lang={lang}
             dict={dict}
           />
           <div className="border-t pt-6 xl:border-t-0 xl:border-l xl:pt-0 xl:pl-6">
-            <HolidayList holidays={holidays} lang={lang} dict={dict} />
+            <HolidayList feed={holidayFeed} lang={lang} dict={dict} />
           </div>
         </div>
       </CardContent>
