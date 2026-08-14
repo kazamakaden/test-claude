@@ -1,5 +1,7 @@
 "use client";
 
+import { departmentOptionLabel } from "@/lib/student-id";
+
 import { useActionState, useEffect, useState } from "react";
 import { useFormStatus } from "react-dom";
 import { toast } from "sonner";
@@ -45,6 +47,7 @@ const ASSIGNABLE_ROLES = ["student", "teacher"] as const;
 // own without needing a second <form>.
 function SaveButton({ label, pendingLabel }: { label: string; pendingLabel: string }) {
   const { pending } = useFormStatus();
+
   return (
     <Button type="submit" disabled={pending}>
       {pending ? pendingLabel : label}
@@ -87,6 +90,15 @@ export function MemberEditSheet({
       setOpen(false);
     }
   }, [errorMessage, state, d.saved]);
+
+
+  // สาขา names repeat across levels (เทคโนโลยีสารสนเทศ is 20901, 30901 and
+  // 31901), so an option must carry its ปวช./ปวส./ทล.บ. prefix to be
+  // distinguishable. Level is derived from the code, never stored.
+  const departmentLabel = (id: string) => {
+    const dept = departments.find((x) => x.id === id);
+    return dept ? departmentOptionLabel(dept.code, dept.nameTh, dict.common.levels) : undefined;
+  };
 
   return (
     <Sheet open={open} onOpenChange={setOpen}>
@@ -175,7 +187,7 @@ export function MemberEditSheet({
                     {(value: string) =>
                       value === NO_DEPARTMENT
                         ? d.noDepartment
-                        : departments.find((dept) => dept.id === value)?.nameTh
+                        : departmentLabel(value)
                     }
                   </SelectValue>
                 </SelectTrigger>
@@ -183,7 +195,7 @@ export function MemberEditSheet({
                   <SelectItem value={NO_DEPARTMENT}>{d.noDepartment}</SelectItem>
                   {departments.map((dept) => (
                     <SelectItem key={dept.id} value={dept.id}>
-                      {dept.nameTh}
+                      {departmentOptionLabel(dept.code, dept.nameTh, dict.common.levels)}
                     </SelectItem>
                   ))}
                 </SelectContent>

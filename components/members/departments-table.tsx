@@ -1,5 +1,6 @@
 "use client";
 
+import { departmentLevelLabel } from "@/lib/student-id";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -164,6 +165,7 @@ export function DepartmentsTable({
           <TableHeader>
             <TableRow>
               <TableHead className="w-28">{d.columnCode}</TableHead>
+              <TableHead className="w-24">{d.columnLevel}</TableHead>
               <TableHead>{d.columnNameTh}</TableHead>
               <TableHead>{d.columnNameEn}</TableHead>
               <TableHead className="w-24">{d.columnMembers}</TableHead>
@@ -173,7 +175,7 @@ export function DepartmentsTable({
           <TableBody>
             {rows.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={5} className="text-center text-muted-foreground">
+                <TableCell colSpan={6} className="text-center text-muted-foreground">
                   {d.empty}
                 </TableCell>
               </TableRow>
@@ -187,6 +189,12 @@ export function DepartmentsTable({
                   {/* The code is never an input — see updateDepartmentSchema. */}
                   <TableCell className="font-mono text-foreground" title={d.codeLocked}>
                     {row.code}
+                  </TableCell>
+                  {/* Derived from the code's first digit, never stored — see
+                      departmentLevelLabel. Three สาขา names exist at two
+                      levels, so the name alone is ambiguous. */}
+                  <TableCell className="text-muted-foreground">
+                    {departmentLevelLabel(row.code, dict.common.levels)}
                   </TableCell>
                   <TableCell>
                     {editing ? (

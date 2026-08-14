@@ -1,5 +1,7 @@
 "use client";
 
+import { departmentOptionLabel } from "@/lib/student-id";
+
 import { useEffect, useState, useTransition } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Search, X } from "lucide-react";
@@ -38,6 +40,14 @@ export function MembersFilters({
   const [, startTransition] = useTransition();
   const [search, setSearch] = useState(searchParams.get("search") ?? "");
   const d = dict.members;
+
+  // สาขา names repeat across levels (เทคโนโลยีสารสนเทศ is 20901, 30901 and
+  // 31901), so an option must carry its ปวช./ปวส./ทล.บ. prefix to be
+  // distinguishable. Level is derived from the code, never stored.
+  const departmentLabel = (id: string) => {
+    const dept = departments.find((x) => x.id === id);
+    return dept ? departmentOptionLabel(dept.code, dept.nameTh, dict.common.levels) : undefined;
+  };
 
   const setParam = (key: string, value: string | null) => {
     const params = new URLSearchParams(searchParams.toString());
@@ -92,7 +102,7 @@ export function MembersFilters({
         <SelectTrigger aria-label={d.filterDepartment}>
           <SelectValue placeholder={d.filterDepartment}>
             {(value: string) =>
-              value === ALL ? d.allDepartments : departments.find((dept) => dept.id === value)?.nameTh
+              value === ALL ? d.allDepartments : departmentLabel(value)
             }
           </SelectValue>
         </SelectTrigger>
@@ -100,7 +110,7 @@ export function MembersFilters({
           <SelectItem value={ALL}>{d.allDepartments}</SelectItem>
           {departments.map((dept) => (
             <SelectItem key={dept.id} value={dept.id}>
-              {dept.nameTh}
+              {departmentOptionLabel(dept.code, dept.nameTh, dict.common.levels)}
             </SelectItem>
           ))}
         </SelectContent>

@@ -2236,6 +2236,8 @@ was added and the RLS narrowed to match.
 (`0050`/`0051`).** The seeded codes `31901`–`31906` were invented demo data
 and every one was invalid — OVEC numbering is a qualification digit (`2` ปวช.,
 `3` ปวส., `4` ทล.บ.) plus a 4-digit programme id, with no `31xxx` block.
+**`31901` was the exception and deleting it was a real bug — see the
+correction below; `0054` puts it back.**
 `0050` loads the 29 official codes, remaps the demo activities/projects, and
 deletes the invalid rows in that order so no FK dangles. Profiles were
 **cleared rather than remapped**, because `student_id` is authoritative:
@@ -2249,9 +2251,34 @@ IT, `69309010015` → `30901` ปวส. IT, `69401010007` → `40101` ทล.�
 `69319010099` (invalid `31901`) → signs in with no สาขา, staff address → no
 student_id at all. `lib/student-id.ts` gained ทล.บ. as a third level.
 
-**Note on `31901`:** it is not an OVEC code (ปวส. IT is `30901`). Two
-Supabase-created admin accounts carry it and resolve to no สาขา, which is
-correct — they are not students.
+**Correction — `31901` IS a real code, and `0050` deleted it in error
+(`0054` restores it).** An earlier version of this note claimed "it is not an
+OVEC code (ปวส. IT is `30901`)" and that the accounts carrying it "resolve to
+no สาขา, which is correct — they are not students". Both halves were wrong,
+and the second was circular: they had no สาขา *because* `0050` had deleted the
+row, not because none was expected.
+
+Checked against the live database before reversing it:
+
+| programme code | real accounts | registered after `0050` |
+|---|---|---|
+| `20901` | 1 | yes |
+| `31901` | **2** | **no — deleted** |
+| `30901` | 0 | yes |
+
+`69319010003@` and `69319010015@` both sign in with **Google** using
+college-issued identities, so `31901` is not something the app can "correct"
+to `30901` — rewriting the stored email would break their sign-in, since the
+Google identity email is fixed by the college. `0054` registers `31901` as
+เทคโนโลยีสารสนเทศ / Information Technology and re-runs `0051`'s backfill.
+
+`0050`'s general reasoning still stands for the rest of the `31xxx` block —
+only `31901` was shown to be in use. **Do not re-delete `31901`.**
+
+Consequence worth knowing: `30901` and `31901` are now both ปวส. *and* both
+named เทคโนโลยีสารสนเทศ, so a level-and-name label renders two identical
+options. `departmentOptionLabel` (`lib/student-id.ts`) therefore appends the
+code — the only value guaranteed unique.
 
 **Corrections to this file's own earlier claims**, made here rather than left
 to be rediscovered:
@@ -2396,6 +2423,57 @@ response — has **not** been done. Every URL above came from a stub; the
 signing call itself (`createSignedUrl`/`createSignedUrls`) is unexercised
 against real Storage. That is the first thing to confirm after deploy.
 
+
+**สาขา `31901` restored, and every department list now states its ระดับ
+(`0054`).** Reported live: `69319010015@udontech.ac.th` signs in but shows no
+สาขา, and ปวช./ปวส. appears nowhere. Two separate causes.
+
+The สาขา gap was **`0050` deleting a code the college actually issues** — full
+correction recorded in §14. Live evidence gathered before touching anything:
+`31901` had **2** real Google-authenticated accounts and `30901` had **0**.
+`0054` re-inserts it (`on conflict (code) do nothing`, re-runnable) and reuses
+`0051`'s *exact* backfill statement rather than a hardcoded one, so any code
+registered later is picked up by the same query. No trigger workaround was
+needed: `prevent_member_identity_change` (0025) does guard `department_id`,
+but has an explicit `auth.uid() is null` carve-out for migrations — the same
+path `0051`'s own backfill took. Verified live before/after: departments
+29 → 30, profiles with a สาขา 1 → 3, **student-shaped profiles with no สาขา
+2 → 0**, and both accounts now read เทคโนโลยีสารสนเทศ.
+
+The ระดับ gap was **not** a parser bug — `parseStudentId` already returns
+`level` and the Auto Input panel already showed it. `departments` simply has
+no level and every list rendered the name alone, so สาขา sharing a name were
+indistinguishable. Fixed by **deriving** the level from the code's first digit
+(`departmentLevelLabel`/`departmentOptionLabel`, beside the existing
+`studentLevelFromProgramCode`) rather than adding a column — a stored level
+would be a second source of truth that can drift from `code`, which
+`departments_code_format` (0043) already constrains. Surfaced as a ระดับ column
+in the สาขา table and as a prefix on both department `<Select>`s
+(`members-filters.tsx`, `member-edit-sheet.tsx`). The four `levels` dictionary
+keys moved `members.autoinput.*` → `common.levels`, the same lift
+`common.pagination.*` already got; parity re-checked programmatically (684
+keys, both locales).
+
+**A gap in this pass's own plan, caught by testing rather than review:** the
+plan assumed a level prefix disambiguates. It does not — registering `31901`
+made `30901` and `31901` *both* ปวส. *and* both เทคโนโลยีสารสนเทศ, so the
+label rendered two identical options. `departmentOptionLabel` now appends the
+code, the only value guaranteed unique (`departments.code` is UNIQUE, 0003).
+Proven by a real unit run over all 9 relevant codes plus an unknown digit.
+
+**Also confirmed, not changed** (asked during the pass): the live
+`handle_new_user()` already implements "numeric email → student, named email →
+teacher" — `is_student := local_part ~ '^[0-9]{11,}$'`, with `student_id` and
+the สาขา lookup applied only in the student branch. Read from `pg_proc`, not
+assumed. This is why the two `31901` accounts are `admin`: they signed up as
+`student` and were promoted afterwards.
+
+**Not verified live:** the rendered สาขา table and dropdowns. This session
+still cannot reach `*.supabase.co` (proxy returns `403` on `CONNECT`; GitHub
+returns `200` from the same shell), so the app has no data to render and the
+label logic was proven by direct unit execution instead. Confirm after deploy
+that the ระดับ column reads ปวช./ปวส./ทล.บ. correctly and that the three
+same-name สาขา are now distinguishable in both dropdowns.
 
 ### ❌ Remaining
 

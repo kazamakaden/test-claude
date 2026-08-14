@@ -152,3 +152,52 @@ export function buildStudentId(
 export function isDepartmentCode(value: string): boolean {
   return /^[0-9]{5}$/.test(value.trim());
 }
+
+/**
+ * Labels for the three qualification levels, as the dictionary carries them.
+ * Structural rather than importing `Dictionary` — this module is deliberately
+ * dependency-free so both the client form and the server can use it.
+ */
+export interface LevelLabels {
+  vocational: string;
+  diploma: string;
+  bachelor: string;
+  unknown: string;
+}
+
+/**
+ * ปวช./ปวส./ทล.บ. for a `departments.code`.
+ *
+ * The level is DERIVED from the code's first digit, never stored. A `level`
+ * column on `departments` would be a second source of truth that can drift
+ * from `code`; this cannot. `departments_code_format` (0043) guarantees the
+ * 5-digit shape this reads.
+ */
+export function departmentLevelLabel(code: string, labels: LevelLabels): string {
+  const level = studentLevelFromProgramCode(code);
+  return level ? labels[level] : labels.unknown;
+}
+
+/**
+ * A department as it must appear in a `<Select>` option or any other
+ * single-line list.
+ *
+ * The level prefix is not decoration: three สาขา names each exist at two
+ * levels (ช่างก่อสร้าง 20106/30106, โยธา 20107/30107, เทคโนโลยีสารสนเทศ
+ * 20901/30901/31901), so the bare name is genuinely ambiguous.
+ *
+ * The CODE is appended because the level is not always enough either:
+ * 30901 and 31901 are BOTH ปวส. AND both named เทคโนโลยีสารสนเทศ, so a
+ * level-and-name label still renders two identical options. The code is the
+ * only value guaranteed unique (`departments.code` is UNIQUE, 0003).
+ *
+ * Kept a plain string rather than markup so it stays readable to a screen
+ * reader and matchable by the browser's own type-ahead.
+ */
+export function departmentOptionLabel(
+  code: string,
+  name: string,
+  labels: LevelLabels
+): string {
+  return `${departmentLevelLabel(code, labels)} — ${name} (${code})`;
+}
