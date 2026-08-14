@@ -118,8 +118,26 @@ export const getSessionProfile = cache(async (): Promise<SessionProfile> => {
   };
 });
 
+/**
+ * The caller's effective role.
+ *
+ * An account that has not finished the set-password step reports `guest`, not
+ * its stored role. Public pages (/members, /documents, /aft-11) render
+ * privileged controls straight from `can(role, …)` without going through
+ * requirePermission, so a half-onboarded admin would otherwise be shown Add /
+ * Edit / Delete buttons whose actions immediately bounce them to
+ * /set-password. Reporting `guest` makes the whole UI agree with what the
+ * guards will actually allow.
+ *
+ * This does NOT weaken the guards: requirePermission reads getSessionProfile()
+ * directly and checks password_set before role, so it still redirects to
+ * /set-password rather than /login, and every write action stays refused.
+ */
 export async function getRole(): Promise<Role> {
   const profile = await getSessionProfile();
+
+  if (profile.userId !== null && !profile.passwordSet) return "guest";
+
   return profile.role;
 }
 
