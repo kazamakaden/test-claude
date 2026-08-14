@@ -248,6 +248,22 @@ seen by someone else before it reaches the public shelf. See
 **No demo PDF is seeded.** The six existing books are demo rows and none
 has a file attached, so the shelf is empty until someone uploads one.
 
+## สาขา and education levels
+
+A student's college email local part is their student ID, and the middle
+5 digits are the **รหัสสาขา** — matched against `departments.code` at sign-in
+so สาขา fills itself in. The first of those digits is the qualification:
+`2` ปวช., `3` ปวส., `4` ทล.บ.
+
+**Adding a new สาขา needs no code change** — an admin does it in
+**สมาชิก → กรอกอัตโนมัติ**, which pre-fills the code from a student's email.
+**Adding a new education level** (a รหัสสาขา starting with an unnamed digit) is
+a small, compiler-guided change in `lib/student-id.ts` plus one dictionary key.
+An unnamed digit never blocks a sign-in — it just displays as
+"ไม่ทราบระดับชั้น" until named.
+
+See [`docs/add-education-level.md`](docs/add-education-level.md) for both.
+
 ## Responsive check
 
 `npm run check:responsive` drives the machine's own installed Chrome over the
