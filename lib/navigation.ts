@@ -41,6 +41,10 @@ export const navItems: readonly NavItem[] = [
   // filters"/edit affordances stay role-gated inside the page itself.
   { key: "members", href: "/members" },
   { key: "reports", href: "/reports", permission: "workspace:access" },
+  // §19 audit trail. `system:manage` = admin only, matching
+  // audit_logs_select_admin (0057) — every other role would see an empty
+  // table, so the link is hidden rather than rendered-then-refused.
+  { key: "audit", href: "/audit", permission: "system:manage" },
   // No "approvals" entry: approving a pending signup moved onto /members,
   // which is already in this list and public. The old route still exists as a
   // redirect (app/[lang]/(app)/approvals/page.tsx) for stale links.

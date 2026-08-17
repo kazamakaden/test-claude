@@ -17,7 +17,8 @@
     "dashboard": "แดชบอร์ด",
     "profile": "โปรไฟล์",
     "notifications": "การแจ้งเตือน",
-    "approvals": "อนุมัติบัญชี"
+    "approvals": "อนุมัติบัญชี",
+    "audit": "บันทึกการใช้งาน"
   },
   "common": {
     "skipToContent": "ข้ามไปยังเนื้อหาหลัก",
@@ -829,6 +830,31 @@
         "notAllowed": "ไม่สามารถปิดการเช็คชื่อนี้ได้",
         "unknown": "เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง"
       }
+    }
+  },
+  "audit": {
+    "title": "บันทึกการใช้งาน",
+    "description": "บันทึกการเปลี่ยนแปลงสิทธิ์และสถานะทั้งหมดในระบบ แก้ไขหรือลบไม่ได้",
+    "empty": "ยังไม่มีบันทึกการใช้งาน",
+    "columnTime": "เวลา",
+    "columnActor": "ผู้ดำเนินการ",
+    "columnAction": "การกระทำ",
+    "columnEntity": "รายการ",
+    "columnChange": "การเปลี่ยนแปลง",
+    "noSession": "ไม่มีผู้ใช้ (ระบบ)",
+    "filterAction": "กรองตามการกระทำ",
+    "allActions": "ทุกการกระทำ",
+    "clearFilters": "ล้างตัวกรอง",
+    "actions": {
+      "member.role_changed": "เปลี่ยนบทบาทสมาชิก",
+      "member.position_changed": "เปลี่ยนตำแหน่ง อวท.",
+      "member.deleted": "ลบบัญชีสมาชิก",
+      "attendance.deleted": "ลบบันทึกการเข้าร่วม",
+      "attendance.updated": "แก้ไขบันทึกการเข้าร่วม",
+      "projects.status_changed": "เปลี่ยนสถานะโครงการ",
+      "documents.status_changed": "เปลี่ยนสถานะเอกสาร",
+      "books.status_changed": "เปลี่ยนสถานะหนังสือ",
+      "book.deleted": "ลบหนังสือ"
     }
   }
 }

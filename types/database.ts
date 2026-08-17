@@ -198,6 +198,53 @@ export type Database = {
           },
         ]
       }
+      audit_logs: {
+        Row: {
+          action: string
+          actor_email: string | null
+          actor_id: string | null
+          actor_role: Database["public"]["Enums"]["user_role"] | null
+          after_data: Json | null
+          before_data: Json | null
+          created_at: string
+          entity_id: string | null
+          entity_table: string
+          id: number
+        }
+        Insert: {
+          action: string
+          actor_email?: string | null
+          actor_id?: string | null
+          actor_role?: Database["public"]["Enums"]["user_role"] | null
+          after_data?: Json | null
+          before_data?: Json | null
+          created_at?: string
+          entity_id?: string | null
+          entity_table: string
+          id?: number
+        }
+        Update: {
+          action?: string
+          actor_email?: string | null
+          actor_id?: string | null
+          actor_role?: Database["public"]["Enums"]["user_role"] | null
+          after_data?: Json | null
+          before_data?: Json | null
+          created_at?: string
+          entity_id?: string | null
+          entity_table?: string
+          id?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "audit_logs_actor_id_fkey"
+            columns: ["actor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       attendance: {
         Row: {
           activity_id: string
@@ -970,6 +1017,16 @@ export type Database = {
           p_token: string
         }
         Returns: string
+      }
+      write_audit_log: {
+        Args: {
+          p_action: string
+          p_after: Json
+          p_before: Json
+          p_entity_id: string
+          p_entity_table: string
+        }
+        Returns: undefined
       }
       sign_document: {
         Args: { p_document_id: string; p_signature_data: string }

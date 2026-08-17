@@ -17,7 +17,8 @@
     "dashboard": "Dashboard",
     "profile": "Profile",
     "notifications": "Notifications",
-    "approvals": "Account Approvals"
+    "approvals": "Account Approvals",
+    "audit": "Audit log"
   },
   "common": {
     "skipToContent": "Skip to main content",
@@ -829,6 +830,31 @@
         "notAllowed": "Could not close this check-in",
         "unknown": "Something went wrong. Please try again."
       }
+    }
+  },
+  "audit": {
+    "title": "Audit log",
+    "description": "Every privilege and status change in the system. Cannot be edited or deleted.",
+    "empty": "No audit entries yet",
+    "columnTime": "Time",
+    "columnActor": "Actor",
+    "columnAction": "Action",
+    "columnEntity": "Entity",
+    "columnChange": "Change",
+    "noSession": "No user (system)",
+    "filterAction": "Filter by action",
+    "allActions": "All actions",
+    "clearFilters": "Clear filters",
+    "actions": {
+      "member.role_changed": "Member role changed",
+      "member.position_changed": "อวท. position changed",
+      "member.deleted": "Member account deleted",
+      "attendance.deleted": "Attendance record deleted",
+      "attendance.updated": "Attendance record edited",
+      "projects.status_changed": "Project status changed",
+      "documents.status_changed": "Document status changed",
+      "books.status_changed": "Book status changed",
+      "book.deleted": "Book deleted"
     }
   }
 }
