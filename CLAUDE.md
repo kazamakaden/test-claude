@@ -2536,6 +2536,112 @@ it is not a database boundary — reads through the Supabase API directly are
 still possible. Closing that would require changing the role itself. Same shape
 as the already-documented Turnstile-with-JS-off trade-off.
 
+**Five 0%-reported features built: QR attendance, audit logs, reports, global
+search and announcements (`0055`–`0060`) — plus a critical live RLS hole found
+and closed first.**
+
+The audit that preceded this confirmed all five were genuinely at 0%, but the
+significant finding was not one of them. **`attendance_insert_own` (0008,
+re-wrapped in 0041) was, in full, `with check (student_id = auth.uid())`** — no
+role check — and 0008's column hardening had revoked SELECT only, leaving
+INSERT and UPDATE granted on all 14 columns to `authenticated` and `anon`.
+Reproduced live before touching it, as the real `student` 66209010020, a role
+that per §6 is read-only and holds no `attendance:submit`: one row written,
+status `completed`, GPS set to Bangkok (~560 km away), fingerprint and IP
+forged, `recorded_at` backdated 30 days. §13 requires GPS, time and device
+fingerprint to be server-verified; every one was client input.
+
+`0055` fixes it in two layers on purpose. The **grants** go, so no client can
+write the table at all — §13 attendance arrives through a security-definer RPC
+that needs no grant. The **policy** additionally gains the role check, which is
+redundant while the grant is revoked, and that is the point: it is the layer
+that still holds if a future migration re-grants INSERT, the way `0011`'s
+`create or replace` silently restored an EXECUTE grant `0006` had revoked.
+Trade-off stated in the migration: `authenticated` is one shared role, so this
+removes the admin's UI-less raw-REST write too. That capability had no caller
+and was never complete — DELETE has never been granted on this table to anyone.
+
+**QR attendance (§13, `0056`)** — no in-app scanner. §13 reads "Scan QR → Open
+Website → Confirm", so the student's own camera opens `/{lang}/attend/{token}`:
+no camera permission, no scanner dependency, works on every phone, and the
+client stays out of the trust path. "Dynamic" is solved without a job runner by
+deriving the token TOTP-style — a per-session secret HMAC'd with a time bucket,
+so nothing rotates anything and a screenshotted QR simply stops verifying. The
+staff display polls a route handler rather than computing the next token
+locally, which is the whole security argument: the secret is unreadable by
+every client, so a browser *cannot* derive the next code. `record_attendance()`
+derives student_id, recorded_at, status, ip and activity_id server-side; the
+caller supplies only a token, a GPS reading and a fingerprint, each verified.
+
+**Audit logs (§19, `0057`)** — this was a live gap, not a missing feature:
+`deleteMemberAction` permanently destroys an account and nothing recorded who
+did it. Append-only enforced by **grant**, not by absent policy (0055's lesson
+applied up front), and written exclusively by triggers — an audit trail an
+application caller can write is one they can forge. Proven live including the
+case app-level logging cannot catch: a DELETE run as the table owner with the
+JWT cleared is still recorded, actor correctly null.
+
+**Reports (§18, `0058`)** closed SEC-5 (`/reports` was gated on
+`workspace:access`, which a read-only student holds) and **B-2**: 
+`get_activity_stats()` is SECURITY INVOKER, so `completed`/`pending` are
+org-wide while `attendance` is per-caller — one chart, two scopes, nothing
+saying which. Fixed by telling the truth rather than changing the numbers: the
+legend now says "my attendance" when it means that. Forcing org-wide figures
+would have leaked the college's attendance to every student.
+
+**Global search (§18, `0059`)** is SECURITY INVOKER so per-table RLS scopes it
+— **deliberately the opposite of `0038`'s choice for `list_notifications`**, and
+the contrast is the useful part: there RLS was *broader* than the app's meaning
+of "mine", so the RPC had to restate scope; here the policies already say
+exactly what each role may see, so restating them would create a second copy
+that can drift. Which is right depends on whether RLS already means what the
+feature means.
+
+**Announcements (`0060`)** closes B-1 — `/announcements` was linked from the
+footer but absent from `navItems`, a dead link since Phase 1. Publishing fans
+out a broadcast notification via trigger, reusing the whole 0036→0038 chain;
+`notified_at` stops republish from re-notifying everyone.
+
+**Testing, and two ways it went wrong.** Every migration has a re-runnable,
+self-rolling-back matrix in `supabase/tests/` (0055: 10 cases, 0057: 10, 0058:
+10, 0059: 9, 0060: 11), all passing live. Two flaws in the *test method* were
+caught, in opposite directions, and both are worth remembering:
+
+* **False PASS** — `select (insert into …)` is not valid syntax, so an
+  expect-refused helper records the syntax error as a refusal. Statements must
+  run as statements.
+* **False FAIL** — `select 1 from (select f()) t` leaves the function result
+  unreferenced, so the planner prunes the call entirely and it reads as
+  "allowed". This briefly looked like a bypassed guard that was never bypassed.
+
+Also: a missing-grant and an RLS violation both raise `42501`, so the helpers
+record `sqlerrm`, not just SQLSTATE — that is what proves 0055's policy layer
+refuses independently of its grant layer.
+
+**A real bug found by testing rather than reading**: `search_all`'s first
+version selected `profiles.created_at`, outside the column allow-list `0026`
+grants anon, which made the **entire** function fail for guests with 42501 —
+not merely hide the member section. That is precisely the failure this
+migration's own header warns about for `email`; the warning was written and
+then walked into one column over.
+
+**Not verified, stated plainly**: no end-to-end scan on a physical phone; the
+staff QR page's rendered output (needs a real activity row and a configured
+Supabase); the dashboard chart legend (with no Supabase the stats are empty, so
+the card renders its empty state and the legend never mounts — the scope
+predicate itself was exercised for all five roles).
+
+**Correction to this file**: the §12 entry says all six books have no file and
+the public shelf is empty after `0053`. One book was genuinely published with a
+PDF on 2026-08-14 and is visible to anon, which is correct behaviour under
+`books_select_published`, not a leak.
+
+`npx tsc --noEmit`, `npm run lint` and `npm run build` pass clean throughout;
+dictionary parity checked programmatically at each step (859 keys per locale at
+the end). `types/database.ts` is verified against the live catalog by an
+automated drift check — extended mid-work to cover **functions** as well as
+tables, since the table-only version silently missed three new RPCs.
+
 ### ❌ Remaining
 
 * **RLS policy performance (`auth_rls_initplan`, `multiple_permissive_policies`)**
@@ -2600,21 +2706,12 @@ as the already-documented Turnstile-with-JS-off trade-off.
   against the actual codebase (routes, migrations, package.json) rather than
   trusting this file's own prior bullets, since one of them had already gone
   stale silently:
-  * **QR attendance (§13)** — genuinely not started. No `qr_sessions`
-    migration, no `react-qr-scanner`-equivalent usage anywhere in the
-    codebase, no scan/confirm page. This is §30.10's own documented
-    most-security-sensitive phase (GPS, device fingerprint, duplicate
-    protection) — start here, not later, per that ordering.
-  * **`audit_logs`** — genuinely not started. No migration creates it, and
-    grepping the codebase for any write to a table by that name finds
-    nothing.
-  * **Reports & global search (§18/§30.10)** — genuinely not started.
-    `/reports` is still a bare `PageShell` with `emptyTitle={dict.common.comingSoon}`
-    and nothing else; there is no search input anywhere in `top-nav.tsx` and
-    no cross-entity (Members/Activities/Projects/Documents) query path. The
-    debounced-search pattern already proven on `/members` and `/activities`
-    (`hooks/use-debounced-value.ts`) is the natural building block once this
-    phase starts.
+  * **QR attendance (§13), `audit_logs`, Reports, global search and
+    Announcements — ALL FIVE NOW DONE** (`0055`–`0060`, commits `078e22e`
+    through `48fe43b`). The bullets that used to sit here saying each was
+    "genuinely not started" were accurate when written and are superseded;
+    see the §0 Done entry "Five 0% features built" for what shipped and what
+    is still unproven about it.
   * **Notifications (§16) — in-app half now done** (see the Done entry above:
     trigger write path, per-user read state, real `/notifications` page, wired
     bell). **Web push is still not sent**: `push_subscriptions` (0033/0034)
