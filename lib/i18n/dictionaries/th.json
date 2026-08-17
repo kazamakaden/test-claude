@@ -180,6 +180,7 @@
       "title": "สถิติกิจกรรม",
       "description": "การเข้าร่วม เสร็จสิ้น และรอดำเนินการรายเดือน",
       "attendance": "เข้าร่วม",
+      "attendanceOwn": "การเข้าร่วมของฉัน",
       "completed": "เสร็จสิ้น",
       "pending": "รอดำเนินการ",
       "empty": "ยังไม่มีข้อมูลสถิติ"
@@ -855,6 +856,39 @@
       "documents.status_changed": "เปลี่ยนสถานะเอกสาร",
       "books.status_changed": "เปลี่ยนสถานะหนังสือ",
       "book.deleted": "ลบหนังสือ"
+    }
+  },
+  "reports": {
+    "description": "สรุปข้อมูลการเข้าร่วม สมาชิก และสถานะงานทั้งหมด",
+    "filterFrom": "ตั้งแต่วันที่",
+    "filterTo": "ถึงวันที่",
+    "filterDepartment": "สาขา",
+    "allDepartments": "ทุกสาขา",
+    "apply": "แสดงรายงาน",
+    "clearFilters": "ล้างตัวกรอง",
+    "attendanceTitle": "รายงานการเข้าร่วมกิจกรรม",
+    "attendanceEmpty": "ไม่พบกิจกรรมในช่วงเวลาที่เลือก",
+    "columnActivity": "กิจกรรม",
+    "columnDate": "วันที่",
+    "columnDepartment": "สาขา",
+    "columnPresent": "ตรงเวลา",
+    "columnLate": "สาย",
+    "columnTotal": "รวม",
+    "memberTitle": "สมาชิกแยกตามสาขา",
+    "memberEmpty": "ยังไม่มีข้อมูลสมาชิก",
+    "columnCode": "รหัส",
+    "columnStudents": "นักเรียน/นักศึกษา",
+    "columnAft": "นักศึกษา อวท.",
+    "columnTeachers": "ครู",
+    "workflowTitle": "สถานะงาน",
+    "workflowEmpty": "ยังไม่มีข้อมูล",
+    "columnEntity": "ประเภท",
+    "columnStatus": "สถานะ",
+    "columnCount": "จำนวน",
+    "entities": {
+      "projects": "โครงการ",
+      "documents": "เอกสาร",
+      "books": "หนังสือ"
     }
   }
 }

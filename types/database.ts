@@ -970,6 +970,42 @@ export type Database = {
           pending: number
         }[]
       }
+      get_attendance_report: {
+        Args: {
+          p_department_id?: string
+          p_from?: string
+          p_to?: string
+        }
+        Returns: {
+          activity_id: string
+          department_name: string
+          late_count: number
+          present_count: number
+          starts_at: string
+          title: string
+          total_count: number
+        }[]
+      }
+      get_member_report: {
+        Args: never
+        Returns: {
+          aft_count: number
+          department_code: string
+          department_id: string
+          department_name: string
+          student_count: number
+          teacher_count: number
+          total_count: number
+        }[]
+      }
+      get_workflow_report: {
+        Args: never
+        Returns: {
+          count: number
+          entity: string
+          status: string
+        }[]
+      }
       get_citizen_id: { Args: { member_id: string }; Returns: string }
       get_member_stats: {
         Args: never

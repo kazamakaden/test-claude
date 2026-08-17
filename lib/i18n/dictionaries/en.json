@@ -180,6 +180,7 @@
       "title": "Activity Statistics",
       "description": "Monthly attendance, completed, and pending",
       "attendance": "Attendance",
+      "attendanceOwn": "My attendance",
       "completed": "Completed",
       "pending": "Pending",
       "empty": "No statistics yet"
@@ -855,6 +856,39 @@
       "documents.status_changed": "Document status changed",
       "books.status_changed": "Book status changed",
       "book.deleted": "Book deleted"
+    }
+  },
+  "reports": {
+    "description": "Attendance, membership and workflow across the organisation",
+    "filterFrom": "From",
+    "filterTo": "To",
+    "filterDepartment": "Department",
+    "allDepartments": "All departments",
+    "apply": "Show report",
+    "clearFilters": "Clear filters",
+    "attendanceTitle": "Activity attendance",
+    "attendanceEmpty": "No activities in the selected period",
+    "columnActivity": "Activity",
+    "columnDate": "Date",
+    "columnDepartment": "Department",
+    "columnPresent": "On time",
+    "columnLate": "Late",
+    "columnTotal": "Total",
+    "memberTitle": "Members by department",
+    "memberEmpty": "No member data yet",
+    "columnCode": "Code",
+    "columnStudents": "Students",
+    "columnAft": "อวท. members",
+    "columnTeachers": "Teachers",
+    "workflowTitle": "Workflow status",
+    "workflowEmpty": "No data yet",
+    "columnEntity": "Type",
+    "columnStatus": "Status",
+    "columnCount": "Count",
+    "entities": {
+      "projects": "Projects",
+      "documents": "Documents",
+      "books": "Books"
     }
   }
 }

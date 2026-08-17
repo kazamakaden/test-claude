@@ -37,6 +37,15 @@ export const permissions = [
   "profile:read",
   "profile:update",
 
+  /**
+   * §18 org-wide reports. Its own permission rather than reusing
+   * workspace:access, which a read-only `student` holds: attendance,
+   * membership and workflow aggregates across the whole college are
+   * operational data with no §6 basis for a student. They keep their own
+   * attendance on the dashboard, which is scoped to them by RLS.
+   */
+  "report:view",
+
   /** Teacher — §6 "review drafts". */
   "project:draft:review",
   /** Teacher — §6 "comment". */
@@ -125,6 +134,7 @@ const organisationPermissions = [
   "document:draft:submit",
   "attendance:submit",
   "document:sign",
+  "report:view",
   "project:draft:review",
   "project:draft:comment",
   "project:recommend",

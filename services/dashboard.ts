@@ -6,7 +6,8 @@ import { getRole } from "@/lib/auth/get-role";
 import type { Locale } from "@/lib/i18n/config";
 import type { Role } from "@/types/auth";
 import type {
-  ActivityStat,
+  ActivityStatsResult,
+  AttendanceScope,
   DepartmentStat,
   DraftDocument,
   Meeting,
@@ -37,19 +38,47 @@ export async function getUpcomingMeetings(): Promise<Meeting[]> {
 }
 
 // §10 activity statistics, aggregated in SQL — see get_activity_stats() (0009).
-export async function getActivityStats(): Promise<ActivityStat[]> {
+/**
+ * §8 activity statistics.
+ *
+ * get_activity_stats() (0009) is SECURITY INVOKER, so its three series do NOT
+ * share a scope: `completed` and `pending` count activities, which everyone can
+ * read, while `attendance` is filtered by the caller's own RLS — a student sees
+ * only their own check-ins (attendance_select_own), staff see everyone's
+ * (attendance_select_reviewer). One chart, two meanings, with nothing on screen
+ * saying which. Harmless while attendance had no rows; wrong the moment §13
+ * starts writing them.
+ *
+ * Fixed by telling the truth rather than by changing the numbers. Forcing
+ * org-wide attendance for everyone would leak the whole college's attendance to
+ * every student; hiding the series would remove the one figure a student
+ * actually wants. So the scope is returned alongside the data and the card
+ * labels it.
+ *
+ * `project:draft:review` is the predicate deliberately: it is held by exactly
+ * aft/teacher/admin, which is the same set attendance_select_reviewer (0008,
+ * widened in 0049) admits. If those ever diverge this label silently lies, so
+ * they are noted here as a pair that must move together.
+ */
+export async function getActivityStats(): Promise<ActivityStatsResult> {
+  const role = await getRole();
+  const attendanceScope: AttendanceScope = can(role, "project:draft:review") ? "all" : "own";
+
   const supabase = await tryCreateClient();
-  if (!supabase) return [];
+  if (!supabase) return { stats: [], attendanceScope };
   const { data, error } = await supabase.rpc("get_activity_stats");
 
-  if (error || !data) return [];
+  if (error || !data) return { stats: [], attendanceScope };
 
-  return data.map((row) => ({
-    month: row.month,
-    attendance: row.attendance,
-    completed: row.completed,
-    pending: row.pending,
-  }));
+  return {
+    stats: data.map((row) => ({
+      month: row.month,
+      attendance: row.attendance,
+      completed: row.completed,
+      pending: row.pending,
+    })),
+    attendanceScope,
+  };
 }
 
 // §12 document workflow. Explicit column list — never select("*").
