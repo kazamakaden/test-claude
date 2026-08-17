@@ -32,6 +32,10 @@ export const navItems: readonly NavItem[] = [
   { key: "calendar", href: "/calendar" },
   { key: "projects", href: "/projects", permission: "workspace:access" },
   { key: "activities", href: "/activities" },
+  // §5: public. Published announcements are readable by guests
+  // (announcements_select_published, 0060). This entry closes B-1 — the route
+  // was linked from the footer but absent here, so it was a dead link.
+  { key: "announcements", href: "/announcements" },
   { key: "documents", href: "/documents" },
   // §5: public — "11 ดี 11 เก่ง อวท." is public page copy, editable in-app
   // only by staff (content:manage, lib/auth/permissions.ts).

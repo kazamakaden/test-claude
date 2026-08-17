@@ -268,7 +268,8 @@
       "documentAwaitingApproval": "Document “{title}” is awaiting approval",
       "documentApproved": "Document “{title}” has been approved",
       "documentRejected": "Document “{title}” was sent back for revision: {reason}",
-      "accountApproved": "Your account has been approved (role: {role})"
+      "accountApproved": "Your account has been approved (role: {role})",
+      "announcementPublished": "New announcement: {title}"
     },
     "markAsRead": "Mark as read"
   },
@@ -908,6 +909,41 @@
       "project": "Projects",
       "document": "Documents",
       "book": "Books"
+    }
+  },
+  "announcements": {
+    "description": "News and announcements from the AFT organisation",
+    "empty": "No announcements yet",
+    "emptyDescription": "New announcements will appear here",
+    "pinned": "Pinned",
+    "draft": "Draft",
+    "published": "Published",
+    "backToList": "Back to announcements",
+    "manage": "Manage announcements",
+    "newButton": "Write announcement",
+    "editButton": "Edit",
+    "deleteButton": "Delete",
+    "publishButton": "Publish",
+    "unpublishButton": "Unpublish",
+    "saveDraft": "Save draft",
+    "saving": "Saving...",
+    "titleThLabel": "Title (Thai)",
+    "titleEnLabel": "Title (English)",
+    "bodyThLabel": "Body (Thai)",
+    "bodyEnLabel": "Body (English)",
+    "pinnedLabel": "Pin to top",
+    "optionalEn": "Optional — falls back to Thai when empty",
+    "deleteConfirmTitle": "Delete this announcement?",
+    "deleteConfirmDescription": "This cannot be undone.",
+    "cancel": "Cancel",
+    "errors": {
+      "titleRequired": "A title is required",
+      "titleTooLong": "Title is too long",
+      "bodyTooLong": "Body is too long",
+      "bodyRequiredToPublish": "A body is required before publishing",
+      "forbidden": "You do not have permission to manage announcements",
+      "notFound": "Announcement not found",
+      "unknown": "Something went wrong. Please try again."
     }
   }
 }

@@ -245,6 +245,59 @@ export type Database = {
           },
         ]
       }
+      announcements: {
+        Row: {
+          author_id: string | null
+          body_en: string | null
+          body_th: string
+          created_at: string
+          id: string
+          notified_at: string | null
+          pinned: boolean
+          published_at: string | null
+          status: Database["public"]["Enums"]["announcement_status"]
+          title_en: string | null
+          title_th: string
+          updated_at: string
+        }
+        Insert: {
+          author_id?: string | null
+          body_en?: string | null
+          body_th?: string
+          created_at?: string
+          id?: string
+          notified_at?: string | null
+          pinned?: boolean
+          published_at?: string | null
+          status?: Database["public"]["Enums"]["announcement_status"]
+          title_en?: string | null
+          title_th: string
+          updated_at?: string
+        }
+        Update: {
+          author_id?: string | null
+          body_en?: string | null
+          body_th?: string
+          created_at?: string
+          id?: string
+          notified_at?: string | null
+          pinned?: boolean
+          published_at?: string | null
+          status?: Database["public"]["Enums"]["announcement_status"]
+          title_en?: string | null
+          title_th?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "announcements_author_id_fkey"
+            columns: ["author_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       attendance: {
         Row: {
           activity_id: string
@@ -1081,6 +1134,7 @@ export type Database = {
     }
     Enums: {
       activity_status: "pending" | "completed" | "cancelled"
+      announcement_status: "draft" | "published"
       attendance_status: "present" | "late" | "absent"
       book_status: "draft" | "published"
       document_status: "draft" | "signed" | "pending_approval" | "official"
@@ -1236,6 +1290,7 @@ export const Constants = {
   public: {
     Enums: {
       activity_status: ["pending", "completed", "cancelled"],
+      announcement_status: ["draft", "published"],
       book_status: ["draft", "published"],
       document_status: ["draft", "signed", "pending_approval", "official"],
       notification_type: [

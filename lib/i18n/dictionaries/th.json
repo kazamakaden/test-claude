@@ -268,7 +268,8 @@
       "documentAwaitingApproval": "เอกสาร “{title}” รอการอนุมัติ",
       "documentApproved": "เอกสาร “{title}” ได้รับการอนุมัติเรียบร้อยแล้ว",
       "documentRejected": "เอกสาร “{title}” ถูกส่งกลับเพื่อแก้ไข: {reason}",
-      "accountApproved": "บัญชีของคุณได้รับการอนุมัติแล้ว (สิทธิ์: {role})"
+      "accountApproved": "บัญชีของคุณได้รับการอนุมัติแล้ว (สิทธิ์: {role})",
+      "announcementPublished": "ประกาศใหม่: {title}"
     },
     "markAsRead": "ทำเครื่องหมายว่าอ่านแล้ว"
   },
@@ -908,6 +909,41 @@
       "project": "โครงการ",
       "document": "เอกสาร",
       "book": "หนังสือ"
+    }
+  },
+  "announcements": {
+    "description": "ข่าวสารและประกาศจากองค์การนักวิชาชีพในอนาคตแห่งประเทศไทย",
+    "empty": "ยังไม่มีประกาศ",
+    "emptyDescription": "เมื่อมีประกาศใหม่ จะแสดงที่นี่",
+    "pinned": "ปักหมุด",
+    "draft": "ฉบับร่าง",
+    "published": "เผยแพร่แล้ว",
+    "backToList": "กลับไปหน้าประกาศ",
+    "manage": "จัดการประกาศ",
+    "newButton": "เขียนประกาศ",
+    "editButton": "แก้ไข",
+    "deleteButton": "ลบ",
+    "publishButton": "เผยแพร่",
+    "unpublishButton": "ยกเลิกการเผยแพร่",
+    "saveDraft": "บันทึกฉบับร่าง",
+    "saving": "กำลังบันทึก...",
+    "titleThLabel": "หัวข้อ (ไทย)",
+    "titleEnLabel": "หัวข้อ (อังกฤษ)",
+    "bodyThLabel": "เนื้อหา (ไทย)",
+    "bodyEnLabel": "เนื้อหา (อังกฤษ)",
+    "pinnedLabel": "ปักหมุดไว้ด้านบน",
+    "optionalEn": "ไม่บังคับ — หากเว้นว่างจะแสดงภาษาไทย",
+    "deleteConfirmTitle": "ลบประกาศนี้?",
+    "deleteConfirmDescription": "การลบไม่สามารถย้อนกลับได้",
+    "cancel": "ยกเลิก",
+    "errors": {
+      "titleRequired": "กรุณากรอกหัวข้อ",
+      "titleTooLong": "หัวข้อยาวเกินไป",
+      "bodyTooLong": "เนื้อหายาวเกินไป",
+      "bodyRequiredToPublish": "ต้องมีเนื้อหาก่อนเผยแพร่",
+      "forbidden": "คุณไม่มีสิทธิ์จัดการประกาศ",
+      "notFound": "ไม่พบประกาศนี้",
+      "unknown": "เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง"
     }
   }
 }
