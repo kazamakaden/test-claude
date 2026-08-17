@@ -2,6 +2,7 @@ import { Logo } from "@/components/layout/logo";
 import { NavLinks } from "@/components/layout/nav-links";
 import { MobileNav } from "@/components/layout/mobile-nav";
 import { Suspense } from "react";
+import { GlobalSearch } from "@/components/search/global-search";
 import { NotificationsBell } from "@/components/layout/notifications-bell";
 import { NotificationsButton } from "@/components/layout/notifications-button";
 import { UserMenu } from "@/components/layout/user-menu";
@@ -42,6 +43,10 @@ export function TopNav({
         </div>
 
         <div className="flex items-center gap-1">
+          {/* §18. Rendered for every role including guest: search_all (0059)
+              is SECURITY INVOKER, so a guest sees only the public content the
+              public pages already show. */}
+          <GlobalSearch lang={lang} dict={dict} />
           {/* notification:read, not `role !== "guest"`: `pending` sits at
               guest-level permissions, so the old check showed a bell that
               could only bounce them back to /pending. */}

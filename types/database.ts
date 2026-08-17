@@ -1064,6 +1064,16 @@ export type Database = {
         }
         Returns: undefined
       }
+      search_all: {
+        Args: { p_limit?: number; p_query: string }
+        Returns: {
+          entity: string
+          id: string
+          sort_key: string
+          subtitle: string
+          title: string
+        }[]
+      }
       sign_document: {
         Args: { p_document_id: string; p_signature_data: string }
         Returns: undefined

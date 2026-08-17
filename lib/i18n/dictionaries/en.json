@@ -890,5 +890,24 @@
       "documents": "Documents",
       "books": "Books"
     }
+  },
+  "search": {
+    "title": "Search",
+    "description": "Search members, activities, projects, documents and books",
+    "placeholder": "Search...",
+    "submit": "Search",
+    "open": "Open search",
+    "close": "Close",
+    "prompt": "Type at least 2 characters to search",
+    "empty": "No results found",
+    "searching": "Searching...",
+    "viewAll": "View all results",
+    "entities": {
+      "member": "Members",
+      "activity": "Activities",
+      "project": "Projects",
+      "document": "Documents",
+      "book": "Books"
+    }
   }
 }
