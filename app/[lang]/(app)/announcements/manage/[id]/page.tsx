@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requirePermission } from "@/lib/auth/require-role";
+import { can } from "@/lib/auth/permissions";
 import { getDictionary } from "@/lib/i18n/get-dictionary";
 import { getAnnouncementDraft } from "@/services/announcements";
 import { AnnouncementForm } from "@/components/announcements/announcement-form";
@@ -22,7 +23,7 @@ export default async function ManageAnnouncementPage({
 }) {
   const { lang: rawLang, id } = await params;
   const lang = rawLang as Locale;
-  await requirePermission("content:manage", lang);
+  const role = await requirePermission("content:manage", lang);
 
   const dict = await getDictionary(lang);
   const draft = await getAnnouncementDraft(id);
@@ -49,7 +50,13 @@ export default async function ManageAnnouncementPage({
       <AnnouncementForm draft={draft} lang={lang} dict={dict} />
 
       <div className="border-t border-border pt-4">
-        <AnnouncementPublishControls id={id} published={published} lang={lang} dict={dict} />
+        <AnnouncementPublishControls
+          id={id}
+          published={published}
+          canDelete={can(role, "content:delete")}
+          lang={lang}
+          dict={dict}
+        />
       </div>
     </main>
   );

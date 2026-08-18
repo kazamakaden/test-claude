@@ -125,7 +125,11 @@ export async function deleteAnnouncementAction(
   lang: Locale,
   id: string
 ): Promise<AnnouncementFormResult> {
-  await requirePermission("content:manage", lang);
+  // content:delete, not content:manage: the RLS delete policy is admin-only
+  // (0060), so org staff who can publish/unpublish still cannot remove the
+  // record. Gating here on the same permission keeps the app layer from
+  // offering a delete the database will always refuse.
+  await requirePermission("content:delete", lang);
 
   const result = await deleteAnnouncement(id);
   if (!result.ok) return { ok: false, messageKey: toErrorKey(result.error) };

@@ -31,11 +31,16 @@ import type { Dictionary } from "@/types/i18n";
 export function AnnouncementPublishControls({
   id,
   published,
+  canDelete,
   lang,
   dict,
 }: {
   id: string;
   published: boolean;
+  /** Deleting is admin-only at the RLS layer (0060); org staff can only
+   *  publish/unpublish. Gate the button on the same authority so it is never
+   *  shown to someone the database will refuse. */
+  canDelete: boolean;
   lang: Locale;
   dict: Dictionary;
 }) {
@@ -59,6 +64,7 @@ export function AnnouncementPublishControls({
         {published ? d.unpublishButton : d.publishButton}
       </Button>
 
+      {canDelete && (
       <AlertDialog>
         {/* `render` with the label as children, matching
             delete-book-button.tsx — this project's AlertDialogTrigger is Base
@@ -87,6 +93,7 @@ export function AnnouncementPublishControls({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      )}
     </div>
   );
 }
