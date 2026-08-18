@@ -2603,8 +2603,28 @@ out a broadcast notification via trigger, reusing the whole 0036→0038 chain;
 `notified_at` stops republish from re-notifying everyone.
 
 **Testing, and two ways it went wrong.** Every migration has a re-runnable,
-self-rolling-back matrix in `supabase/tests/` (0055: 10 cases, 0057: 10, 0058:
-10, 0059: 9, 0060: 11), all passing live. Two flaws in the *test method* were
+self-rolling-back matrix in `supabase/tests/` (0055: 10 cases, **0056: 17**,
+0057: 10, 0058: 10, 0059: 9, 0060: 11), all passing live.
+
+The **0056 §13 abuse matrix is the one that matters most** and was the last to
+actually be run — it was written alongside the migration and then, by
+oversight, committed without being executed; the count is listed here only now
+because "the file exists" and "the file passes" are different claims. 17/17,
+and three results are worth keeping:
+
+* **`secret` is unreadable even by staff** (42501), and `qr_token_for_bucket`
+  is uncallable by anyone. If either ever passes, tokens can be minted
+  client-side and every other case in the file is decoration.
+* **A cross-session forgery is refused** — session 1's public slug signed with
+  session 2's secret. Without the HMAC being bound per session, holding any one
+  QR would grant attendance at every other activity.
+* **A student reading `qr_sessions` gets 0 rows, not an error.** That is correct
+  RLS behaviour (no applicable policy), not a missing grant, and is called out
+  so a future reader does not "fix" it into a permission error.
+
+The matrix deliberately reads `secret` as the table OWNER to forge its test
+tokens — attacking the scheme from a stronger position than any real client
+holds, since case 03 proves no client can reach it. Two flaws in the *test method* were
 caught, in opposite directions, and both are worth remembering:
 
 * **False PASS** — `select (insert into …)` is not valid syntax, so an
