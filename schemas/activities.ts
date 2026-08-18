@@ -76,3 +76,52 @@ export const updateActivitySchema = createActivitySchema.extend({
 export type UpdateActivityInput = z.infer<typeof updateActivitySchema>;
 
 export const deleteActivitySchema = z.object({ id: z.uuid() });
+
+/**
+ * Detail-page inputs (0061–0063).
+ *
+ * Every one of these is re-validated by the database — can_edit_activity() for
+ * the write authority, the sort_order constraint for the banner cap, the
+ * staff-role trigger for co-editors. These schemas exist to reject malformed
+ * input early and give the UI a specific message, not to be the boundary.
+ */
+export const addBannerSchema = z.object({
+  activityId: z.uuid(),
+  // The object path the browser uploaded to, not the file itself: uploads go
+  // straight to Storage (components/books/file-uploader.tsx), so the Server
+  // Action only ever carries this string.
+  storagePath: z.string().trim().min(1).max(500),
+});
+
+export const removeBannerSchema = z.object({
+  activityId: z.uuid(),
+  bannerId: z.uuid(),
+});
+
+export const activityEditorSchema = z.object({
+  activityId: z.uuid(),
+  userId: z.uuid(),
+});
+
+export const manualAttendanceSchema = z.object({
+  activityId: z.uuid(),
+  studentId: z.uuid(),
+  status: z.enum(["present", "late", "absent"]).catch("present"),
+});
+
+/**
+ * The owner-stated headcount that gives the attendance % a denominator.
+ * Nullable: an event with no expectation simply shows counts and no percentage,
+ * which is better than a number that means nothing.
+ */
+export const expectedAttendeesSchema = z.object({
+  activityId: z.uuid(),
+  expectedAttendees: z
+    .union([z.coerce.number().int().min(1).max(100000), z.literal("")])
+    .transform((v) => (v === "" ? null : v))
+    .nullable(),
+});
+
+export type AddBannerInput = z.infer<typeof addBannerSchema>;
+export type ActivityEditorInput = z.infer<typeof activityEditorSchema>;
+export type ManualAttendanceInput = z.infer<typeof manualAttendanceSchema>;

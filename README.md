@@ -142,12 +142,42 @@ password set cannot sign in until it goes through the reset flow below.
 `/signup` registers a new email/password account and requires clicking a
 confirmation link before the account is usable (`signUp`'s
 `emailRedirectTo` points at the existing `/auth/callback` route — the same
-one Google already used). `/forgot-password` → `/reset-password` covers a
-forgotten password: `resetPasswordForEmail` sends a recovery link to a
-**new**, dedicated `app/[lang]/auth/reset/route.ts` route (kept separate
-from `/auth/callback` so a recovery code can never be redirected anywhere
-but `/reset-password`, preserving that both routes' redirect targets are
-always hard-coded, never caller-supplied).
+one Google already used).
+
+`/forgot-password` → `/reset-password` covers a forgotten password, and
+`/set-password` covers a first-time Google account that has none. **Both
+send an email this app composes and delivers itself over SMTP** — Supabase
+Auth's `resetPasswordForEmail` is no longer called anywhere. See
+`docs/email-setup.md` for why (short version: this project enables
+Supabase's project-level CAPTCHA, which refuses a server-initiated recovery
+send outright) and for the SMTP setup.
+
+The flow is:
+
+```
+request form (Turnstile)
+  → mint a token, store only its SHA-256 (0064), email the link
+  → GET /[lang]/auth/set-password?token=…   VALIDATES, never consumes
+  → token moves into an httpOnly cookie, redirect
+  → /[lang]/reset-password  → submit password
+  → ONE atomic UPDATE spends the token → admin API sets the password
+  → /login?notice=…
+```
+
+Three properties carry the security of that, and none is incidental:
+
+* **The GET does not consume the token.** Gmail, Outlook and corporate
+  antivirus all fetch links in mail before a human does; a token spent by
+  that fetch would be dead by the time the recipient clicks, intermittently
+  and undiagnosably. Consuming happens on the POST. Single-use is intact —
+  "use" means setting a password.
+* **The cookie carries the raw token, not the token row's id.** A row id in
+  a cookie is a bearer credential anyone who can guess one could use; the
+  token is 256 bits minted for exactly this job.
+* **Consumption is a single `UPDATE … WHERE token_hash = … AND used_at IS
+  NULL AND expires_at > now() RETURNING user_id`,** so two concurrent
+  submissions cannot both win, and the account acted on is the one that
+  statement returned — never a form field, cookie or query parameter.
 
 Every one of `signInWithPassword` / `signUpWithPassword` /
 `requestPasswordReset` collapses its failure modes into one generic message
@@ -162,11 +192,10 @@ this repo:
 * **Authentication → Providers → Email → "Confirm email" must stay ON.**
   With it off, `signUp` hands back a usable session immediately and §19's
   email-verification requirement silently stops being met.
-* **The mailer's send-rate cap now bites harder.** Whichever mailer is
-  active (see "CAPTCHA + SMTP setup" below) now serves signup-confirmation
-  and password-reset emails in addition to whatever it served before —
-  reconfiguring custom SMTP (rather than relying on Supabase's ~2/hour
-  built-in sender) matters more now than it did with magic-link-only auth.
+* **Supabase's mailer now only serves signup confirmation.** Password
+  setup and reset left it entirely (above), which also takes them out from
+  under its ~2/hour built-in cap — that cap now applies only to
+  confirmation mail.
 
 ### Google sign-in setup
 

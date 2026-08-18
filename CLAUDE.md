@@ -2536,6 +2536,387 @@ it is not a database boundary — reads through the Supabase API directly are
 still possible. Closing that would require changing the role itself. Same shape
 as the already-documented Turnstile-with-JS-off trade-off.
 
+**Five 0%-reported features built: QR attendance, audit logs, reports, global
+search and announcements (`0055`–`0060`) — plus a critical live RLS hole found
+and closed first.**
+
+The audit that preceded this confirmed all five were genuinely at 0%, but the
+significant finding was not one of them. **`attendance_insert_own` (0008,
+re-wrapped in 0041) was, in full, `with check (student_id = auth.uid())`** — no
+role check — and 0008's column hardening had revoked SELECT only, leaving
+INSERT and UPDATE granted on all 14 columns to `authenticated` and `anon`.
+Reproduced live before touching it, as the real `student` 66209010020, a role
+that per §6 is read-only and holds no `attendance:submit`: one row written,
+status `completed`, GPS set to Bangkok (~560 km away), fingerprint and IP
+forged, `recorded_at` backdated 30 days. §13 requires GPS, time and device
+fingerprint to be server-verified; every one was client input.
+
+`0055` fixes it in two layers on purpose. The **grants** go, so no client can
+write the table at all — §13 attendance arrives through a security-definer RPC
+that needs no grant. The **policy** additionally gains the role check, which is
+redundant while the grant is revoked, and that is the point: it is the layer
+that still holds if a future migration re-grants INSERT, the way `0011`'s
+`create or replace` silently restored an EXECUTE grant `0006` had revoked.
+Trade-off stated in the migration: `authenticated` is one shared role, so this
+removes the admin's UI-less raw-REST write too. That capability had no caller
+and was never complete — DELETE has never been granted on this table to anyone.
+
+**QR attendance (§13, `0056`)** — no in-app scanner. §13 reads "Scan QR → Open
+Website → Confirm", so the student's own camera opens `/{lang}/attend/{token}`:
+no camera permission, no scanner dependency, works on every phone, and the
+client stays out of the trust path. "Dynamic" is solved without a job runner by
+deriving the token TOTP-style — a per-session secret HMAC'd with a time bucket,
+so nothing rotates anything and a screenshotted QR simply stops verifying. The
+staff display polls a route handler rather than computing the next token
+locally, which is the whole security argument: the secret is unreadable by
+every client, so a browser *cannot* derive the next code. `record_attendance()`
+derives student_id, recorded_at, status, ip and activity_id server-side; the
+caller supplies only a token, a GPS reading and a fingerprint, each verified.
+
+**Audit logs (§19, `0057`)** — this was a live gap, not a missing feature:
+`deleteMemberAction` permanently destroys an account and nothing recorded who
+did it. Append-only enforced by **grant**, not by absent policy (0055's lesson
+applied up front), and written exclusively by triggers — an audit trail an
+application caller can write is one they can forge. Proven live including the
+case app-level logging cannot catch: a DELETE run as the table owner with the
+JWT cleared is still recorded, actor correctly null.
+
+**Reports (§18, `0058`)** closed SEC-5 (`/reports` was gated on
+`workspace:access`, which a read-only student holds) and **B-2**: 
+`get_activity_stats()` is SECURITY INVOKER, so `completed`/`pending` are
+org-wide while `attendance` is per-caller — one chart, two scopes, nothing
+saying which. Fixed by telling the truth rather than changing the numbers: the
+legend now says "my attendance" when it means that. Forcing org-wide figures
+would have leaked the college's attendance to every student.
+
+**Global search (§18, `0059`)** is SECURITY INVOKER so per-table RLS scopes it
+— **deliberately the opposite of `0038`'s choice for `list_notifications`**, and
+the contrast is the useful part: there RLS was *broader* than the app's meaning
+of "mine", so the RPC had to restate scope; here the policies already say
+exactly what each role may see, so restating them would create a second copy
+that can drift. Which is right depends on whether RLS already means what the
+feature means.
+
+**Announcements (`0060`)** closes B-1 — `/announcements` was linked from the
+footer but absent from `navItems`, a dead link since Phase 1. Publishing fans
+out a broadcast notification via trigger, reusing the whole 0036→0038 chain;
+`notified_at` stops republish from re-notifying everyone.
+
+**Testing, and two ways it went wrong.** Every migration has a re-runnable,
+self-rolling-back matrix in `supabase/tests/` (0055: 10 cases, **0056: 17**,
+0057: 10, 0058: 10, 0059: 9, 0060: 11), all passing live.
+
+The **0056 §13 abuse matrix is the one that matters most** and was the last to
+actually be run — it was written alongside the migration and then, by
+oversight, committed without being executed; the count is listed here only now
+because "the file exists" and "the file passes" are different claims. 17/17,
+and three results are worth keeping:
+
+* **`secret` is unreadable even by staff** (42501), and `qr_token_for_bucket`
+  is uncallable by anyone. If either ever passes, tokens can be minted
+  client-side and every other case in the file is decoration.
+* **A cross-session forgery is refused** — session 1's public slug signed with
+  session 2's secret. Without the HMAC being bound per session, holding any one
+  QR would grant attendance at every other activity.
+* **A student reading `qr_sessions` gets 0 rows, not an error.** That is correct
+  RLS behaviour (no applicable policy), not a missing grant, and is called out
+  so a future reader does not "fix" it into a permission error.
+
+The matrix deliberately reads `secret` as the table OWNER to forge its test
+tokens — attacking the scheme from a stronger position than any real client
+holds, since case 03 proves no client can reach it. Two flaws in the *test method* were
+caught, in opposite directions, and both are worth remembering:
+
+* **False PASS** — `select (insert into …)` is not valid syntax, so an
+  expect-refused helper records the syntax error as a refusal. Statements must
+  run as statements.
+* **False FAIL** — `select 1 from (select f()) t` leaves the function result
+  unreferenced, so the planner prunes the call entirely and it reads as
+  "allowed". This briefly looked like a bypassed guard that was never bypassed.
+
+Also: a missing-grant and an RLS violation both raise `42501`, so the helpers
+record `sqlerrm`, not just SQLSTATE — that is what proves 0055's policy layer
+refuses independently of its grant layer.
+
+**A real bug found by testing rather than reading**: `search_all`'s first
+version selected `profiles.created_at`, outside the column allow-list `0026`
+grants anon, which made the **entire** function fail for guests with 42501 —
+not merely hide the member section. That is precisely the failure this
+migration's own header warns about for `email`; the warning was written and
+then walked into one column over.
+
+**Not verified, stated plainly**: no end-to-end scan on a physical phone; the
+staff QR page's rendered output (needs a real activity row and a configured
+Supabase); the dashboard chart legend (with no Supabase the stats are empty, so
+the card renders its empty state and the legend never mounts — the scope
+predicate itself was exercised for all five roles).
+
+**Correction to this file**: the §12 entry says all six books have no file and
+the public shelf is empty after `0053`. One book was genuinely published with a
+PDF on 2026-08-14 and is visible to anon, which is correct behaviour under
+`books_select_published`, not a leak.
+
+`npx tsc --noEmit`, `npm run lint` and `npm run build` pass clean throughout;
+dictionary parity checked programmatically at each step (859 keys per locale at
+the end). `types/database.ts` is verified against the live catalog by an
+automated drift check — extended mid-work to cover **functions** as well as
+tables, since the table-only version silently missed three new RPCs.
+
+**Activity detail page, co-editors, banners, manual attendance, and students
+scanning (`0061`–`0063`) — plus a fatal escalation caught by review before it
+shipped.** `/activities` was a list and nothing else: there was no detail page
+at all, so `/activities/{id}` 404'd and `[id]` existed only to host the QR
+child, leaving `/activities/{id}/qr` reachable only by typing a URL nothing in
+the app would ever show.
+
+**The finding that mattered was not in the feature.** `activities.created_by`
+had existed since `0007` and **no policy ever referenced it**, so any
+aft/teacher could edit any other teacher's activity. The obvious fix — point the
+UPDATE policy at ownership — would have shipped a self-service ownership
+transfer: verified live via `information_schema.column_privileges`,
+`authenticated` (and `anon`) held **UPDATE on every column including
+`created_by` and `id`**, Supabase defaults never revoked here the way `0055`
+revoked them for `attendance`. A co-editor could run `update activities set
+created_by = <self>`. **RLS cannot prevent this** — `WITH CHECK` only ever sees
+the NEW row, so no policy can say "this column must not change". A column-grant
+allow-list is the only mechanism that can. Corollary now written into the
+migration: column grants are per-*role* and `authenticated` is one shared role,
+so "the owner may transfer ownership but a co-editor may not" is
+**inexpressible** in RLS.
+
+Three more design corrections, each verified rather than argued:
+* **The banner cap is a constraint, not a trigger.** A counting trigger is racy
+  — two concurrent inserts under READ COMMITTED each see 9 and both commit.
+  `check (sort_order between 0 and 9)` + `unique (activity_id, sort_order)` is a
+  hard cap, and it is the ordering key the carousel needs anyway. Proven from
+  both directions: slot 10 fails the check, a taken slot fails the index.
+* **DELETE is owner+admin, never co-editors.** `attendance.activity_id` is `ON
+  DELETE CASCADE` (confirmed live), so deleting an activity destroys its whole
+  attendance record — bypassing both RLS and the fact that DELETE has never been
+  granted on `attendance` to anyone.
+* **`attendance.method` has NO default.** Defaulting to `'qr'` would let any
+  future writer that forgets the column silently produce rows claiming
+  cryptographic verification — fail-open, the exact class `0055` exists to
+  prevent.
+
+**Students can now scan.** `record_attendance()` admits `student`, and
+`attendance:submit` **moved** into `studentPermissions` (a copy would duplicate,
+since `organisationPermissions` spreads it). `attendance_insert_own` is
+deliberately **not** relaxed to match: with no INSERT grant that policy is
+unreachable, so keeping it narrow costs nothing and still holds if a future
+migration re-grants INSERT. The migration says so, or a later reader will "fix"
+the apparent contradiction.
+
+**The percentage has a real denominator.** `activities.expected_attendees` is
+owner-stated, because `attendance` rows exist only for people who checked in —
+so the obvious denominator makes the figure checked-in/checked-in, always 100%.
+
+**Live: 49 cases across `0061`–`0063`, all passing**, plus `0055`'s boundary
+re-verified 9/9 after the schema change. `0056` case 01 asserted the student
+refusal and was **inverted in the same commit** rather than left to fail.
+
+**Three harness traps found by running rather than reading**, worth keeping:
+1. **RLS FILTERS on UPDATE/DELETE rather than raising** — a forbidden statement
+   succeeds affecting zero rows, so an exception-based helper reads it as
+   *allowed*. Two cases false-FAILed this way before write-effect cases were
+   switched to assert `ROW_COUNT`. INSERT is the asymmetric case: a `WITH CHECK`
+   violation does raise.
+2. Matching a policy predicate with `like '%student%'` hits the **column name
+   `student_id`**, reporting a hole in a correct policy. Match the role literal.
+3. `types/database.ts` was verified against the live catalog rather than trusted:
+   tables, PostgREST-reachable functions and every column of the four
+   changed/new tables diffed both ways, zero rows. That also surfaced two
+   **pre-existing** drifts — `assert_report_viewer` (0058) was never added, and
+   the Constants block never got `attendance_status` (0056).
+
+A real break came out of it: adding `recorded_by` gives `attendance` a **second
+FK into `profiles`**, so `listActivityAttendance`'s `profiles(...)` embed became
+ambiguous — a runtime PostgREST failure, not just a type error, caught by `tsc`
+first. Hinted to `profiles!attendance_student_id_fkey`. Also worth knowing: the
+`.select()` string must be a single literal, since postgrest-js parses it at the
+type level and `"a" + "b"` collapses the row type to `GenericStringError`.
+
+**Not verified**: the rendered page with real data. Without Supabase the detail
+page correctly `notFound()`s, so there is nothing for the responsive suite to
+measure and no banner, attendee row or co-editor grant has been seen in a
+browser. The guards, the route move, the build and the whole database layer are
+proven; the pixels are not.
+
+**Password emails are sent by this app over SMTP; Supabase Auth's mailer is
+out of that path entirely (`0064`).** Reported plainly: setting a password
+"should be Nodemailer because [Supabase] is too much trouble — anyone should
+be able to set a password from a phone, a PC, anything, by clicking one
+link." That is what shipped.
+
+Three separate Supabase blockers made the old path unfixable rather than
+merely annoying, and this file already recorded each one in isolation
+without connecting them: the built-in sender caps around two messages an
+hour (`429 over_email_send_rate_limit`); custom SMTP through Resend was
+**cleared by the dashboard itself** when its toggle was switched off and its
+domain never finished DNS verification (`resend._domainkey.udontech.ac.th`
+still resolves to nothing); and — the one no configuration fixes — this
+project enables Supabase's **project-level CAPTCHA**, so a server-initiated
+`resetPasswordForEmail()` is refused outright with `captcha protection:
+request disallowed`. That last one is the *only* reason `/set-password`
+exists as an interstitial page at all rather than the callback route just
+sending the mail.
+
+**A bigger change than swapping a transport, stated up front.** Supabase's
+link worked because it established a *recovery session* that
+`updateUser({password})` then acted on. A link this app mints carries no
+session, so the password is set through `admin.auth.updateUserById()` — the
+service-role key. **This is the first unauthenticated path to that key in
+the codebase**, and that, not the email, is where the risk lives. Three
+properties carry it, and none is incidental:
+
+1. **The GET does not consume the token.** Gmail, Outlook and corporate
+   antivirus all fetch links in mail before a human does; a token spent by
+   that fetch is dead by the time the recipient clicks — intermittently,
+   depending on whose scanner saw it first, which is the worst possible
+   failure to diagnose. `peekToken()` (a SELECT) runs on the GET;
+   `consumeToken()` (the UPDATE) runs on the POST. Single-use is intact
+   because "use" means setting a password.
+2. **The handoff cookie carries the RAW TOKEN, not the token row's id.** A
+   row id in a cookie is a bearer credential anyone who guesses one could
+   spend; the token is 256 bits minted for exactly that job. Moving it out
+   of the URL also gets the secret out of the address bar before the
+   password screen renders, so it cannot leak via Referer, a screenshot or
+   history. `path: "/"` rather than `/{lang}/reset-password`, deliberately —
+   the narrow scope is tempting and wrong, because the header's language
+   toggle rewrites the locale segment and the cookie would silently vanish
+   on a `/th` → `/en` switch.
+3. **Consumption is ONE atomic statement** — `update … where token_hash = $1
+   and used_at is null and expires_at > now() returning user_id` — so two
+   concurrent submissions cannot both win, and **the account acted on is the
+   one that statement returned**. No form field, cookie or query parameter
+   anywhere in `updatePassword` names a user.
+
+`token_hash` is **hex `text`, not `bytea`**, with a `CHECK (~
+'^[0-9a-f]{64}$')`. bytea crosses the PostgREST boundary as a backslash-x
+escape string whose round-trip depends on URL escaping behaving exactly
+right in both directions — unverifiable from this session, since outbound
+access to `*.supabase.co` is blocked. Hex has no escape path to get wrong,
+indexes identically, and the CHECK makes a malformed write impossible rather
+than unlikely. No policies and no grants, the `qr_scan_attempts` (0056)
+shape; RLS is still *enabled* so a future accidental grant still meets a
+fail-closed table.
+
+**No constant-time comparison anywhere, and that is deliberate rather than
+forgotten** — the plan called for reusing `lib/push-server.ts`'s
+hash-both-sides compare, but the token is never compared in application
+code. It is looked up by indexed equality inside Postgres, which leaks
+nothing an attacker could walk a byte at a time the way a naive `memcmp`
+would. Recorded so it is not "fixed" later by someone reading the plan.
+
+**SMTP is enforced by the build guard, unlike the VAPID keys.**
+`lib/env-guard.ts` now fails a Vercel production build when
+`SMTP_USER`/`SMTP_PASSWORD`/`SMTP_FROM` are not all set. The VAPID comment
+in that file argues the opposite for push, correctly — a missing push key
+degrades to "no toggle shown." A missing SMTP key does not degrade: setting
+a password is the only route into an account that has none, and that route
+is now one emailed link. **Operationally this means the next production
+deploy FAILS until those three variables are set in Vercel** — which is the
+guard doing its job, not a regression, but it is the first thing to hit.
+
+Throttle: 3 links per account per 15 minutes, fixed-window `count(*)`, same
+shape as `qr_scan_attempts`. **Being throttled must not change the
+response** — `requestPasswordReset` returns `{ok:true}` whether the address
+is registered, throttled, or the send failed, because that uniformity is the
+entire account-enumeration guard and a "too many requests" message hands
+back exactly what it hides. An address with no `profiles` row mints nothing
+and so has no row to count; that path is bounded by Turnstile alone, which
+is proportionate — it costs one indexed lookup and sends no mail. Turnstile
+stays on the request form for precisely that reason: an unprotected "email
+this address" endpoint is a way to make the server mail college addresses on
+demand.
+
+The emailed link is built from `resolveConfiguredSiteUrl()` only — **never**
+`resolveOrigin()`, which is header-first. Header-first is right for an OAuth
+redirect (the user is standing in front of the browser that sent it) and
+wrong for a link that goes in an inbox: a poisoned `Host` would mail a real
+college address a link pointing at an attacker's host, carrying a token
+valid for their account. Development falls back to the request origin so
+`npm run dev` works unconfigured; anything else refuses to send and says so
+in the log.
+
+`app/[lang]/auth/reset/route.ts` was **deleted**, not kept as a fallback —
+it existed only to exchange a Supabase recovery `code`, which nothing issues
+any more. Two reset systems means two kinds of link in the wild and a path
+nobody exercises; this project already made that argument when it dropped
+the direct-INSERT fallback on `attendance`.
+
+**A real defect found by testing rather than review, and it was not in the
+new code.** The route matrix showed `/th/auth/set-password?token=garbage`
+correctly redirecting to `/th/login?error=sessionExpired` — so the check
+looked green. Grepping the actual response HTML showed the message appears
+**exactly once, inside the serialized dictionary payload, and nowhere as
+visible text**: every `?error=`/`?notice=` on `/login` was delivered only as
+a sonner toast inside a `useEffect`. Pre-existing (it has always been how
+`?error=auth`/`oauthFailed`/`sessionTimedOut` behaved) but newly
+load-bearing, because an expired or already-used link is a *routine* outcome
+of this flow and that message is now the only thing explaining it — and it
+was invisible with JavaScript off, against §30.9 item 3. Fixed by
+server-rendering the message on `login/page.tsx` (`role="alert"` /
+`role="status"`) and removing the URL-carried toast; the submit-result toast
+is untouched. Re-checked in the raw HTML per case: `sessionExpired`,
+`signupComplete` and `passwordUpdated` each render outside `<script>`, an
+unknown `?error=bogusKey` renders nothing, and a bare `/login` renders
+nothing.
+
+**Verified live, this session:**
+* **`supabase/tests/0064_…_test.sql`, 20/20 against the hosted project**,
+  self-rolling-back (0 rows left after, confirmed). The cases that matter:
+  `authenticated` and `anon` can neither SELECT, INSERT, UPDATE nor DELETE
+  the table (`42501` each, with `sqlerrm` recorded — a missing grant and an
+  RLS violation both raise `42501`, so the message is what distinguishes
+  them); a token consumed twice returns a row then nothing; expired and
+  already-used are refused; **user B's token returns user B, never user A**;
+  the CHECK refuses a raw token stored by mistake (`23514`) and the unique
+  index refuses a duplicate hash (`23505`).
+* **The email-scanner simulation (cases 18-20)** — peek, peek, then consume.
+  Both peeks see a valid token and the human's POST still works. This is the
+  assertion that proves an inbox scanner cannot silently kill the flow.
+* **The email itself, through the real modules**, via a temporary route on a
+  real dev server (`app/api/selftest-temp`, removed afterwards; `grep
+  TEMP_SELF_TEST` → 0): Thai and English subjects, the link present in both
+  the text and HTML parts, `{email}`/`{minutes}` interpolated with no
+  unreplaced tokens left, an adversarial link containing `"><script>`
+  escaped (no raw `<script>` in the output), and nodemailer's
+  `jsonTransport` building a real MIME envelope with both parts. Also the
+  token primitives: 43-char base64url, 64-hex digest, stable per token,
+  different across tokens, `../../etc/passwd` and `""` rejected.
+* **Route matrix on the dev server**: `/{lang}/auth/set-password` with no
+  token, a garbage token and a well-formed unknown token all `307` to
+  `/{lang}/login?error=sessionExpired` with the locale preserved and **no
+  Set-Cookie**; `/{lang}/reset-password` without the cookie does the same;
+  `/forgot-password` and `/login` stay `200`.
+* `npx tsc --noEmit`, `npm run lint`, `npm run build` clean;
+  `npm run check:responsive` **78/78, 0 overflow, self-test detecting its
+  injected 3000px element**; dictionary parity checked programmatically (944
+  keys per locale). `types/database.ts` updated and the new table's six
+  columns diffed against `information_schema` both ways rather than trusted.
+
+**Not verified, stated plainly rather than implied:** **no real email has
+been sent.** `smtp.gmail.com:465` is unreachable from this session — the
+same network policy that blocks `*.supabase.co` directly — so everything up
+to the transport is proven and the transport itself is not. Nor has the full
+click-through been run against live Supabase (`findUserIdByEmail`/`mintToken`
+need the service-role key, which this environment has no working route to).
+The first deploy is what confirms both; `docs/email-setup.md` names the exact
+server log line for each failure mode, because the action deliberately
+reports success either way.
+
+Two smaller things worth not rediscovering: `@types/nodemailer` is still
+`8.x` while the runtime is `9.0.5` — 9.0.0's only breaking change is
+stricter TLS validation when fetching remote attachment content, which this
+app never does — and `pool` is not passed to `createTransport` because the
+8.x types reject it on the SMTP overload; unpooled is the default anyway,
+which is what we want (a pooled socket on Vercel never gets a second send to
+amortise over). And a Next.js detail that cost a debug cycle: an App Router
+folder whose name starts with `_` is a **private folder**, excluded from
+routing — `app/api/__selftest` 404'd until it was renamed.
+
+
 ### ❌ Remaining
 
 * **RLS policy performance (`auth_rls_initplan`, `multiple_permissive_policies`)**
@@ -2583,14 +2964,23 @@ as the already-documented Turnstile-with-JS-off trade-off.
   therefore higher than when this bullet was first written, not the same.
   Still not fixable without a paid-plan upgrade, which is a billing decision
   for the user, not something to change unilaterally.
-* **Custom SMTP (Resend) needs to be manually reconfigured** — cleared as a
-  side effect of the round-trip proof above (Authentication → Emails → SMTP
-  Settings → toggle "Enable custom SMTP" → re-enter host `smtp.resend.com`,
-  port `465`, sender `noreply@udontech.ac.th` / "AFT UDONTECH", username
-  `resend`, and the Resend API key as the password → Save). Not urgent: it
-  won't actually send until `udontech.ac.th` also finishes Resend's DNS
-  verification, which is still pending — check `resend._domainkey.udontech.ac.th`
-  resolves before expecting it to work.
+* **Custom SMTP (Resend) — no longer on the critical path, and mostly
+  obsolete.** Password-setup and password-reset mail left Supabase entirely
+  (see the SMTP entry in Done above); what still goes through Supabase's
+  mailer is **signup confirmation only**, which is low volume and tolerates
+  the ~2/hour built-in cap. Re-entering the Resend credentials is therefore
+  optional rather than pending work. If it is ever done: Authentication →
+  Emails → SMTP Settings, host `smtp.resend.com`, port `465`, sender
+  `noreply@udontech.ac.th` / "AFT UDONTECH", username `resend`, the API key
+  as the password — and check `resend._domainkey.udontech.ac.th` resolves
+  first, since it still did not last time this was looked at.
+* **The three SMTP_* variables must be set in Vercel before the next
+  production deploy** — `lib/env-guard.ts` now fails the build without them
+  (deliberately; see Done). `SMTP_USER`, `SMTP_PASSWORD` (a 16-character
+  Google App Password, which requires 2-Step Verification on the sending
+  account) and `SMTP_FROM`. The App Password is the user's to generate and
+  paste; it must never be handled by an agent session or written to the
+  repo, exactly as the Resend key was kept out.
 * **Correction to this section's own prior claim**: it used to say
   "`project_drafts` (Projects workflow) ... Plus Documents digital-signature
   ... none of those phases started." That was wrong by the time it was
@@ -2600,21 +2990,12 @@ as the already-documented Turnstile-with-JS-off trade-off.
   against the actual codebase (routes, migrations, package.json) rather than
   trusting this file's own prior bullets, since one of them had already gone
   stale silently:
-  * **QR attendance (§13)** — genuinely not started. No `qr_sessions`
-    migration, no `react-qr-scanner`-equivalent usage anywhere in the
-    codebase, no scan/confirm page. This is §30.10's own documented
-    most-security-sensitive phase (GPS, device fingerprint, duplicate
-    protection) — start here, not later, per that ordering.
-  * **`audit_logs`** — genuinely not started. No migration creates it, and
-    grepping the codebase for any write to a table by that name finds
-    nothing.
-  * **Reports & global search (§18/§30.10)** — genuinely not started.
-    `/reports` is still a bare `PageShell` with `emptyTitle={dict.common.comingSoon}`
-    and nothing else; there is no search input anywhere in `top-nav.tsx` and
-    no cross-entity (Members/Activities/Projects/Documents) query path. The
-    debounced-search pattern already proven on `/members` and `/activities`
-    (`hooks/use-debounced-value.ts`) is the natural building block once this
-    phase starts.
+  * **QR attendance (§13), `audit_logs`, Reports, global search and
+    Announcements — ALL FIVE NOW DONE** (`0055`–`0060`, commits `078e22e`
+    through `48fe43b`). The bullets that used to sit here saying each was
+    "genuinely not started" were accurate when written and are superseded;
+    see the §0 Done entry "Five 0% features built" for what shipped and what
+    is still unproven about it.
   * **Notifications (§16) — in-app half now done** (see the Done entry above:
     trigger write path, per-user read state, real `/notifications` page, wired
     bell). **Web push is still not sent**: `push_subscriptions` (0033/0034)
@@ -3245,9 +3626,15 @@ activities          attendance         projects
 documents           document_drafts    signature_records
 books               content_blocks
 notifications       notification_reads push_subscriptions
+qr_sessions         qr_scan_attempts   audit_logs
+announcements       activity_banners   activity_editors
+password_setup_tokens
 ```
 
-Not built yet (§30.10): `qr_sessions`, `audit_logs`.
+All of §20's original list now exists. `password_setup_tokens` (0064) is the
+one table that was never in it: it holds the SHA-256 of the password-setup
+link this app emails itself, and nothing but the service-role client may
+touch it (no policies, no grants — the `qr_scan_attempts` shape).
 
 Deviations from the original list, deliberate and already shipped:
 

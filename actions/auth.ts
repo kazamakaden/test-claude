@@ -3,8 +3,18 @@
 import { redirect } from "next/navigation";
 import { toRole } from "@/types/auth";
 import { revalidatePath } from "next/cache";
-import { headers } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
+import { getDictionary } from "@/lib/i18n/get-dictionary";
+import { sendMail } from "@/lib/mailer";
+import { buildPasswordLinkEmail } from "@/lib/emails/password-link";
+import { HANDOFF_COOKIE_NAME, isWellFormedToken } from "@/lib/password-tokens";
+import {
+  applyNewPassword,
+  consumeToken,
+  findUserIdByEmail,
+  mintToken,
+} from "@/services/password-setup";
 import { signInSchema, resetRequestSchema, newPasswordSchema } from "@/schemas/auth";
 import { assertTurnstileSafeForProduction, isTurnstileConfigured } from "@/lib/turnstile";
 import { resolveConfiguredSiteUrl } from "@/lib/site-url";
@@ -84,6 +94,31 @@ async function resolveOrigin(): Promise<string> {
 }
 
 /**
+ * The origin an EMAILED link is built from — deliberately NOT resolveOrigin().
+ *
+ * resolveOrigin() is header-first, which is right for an OAuth redirect (the
+ * user is standing in front of the browser that sent the header) and wrong
+ * for a link we put in an inbox: the Origin/Host header is caller-supplied,
+ * so a poisoned one would mail a real college address a link pointing at an
+ * attacker's host, with a token that is valid for their account. Configured
+ * value only.
+ *
+ * The development fallback exists so `npm run dev` works with no
+ * NEXT_PUBLIC_SITE_URL set; in any other environment an unconfigured site
+ * URL means no link is sent at all, which fails closed and says so in the
+ * log rather than emailing something unusable.
+ */
+async function resolveEmailLinkOrigin(): Promise<string | null> {
+  const configured = resolveConfiguredSiteUrl();
+  if (configured) return configured;
+  if (process.env.NODE_ENV === "development") {
+    const origin = await resolveOrigin();
+    return origin || null;
+  }
+  return null;
+}
+
+/**
  * Bound directly to the login form's password-disclosure `action`
  * attribute (useActionState), so submission works with JavaScript disabled
  * — a real POST, not a client-invoked RPC. `lang` travels as a hidden
@@ -155,37 +190,62 @@ export async function requestPasswordReset(
     return { ok: false, messageKey: fieldErrorKey(rawKey, "invalidEmail") };
   }
 
-  const captchaToken = readCaptchaToken(formData);
-  if (isTurnstileConfigured && !captchaToken) {
+  // Turnstile still guards this endpoint even though Supabase's mailer is no
+  // longer involved — an unprotected "email this address" endpoint is a way
+  // to make the server mail college addresses on demand. The token is only
+  // checked for presence here, exactly as before; Cloudflare's server-side
+  // siteverify is the project-level setting, not this action's job.
+  if (isTurnstileConfigured && !readCaptchaToken(formData)) {
     return { ok: false, messageKey: "captchaFailed" };
   }
 
-  const origin = await resolveOrigin();
-  const supabase = await createClient();
-
-  const { error } = await supabase.auth.resetPasswordForEmail(parsed.data.email, {
-    redirectTo: `${origin}/${lang}/auth/reset`,
-    ...(captchaToken ? { captchaToken } : {}),
-  });
-
-  // The user-facing response deliberately ignores this error (beyond a
-  // malformed request already caught above) — surfacing "no such account"
-  // would be the same enumeration leak the uniform success panel exists to
-  // avoid. Logged server-side only, so an SMTP failure or rate limit is
-  // still visible in Vercel logs instead of looking identical to a
-  // successful send.
-  if (error) {
-    console.error("[requestPasswordReset]", error.code, error.message);
+  // Everything below is best-effort and MUST NOT change the response.
+  // `{ ok: true }` is returned whether the address is registered, throttled,
+  // or the mail server refused us — that uniformity is the entire
+  // account-enumeration guard, and a "too many requests" or "no such
+  // account" message would hand back precisely what it hides. Failures are
+  // logged instead, so a wrong App Password is visible in the server log
+  // rather than indistinguishable from a successful send.
+  const origin = await resolveEmailLinkOrigin();
+  if (!origin) {
+    console.error(
+      "[requestPasswordReset] no site URL configured — set NEXT_PUBLIC_SITE_URL; link not sent."
+    );
+    return { ok: true };
   }
+
+  const userId = await findUserIdByEmail(parsed.data.email);
+  if (!userId) return { ok: true };
+
+  const minted = await mintToken(userId);
+  if (minted.status !== "ok") return { ok: true };
+
+  const dict = await getDictionary(lang);
+  const link = `${origin}/${lang}/auth/set-password?token=${encodeURIComponent(minted.token)}`;
+
+  await sendMail(buildPasswordLinkEmail({ to: parsed.data.email, link, dict }));
 
   return { ok: true };
 }
 
 /**
- * Only reachable with the short-lived session app/[lang]/auth/reset/route.ts
- * established from the recovery link's code — updateUser() operates on the
- * caller's current session, not an email lookup, so there's no
- * "email not found" outcome to guard here.
+ * Spends the emailed link and sets the password. THE POST, not the GET, is
+ * what consumes the token — see app/[lang]/auth/set-password/route.ts for
+ * why (email scanners follow links).
+ *
+ * The caller is NOT signed in — that is the whole point of a password
+ * reset — so this cannot go through the caller's own session the way it did
+ * when Supabase issued a recovery session. It goes through the service-role
+ * client instead, which is the first unauthenticated path to that key in
+ * this codebase. What authorises it is the token, and nothing else:
+ *
+ *   1. a raw token arrived in an httpOnly cookie this app set itself,
+ *   2. it hashed to a row that was unused and unexpired,
+ *   3. that row was spent by ONE atomic UPDATE, which returned its user_id,
+ *   4. the new password passed newPasswordSchema.
+ *
+ * The account acted on is step 3's returned user_id. No form field, cookie
+ * or query parameter anywhere in this action names a user.
  */
 export async function updatePassword(
   _prevState: UpdatePasswordResult | null,
@@ -198,42 +258,46 @@ export async function updatePassword(
     confirmPassword: formData.get("confirmPassword"),
   });
 
+  // The password is validated FIRST, before the token is spent, so a typo'd
+  // confirmation costs a retry rather than the whole link.
   if (!parsed.success) {
     const rawKey = parsed.error.issues[0]?.message;
     return { ok: false, messageKey: fieldErrorKey(rawKey, "passwordTooShort") };
   }
 
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const cookieStore = await cookies();
+  const token = cookieStore.get(HANDOFF_COOKIE_NAME)?.value;
 
-  if (!user) {
+  if (!isWellFormedToken(token)) {
     return { ok: false, messageKey: "sessionExpired" };
   }
 
-  // Read password_set BEFORE updating it, so the redirect can tell a
-  // first-time completion of the Google-sign-in set-password flow apart
-  // from an ordinary later password reset.
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("password_set")
-    .eq("id", user.id)
-    .single();
-  const isFirstTimeSetup = !profile?.password_set;
+  const userId = await consumeToken(token);
+  if (!userId) {
+    return { ok: false, messageKey: "sessionExpired" };
+  }
 
-  const { error } = await supabase.auth.updateUser({ password: parsed.data.password });
-  if (error) {
+  // Past this point the token is spent even if the update fails, so a retry
+  // needs a fresh link. That is the right way round: the alternative —
+  // reviving a token after a failed write — is a token that can be used more
+  // than once, and this failure (the admin API rejecting a password that
+  // already passed newPasswordSchema) is rare enough not to trade single-use
+  // away for.
+  const result = await applyNewPassword(userId, parsed.data.password);
+  if (!result.ok) {
     return { ok: false, messageKey: "updateFailed" };
   }
 
-  await supabase.from("profiles").update({ password_set: true }).eq("id", user.id);
+  // The token is spent either way now, so the cookie is dead weight — and a
+  // dead credential left in a browser is worth clearing rather than waiting
+  // out its 15 minutes.
+  cookieStore.delete(HANDOFF_COOKIE_NAME);
 
-  // Signing out here (rather than continuing straight to /dashboard) is
-  // what puts the user back on /login to complete the flow this was built
-  // for: Google sign-in -> set password -> "you're done, now sign in."
-  await supabase.auth.signOut();
-  redirect(`/${lang}/login?notice=${isFirstTimeSetup ? "signupComplete" : "passwordUpdated"}`);
+  // Land on /login rather than straight into the app: this action
+  // establishes no session (there is no session to establish — the whole
+  // flow ran unauthenticated), so the password has to be used once to get
+  // in, which also confirms to the user that it works.
+  redirect(`/${lang}/login?notice=${result.firstTime ? "signupComplete" : "passwordUpdated"}`);
 }
 
 /**

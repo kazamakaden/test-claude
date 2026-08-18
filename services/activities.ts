@@ -2,7 +2,10 @@ import "server-only";
 import { createClient, tryCreateClient } from "@/lib/supabase/server";
 import type {
   Activity,
+  ActivityBanner,
   ActivityCounts,
+  ActivityDetail,
+  ActivityEditor,
   ActivityFilters,
   ActivitiesResult,
   MonthActivity,
@@ -207,5 +210,209 @@ export async function deleteActivity(id: string): Promise<{ ok: true } | { ok: f
   const { data, error } = await supabase.from("activities").delete().eq("id", id).select("id").maybeSingle();
 
   if (error || !data) return { ok: false, error: error?.message ?? "not found or not allowed" };
+  return { ok: true };
+}
+
+// ---------------------------------------------------------------------------
+// Activity detail page (0061-0063)
+
+const BANNER_BUCKET = "activity-banners";
+
+/**
+ * One activity plus its banners, and whether the viewer may edit it.
+ *
+ * `canEdit` comes from the can_edit_activity() RPC (0061) rather than being
+ * recomputed here, so the UI and the RLS policies cannot drift: the same
+ * function backs both. It is a UI hint only -- every write is re-checked by the
+ * database, which is where the boundary actually lives.
+ */
+export async function getActivityDetail(id: string): Promise<ActivityDetail | null> {
+  const supabase = await tryCreateClient();
+  if (!supabase) return null;
+
+  const { data, error } = await supabase
+    .from("activities")
+    .select("id, title, description, status, starts_at, ends_at, location, is_public, academic_year, department_id, club_id, created_by, expected_attendees, departments(name_th, name_en), clubs(name_th, name_en)")
+    .eq("id", id)
+    .maybeSingle();
+
+  if (error || !data) return null;
+
+  const [{ data: bannerRows }, { data: canEdit }] = await Promise.all([
+    supabase
+      .from("activity_banners")
+      .select("id, storage_path, sort_order")
+      .eq("activity_id", id)
+      .order("sort_order", { ascending: true }),
+    supabase.rpc("can_edit_activity", { p_activity_id: id }),
+  ]);
+
+  const banners: ActivityBanner[] = (bannerRows ?? []).map((b) => ({
+    id: b.id,
+    storagePath: b.storage_path,
+    // getPublicUrl is a pure string build, not a network call -- the bucket is
+    // public (0063), so there is no signing round trip per image the way
+    // services/books.ts needs for its private buckets.
+    url: supabase.storage.from(BANNER_BUCKET).getPublicUrl(b.storage_path).data.publicUrl,
+    sortOrder: b.sort_order,
+  }));
+
+  return {
+    id: data.id,
+    title: data.title,
+    description: data.description,
+    status: data.status,
+    startsAt: data.starts_at,
+    endsAt: data.ends_at,
+    location: data.location,
+    isPublic: data.is_public,
+    academicYear: data.academic_year,
+    departmentId: data.department_id,
+    departmentName: data.departments?.name_th ?? null,
+    clubId: data.club_id,
+    clubName: data.clubs?.name_th ?? null,
+    createdBy: data.created_by,
+    expectedAttendees: data.expected_attendees,
+    banners,
+    canEdit: canEdit === true,
+  };
+}
+
+/**
+ * Who else may edit this activity. Returns [] for a viewer who cannot see the
+ * grants: activity_editors_select (0061) shows a row to its subject, the
+ * owner, and admins -- nobody else -- so this needs no role check of its own.
+ */
+export async function getActivityEditors(activityId: string): Promise<ActivityEditor[]> {
+  const supabase = await tryCreateClient();
+  if (!supabase) return [];
+
+  const { data, error } = await supabase
+    .from("activity_editors")
+    .select("user_id, created_at, profiles!activity_editors_user_id_fkey(full_name, student_id)")
+    .eq("activity_id", activityId)
+    .order("created_at", { ascending: true });
+
+  if (error || !data) return [];
+
+  return data.map((r) => ({
+    userId: r.user_id,
+    fullName: r.profiles?.full_name ?? null,
+    studentCode: r.profiles?.student_id ?? null,
+    createdAt: r.created_at,
+  }));
+}
+
+/** Records an uploaded banner. Writes use createClient(): a write with no real client SHOULD throw. */
+export async function addActivityBanner(
+  activityId: string,
+  storagePath: string,
+  uploadedBy: string
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const supabase = await createClient();
+
+  // The next free slot. 0063 caps sort_order at 0..9 and makes
+  // (activity_id, sort_order) unique, so an 11th photo is refused by the index
+  // rather than by a count this code would have to keep in sync.
+  const { data: existing } = await supabase
+    .from("activity_banners")
+    .select("sort_order")
+    .eq("activity_id", activityId)
+    .order("sort_order", { ascending: true });
+
+  const taken = new Set((existing ?? []).map((r) => r.sort_order));
+  let slot = -1;
+  for (let i = 0; i < 10; i += 1) {
+    if (!taken.has(i)) { slot = i; break; }
+  }
+  if (slot === -1) return { ok: false, error: "bannerLimit" };
+
+  const { error } = await supabase
+    .from("activity_banners")
+    .insert({ activity_id: activityId, storage_path: storagePath, sort_order: slot, uploaded_by: uploadedBy });
+
+  if (error) return { ok: false, error: error.code === "23514" || error.code === "23505" ? "bannerLimit" : "unknown" };
+  return { ok: true };
+}
+
+/** Removes a banner row and its object. */
+export async function removeActivityBanner(
+  bannerId: string
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const supabase = await createClient();
+
+  const { data, error } = await supabase
+    .from("activity_banners")
+    .delete()
+    .eq("id", bannerId)
+    .select("storage_path")
+    .maybeSingle();
+
+  if (error) return { ok: false, error: "unknown" };
+  // Zero rows means RLS filtered it -- a DELETE the policy forbids succeeds
+  // affecting nothing rather than raising, so this must be read as a refusal.
+  if (!data) return { ok: false, error: "forbidden" };
+
+  // Best-effort, after the row is gone: an orphaned object is recoverable,
+  // a row pointing at a deleted object renders as a broken image.
+  await supabase.storage.from(BANNER_BUCKET).remove([data.storage_path]);
+  return { ok: true };
+}
+
+/** Grants edit rights. The database enforces owner-only granting and staff-only grantees (0061). */
+export async function addActivityEditor(
+  activityId: string,
+  userId: string,
+  grantedBy: string
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("activity_editors")
+    .insert({ activity_id: activityId, user_id: userId, granted_by: grantedBy });
+
+  if (!error) return { ok: true };
+  // 42501 covers both the RLS refusal (not the owner) and the staff-role
+  // trigger; 23514 is the owner-is-already-an-editor guard; 23505 a duplicate.
+  if (error.code === "23505") return { ok: false, error: "alreadyEditor" };
+  if (error.code === "23514") return { ok: false, error: "ownerAlreadyEdits" };
+  if (error.code === "42501") return { ok: false, error: "notStaffOrForbidden" };
+  return { ok: false, error: "unknown" };
+}
+
+export async function removeActivityEditor(
+  activityId: string,
+  userId: string
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("activity_editors")
+    .delete()
+    .eq("activity_id", activityId)
+    .eq("user_id", userId)
+    .select("user_id")
+    .maybeSingle();
+
+  if (error) return { ok: false, error: "unknown" };
+  if (!data) return { ok: false, error: "forbidden" };
+  return { ok: true };
+}
+
+/** The denominator for the event attendance %. Null clears it (show counts only). */
+export async function updateExpectedAttendees(
+  activityId: string,
+  expected: number | null
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("activities")
+    .update({ expected_attendees: expected })
+    .eq("id", activityId)
+    .select("id")
+    .maybeSingle();
+
+  if (error) return { ok: false, error: "unknown" };
+  // RLS filters an UPDATE it forbids rather than raising, so zero rows back is
+  // a refusal, not a no-op.
+  if (!data) return { ok: false, error: "forbidden" };
   return { ok: true };
 }

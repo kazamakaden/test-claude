@@ -32,6 +32,10 @@ export const navItems: readonly NavItem[] = [
   { key: "calendar", href: "/calendar" },
   { key: "projects", href: "/projects", permission: "workspace:access" },
   { key: "activities", href: "/activities" },
+  // §5: public. Published announcements are readable by guests
+  // (announcements_select_published, 0060). This entry closes B-1 — the route
+  // was linked from the footer but absent here, so it was a dead link.
+  { key: "announcements", href: "/announcements" },
   { key: "documents", href: "/documents" },
   // §5: public — "11 ดี 11 เก่ง อวท." is public page copy, editable in-app
   // only by staff (content:manage, lib/auth/permissions.ts).
@@ -40,7 +44,14 @@ export const navItems: readonly NavItem[] = [
   // registered; services/members.ts hides email from them and the "add
   // filters"/edit affordances stay role-gated inside the page itself.
   { key: "members", href: "/members" },
-  { key: "reports", href: "/reports", permission: "workspace:access" },
+  // report:view, not workspace:access: the latter is held by a read-only
+  // `student`, who has no §6 basis for org-wide attendance and membership
+  // figures. The report RPCs (0058) enforce the same boundary themselves.
+  { key: "reports", href: "/reports", permission: "report:view" },
+  // §19 audit trail. `system:manage` = admin only, matching
+  // audit_logs_select_admin (0057) — every other role would see an empty
+  // table, so the link is hidden rather than rendered-then-refused.
+  { key: "audit", href: "/audit", permission: "system:manage" },
   // No "approvals" entry: approving a pending signup moved onto /members,
   // which is already in this list and public. The old route still exists as a
   // redirect (app/[lang]/(app)/approvals/page.tsx) for stale links.

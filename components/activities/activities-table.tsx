@@ -98,7 +98,16 @@ export function ActivitiesTable({
       <TableBody>
         {activities.map((a) => (
           <TableRow key={a.id}>
-            <TableCell className="font-medium text-foreground">{a.title}</TableCell>
+            <TableCell className="font-medium text-foreground">
+              {/* Until now nothing in the UI exposed an activity id, which left
+                  /activities/{id}/qr reachable only by typing the URL. */}
+              <Link
+                href={`/${lang}/activities/${a.id}`}
+                className="underline-offset-4 hover:underline"
+              >
+                {a.title}
+              </Link>
+            </TableCell>
             <TableCell className="text-muted-foreground">
               {format(new Date(a.startsAt), "d MMM yyyy", { locale })}
             </TableCell>

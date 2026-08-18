@@ -31,17 +31,7 @@ function SubmitButton({ label, pendingLabel }: { label: string; pendingLabel: st
  * open and its form is a real POST via useActionState (§30.9's
  * JS-disabled guarantee holds for both paths independently).
  */
-export function LoginForm({
-  lang,
-  dict,
-  initialErrorKey,
-  initialNoticeKey,
-}: {
-  lang: Locale;
-  dict: Dictionary;
-  initialErrorKey?: keyof Dictionary["auth"]["errors"];
-  initialNoticeKey?: keyof Dictionary["auth"]["notices"];
-}) {
+export function LoginForm({ lang, dict }: { lang: Locale; dict: Dictionary }) {
   const [state, formAction] = useActionState<SignInResult | null, FormData>(
     signInWithPassword,
     null
@@ -59,15 +49,11 @@ export function LoginForm({
     }
   }, [errorMessage]);
 
-  // One-time toasts for a reason carried back via the URL (?error= from the
-  // OAuth callback route, ?notice= after completing the set-password flow)
-  // — not tied to any local form state, since neither came from a submission
-  // on this page.
-  useEffect(() => {
-    if (initialErrorKey) toast.error(dict.auth.errors[initialErrorKey]);
-    if (initialNoticeKey) toast.success(dict.auth.notices[initialNoticeKey]);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  // A reason carried back via the URL (?error= from the OAuth callback or an
+  // expired password link, ?notice= after setting a password) is rendered by
+  // the PAGE, server-side — deliberately not a toast here. It has to be
+  // readable with JavaScript off, and it is not tied to any state on this
+  // form since it did not come from a submission on this page.
 
   return (
     <div className="flex flex-col gap-4">

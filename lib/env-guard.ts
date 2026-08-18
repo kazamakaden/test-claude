@@ -25,6 +25,17 @@ export function assertDeployEnvConfigured(): void {
     );
   }
 
+  // SMTP is required, unlike the VAPID keys below. Setting a password is the
+  // only route into an account that has none, that route is one emailed
+  // link, and this app now sends that mail itself (0064) — so an unset
+  // SMTP_* is not a missing enhancement, it is a locked front door that
+  // fails silently at 3am rather than loudly at build time.
+  if (!process.env.SMTP_USER || !process.env.SMTP_PASSWORD || !process.env.SMTP_FROM) {
+    problems.push(
+      "SMTP_USER / SMTP_PASSWORD / SMTP_FROM are not all set — the password-setup and password-reset emails are sent by this app, so without them nobody can set a password. See docs/email-setup.md."
+    );
+  }
+
   const turnstileSiteKey = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY ?? "";
   if (!turnstileSiteKey) {
     problems.push("NEXT_PUBLIC_TURNSTILE_SITE_KEY is not set.");

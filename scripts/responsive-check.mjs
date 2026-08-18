@@ -97,6 +97,8 @@ const PUBLIC_PAGES = [
   // edit-affordance column only renders for admin/aft_teacher, so this
   // unauthenticated pass exercises the read-only view.
   "/th/members",
+  // New public global-search page (§18) — command-palette result view.
+  "/th/search",
 ];
 
 const AUTH_PAGES = [

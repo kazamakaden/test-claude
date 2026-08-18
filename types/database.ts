@@ -1,8 +1,16 @@
 /**
  * Generated from the live project (hmkciwgzbdszsgnbeakc) via
- * `generate_typescript_types` after migrations 0001–0053 were applied live
+ * `generate_typescript_types` after migrations 0001–0056 were applied live
  * (2026-08-03/04, 0030 applied 2026-08-09, 0036–0038 applied 2026-08-11,
- * 0053 applied 2026-08-14).
+ * 0053 applied 2026-08-14, 0055–0056 applied 2026-08-17,
+ * 0061–0063 applied 2026-08-18, 0064 applied 2026-08-18).
+ *
+ * The 0061–0063 pass was verified against the live catalog rather than
+ * trusting the edit: table names, function names and every column of
+ * activities/attendance/activity_banners/activity_editors were diffed both
+ * ways against information_schema and returned zero rows. That check also
+ * surfaced two PRE-EXISTING drifts, fixed here: assert_report_viewer (0058)
+ * was never added, and the Constants block never got attendance_status (0056).
  * Genuinely regenerated each time a migration adds/removes a column or
  * table — do not hand-patch this file; the discipline that broke down
  * before (a hand-patched type drifting from the live schema) is exactly
@@ -31,6 +39,30 @@
  * columns are similarly present in the type but not selectable — see
  * 0008_dashboard_rls.sql. `select("*")` on either table compiles but fails
  * at the database with 42501 for any non-service-role client.
+ *
+ * `attendance` is also NOT WRITABLE from the app at all, despite the Insert
+ * and Update shapes below. 0055 revoked every insert/update grant from
+ * `anon`/`authenticated` after a read-only `student` was demonstrated — live,
+ * in a rolled-back transaction — to be able to forge a completed record with
+ * self-chosen GPS, device fingerprint, IP and a backdated timestamp. The only
+ * write path is `record_attendance()` (0056), which derives student_id,
+ * recorded_at, status, ip and activity_id server-side. A
+ * `.from("attendance").insert(...)` compiles and then fails with 42501 at the
+ * database; that is intended, not a bug to work around.
+ *
+ * `attendance.status` is now its own `attendance_status`
+ * ('present'/'late'/'absent') rather than the `activity_status` lifecycle
+ * enum it used to borrow, which had no way to express "late" or "absent"
+ * (0056).
+ *
+ * `qr_sessions.secret` appears below but is unreadable by every client: 0056
+ * grants an explicit column allow-list that omits it, because anyone holding
+ * it can mint valid tokens for the whole session. `qr_token_for_bucket` is
+ * likewise listed under Functions but has EXECUTE revoked from
+ * `anon`/`authenticated` — it exists for the two definer functions that call
+ * it. `qr_scan_attempts` has no grants and no policies at all: it is the
+ * failed-scan throttle, and a throttle its own subject can read or delete is
+ * not a throttle.
  *
  * `approved_accounts` (0011) was dropped by 0020_pending_signup_flow.sql —
  * no longer present in this type. `handle_new_user()` (rewritten in 0023)
@@ -110,6 +142,7 @@ export type Database = {
           department_id: string | null
           description: string | null
           ends_at: string | null
+          expected_attendees: number | null
           id: string
           is_public: boolean
           location: string | null
@@ -126,6 +159,7 @@ export type Database = {
           department_id?: string | null
           description?: string | null
           ends_at?: string | null
+          expected_attendees?: number | null
           id?: string
           is_public?: boolean
           location?: string | null
@@ -142,6 +176,7 @@ export type Database = {
           department_id?: string | null
           description?: string | null
           ends_at?: string | null
+          expected_attendees?: number | null
           id?: string
           is_public?: boolean
           location?: string | null
@@ -174,6 +209,191 @@ export type Database = {
           },
         ]
       }
+      audit_logs: {
+        Row: {
+          action: string
+          actor_email: string | null
+          actor_id: string | null
+          actor_role: Database["public"]["Enums"]["user_role"] | null
+          after_data: Json | null
+          before_data: Json | null
+          created_at: string
+          entity_id: string | null
+          entity_table: string
+          id: number
+        }
+        Insert: {
+          action: string
+          actor_email?: string | null
+          actor_id?: string | null
+          actor_role?: Database["public"]["Enums"]["user_role"] | null
+          after_data?: Json | null
+          before_data?: Json | null
+          created_at?: string
+          entity_id?: string | null
+          entity_table: string
+          id?: number
+        }
+        Update: {
+          action?: string
+          actor_email?: string | null
+          actor_id?: string | null
+          actor_role?: Database["public"]["Enums"]["user_role"] | null
+          after_data?: Json | null
+          before_data?: Json | null
+          created_at?: string
+          entity_id?: string | null
+          entity_table?: string
+          id?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "audit_logs_actor_id_fkey"
+            columns: ["actor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      activity_banners: {
+        Row: {
+          activity_id: string
+          created_at: string
+          id: string
+          sort_order: number
+          storage_path: string
+          uploaded_by: string | null
+        }
+        Insert: {
+          activity_id: string
+          created_at?: string
+          id?: string
+          sort_order: number
+          storage_path: string
+          uploaded_by?: string | null
+        }
+        Update: {
+          activity_id?: string
+          created_at?: string
+          id?: string
+          sort_order?: number
+          storage_path?: string
+          uploaded_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "activity_banners_activity_id_fkey"
+            columns: ["activity_id"]
+            isOneToOne: false
+            referencedRelation: "activities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "activity_banners_uploaded_by_fkey"
+            columns: ["uploaded_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      activity_editors: {
+        Row: {
+          activity_id: string
+          created_at: string
+          granted_by: string | null
+          user_id: string
+        }
+        Insert: {
+          activity_id: string
+          created_at?: string
+          granted_by?: string | null
+          user_id: string
+        }
+        Update: {
+          activity_id?: string
+          created_at?: string
+          granted_by?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "activity_editors_activity_id_fkey"
+            columns: ["activity_id"]
+            isOneToOne: false
+            referencedRelation: "activities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "activity_editors_granted_by_fkey"
+            columns: ["granted_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "activity_editors_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      announcements: {
+        Row: {
+          author_id: string | null
+          body_en: string | null
+          body_th: string
+          created_at: string
+          id: string
+          notified_at: string | null
+          pinned: boolean
+          published_at: string | null
+          status: Database["public"]["Enums"]["announcement_status"]
+          title_en: string | null
+          title_th: string
+          updated_at: string
+        }
+        Insert: {
+          author_id?: string | null
+          body_en?: string | null
+          body_th?: string
+          created_at?: string
+          id?: string
+          notified_at?: string | null
+          pinned?: boolean
+          published_at?: string | null
+          status?: Database["public"]["Enums"]["announcement_status"]
+          title_en?: string | null
+          title_th: string
+          updated_at?: string
+        }
+        Update: {
+          author_id?: string | null
+          body_en?: string | null
+          body_th?: string
+          created_at?: string
+          id?: string
+          notified_at?: string | null
+          pinned?: boolean
+          published_at?: string | null
+          status?: Database["public"]["Enums"]["announcement_status"]
+          title_en?: string | null
+          title_th?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "announcements_author_id_fkey"
+            columns: ["author_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       attendance: {
         Row: {
           activity_id: string
@@ -186,9 +406,11 @@ export type Database = {
           gps_lng: number | null
           id: string
           ip: unknown
+          method: Database["public"]["Enums"]["attendance_method"]
           recorded_at: string
+          recorded_by: string | null
           room: string | null
-          status: Database["public"]["Enums"]["activity_status"]
+          status: Database["public"]["Enums"]["attendance_status"]
           student_id: string
         }
         Insert: {
@@ -202,9 +424,11 @@ export type Database = {
           gps_lng?: number | null
           id?: string
           ip?: unknown
+          method: Database["public"]["Enums"]["attendance_method"]
           recorded_at?: string
+          recorded_by?: string | null
           room?: string | null
-          status?: Database["public"]["Enums"]["activity_status"]
+          status?: Database["public"]["Enums"]["attendance_status"]
           student_id: string
         }
         Update: {
@@ -218,9 +442,11 @@ export type Database = {
           gps_lng?: number | null
           id?: string
           ip?: unknown
+          method?: Database["public"]["Enums"]["attendance_method"]
           recorded_at?: string
+          recorded_by?: string | null
           room?: string | null
-          status?: Database["public"]["Enums"]["activity_status"]
+          status?: Database["public"]["Enums"]["attendance_status"]
           student_id?: string
         }
         Relationships: [
@@ -236,6 +462,13 @@ export type Database = {
             columns: ["department_id"]
             isOneToOne: false
             referencedRelation: "departments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attendance_recorded_by_fkey"
+            columns: ["recorded_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
           {
@@ -566,6 +799,41 @@ export type Database = {
           },
         ]
       }
+      password_setup_tokens: {
+        Row: {
+          created_at: string
+          expires_at: string
+          id: string
+          token_hash: string
+          used_at: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          expires_at: string
+          id?: string
+          token_hash: string
+          used_at?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          expires_at?: string
+          id?: string
+          token_hash?: string
+          used_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "password_setup_tokens_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           academic_year: number | null
@@ -730,6 +998,92 @@ export type Database = {
           },
         ]
       }
+      qr_scan_attempts: {
+        Row: {
+          attempted_at: string
+          id: number
+          user_id: string
+        }
+        Insert: {
+          attempted_at?: string
+          id?: number
+          user_id: string
+        }
+        Update: {
+          attempted_at?: string
+          id?: number
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "qr_scan_attempts_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      qr_sessions: {
+        Row: {
+          activity_id: string
+          created_at: string
+          created_by: string | null
+          expires_at: string
+          gps_lat: number | null
+          gps_lng: number | null
+          id: string
+          radius_metres: number | null
+          revoked_at: string | null
+          rotation_seconds: number
+          secret: string
+          slug: string
+        }
+        Insert: {
+          activity_id: string
+          created_at?: string
+          created_by?: string | null
+          expires_at: string
+          gps_lat?: number | null
+          gps_lng?: number | null
+          id?: string
+          radius_metres?: number | null
+          revoked_at?: string | null
+          rotation_seconds?: number
+          secret: string
+          slug: string
+        }
+        Update: {
+          activity_id?: string
+          created_at?: string
+          created_by?: string | null
+          expires_at?: string
+          gps_lat?: number | null
+          gps_lng?: number | null
+          id?: string
+          radius_metres?: number | null
+          revoked_at?: string | null
+          rotation_seconds?: number
+          secret?: string
+          slug?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "qr_sessions_activity_id_fkey"
+            columns: ["activity_id"]
+            isOneToOne: false
+            referencedRelation: "activities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "qr_sessions_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       signature_records: {
         Row: {
           created_at: string
@@ -777,9 +1131,28 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      current_position: {
-        Args: never
-        Returns: Database["public"]["Enums"]["member_position"]
+      create_qr_session: {
+        Args: {
+          p_activity_id: string
+          p_expires_at: string
+          p_gps_lat?: number
+          p_gps_lng?: number
+          p_radius_metres?: number
+          p_rotation_seconds?: number
+        }
+        Returns: {
+          expires_at: string
+          id: string
+          rotation_seconds: number
+          slug: string
+        }[]
+      }
+      current_qr_token: {
+        Args: { p_session_id: string }
+        Returns: {
+          expires_in_seconds: number
+          token: string
+        }[]
       }
       current_role: {
         Args: never
@@ -794,6 +1167,58 @@ export type Database = {
           pending: number
         }[]
       }
+      get_attendance_report: {
+        Args: {
+          p_department_id?: string
+          p_from?: string
+          p_to?: string
+        }
+        Returns: {
+          activity_id: string
+          department_name: string
+          late_count: number
+          present_count: number
+          starts_at: string
+          title: string
+          total_count: number
+        }[]
+      }
+      get_member_report: {
+        Args: never
+        Returns: {
+          aft_count: number
+          department_code: string
+          department_id: string
+          department_name: string
+          student_count: number
+          teacher_count: number
+          total_count: number
+        }[]
+      }
+      get_workflow_report: {
+        Args: never
+        Returns: {
+          count: number
+          entity: string
+          status: string
+        }[]
+      }
+      assert_report_viewer: { Args: never; Returns: undefined }
+      can_edit_activity: { Args: { p_activity_id: string }; Returns: boolean }
+      is_activity_editor: { Args: { p_activity_id: string }; Returns: boolean }
+      record_attendance_manual: {
+        Args: {
+          p_activity_id: string
+          p_status?: Database["public"]["Enums"]["attendance_status"]
+          p_student_id: string
+        }
+        Returns: string
+      }
+      remove_manual_attendance: {
+        Args: { p_activity_id: string; p_student_id: string }
+        Returns: string
+      }
+      safe_uuid: { Args: { p_text: string }; Returns: string }
       get_citizen_id: { Args: { member_id: string }; Returns: string }
       get_member_stats: {
         Args: never
@@ -829,6 +1254,39 @@ export type Database = {
         }
         Returns: undefined
       }
+      qr_token_for_bucket: {
+        Args: { p_bucket: number; p_secret: string; p_slug: string }
+        Returns: string
+      }
+      record_attendance: {
+        Args: {
+          p_fingerprint?: string
+          p_gps_lat?: number
+          p_gps_lng?: number
+          p_token: string
+        }
+        Returns: string
+      }
+      write_audit_log: {
+        Args: {
+          p_action: string
+          p_after: Json
+          p_before: Json
+          p_entity_id: string
+          p_entity_table: string
+        }
+        Returns: undefined
+      }
+      search_all: {
+        Args: { p_limit?: number; p_query: string }
+        Returns: {
+          entity: string
+          id: string
+          sort_key: string
+          subtitle: string
+          title: string
+        }[]
+      }
       sign_document: {
         Args: { p_document_id: string; p_signature_data: string }
         Returns: undefined
@@ -836,15 +1294,11 @@ export type Database = {
     }
     Enums: {
       activity_status: "pending" | "completed" | "cancelled"
+      announcement_status: "draft" | "published"
+      attendance_method: "qr" | "manual"
+      attendance_status: "present" | "late" | "absent"
       book_status: "draft" | "published"
       document_status: "draft" | "signed" | "pending_approval" | "official"
-      notification_type:
-        | "meeting"
-        | "activity"
-        | "deadline"
-        | "approval"
-        | "announcement"
-      project_status: "draft" | "teacher_review" | "admin_approval" | "official"
       member_position:
         | "president"
         | "vice_president"
@@ -854,14 +1308,21 @@ export type Database = {
         | "secretary"
         | "advisor"
         | "committee"
+      notification_type:
+        | "meeting"
+        | "activity"
+        | "deadline"
+        | "approval"
+        | "announcement"
+      project_status: "draft" | "teacher_review" | "admin_approval" | "official"
       user_role:
         | "guest"
         | "pending"
         | "student"
-        | "aft"
         | "teacher"
         | "aft_teacher"
         | "admin"
+        | "aft"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -990,6 +1451,9 @@ export const Constants = {
   public: {
     Enums: {
       activity_status: ["pending", "completed", "cancelled"],
+      announcement_status: ["draft", "published"],
+      attendance_method: ["qr", "manual"],
+      attendance_status: ["present", "late", "absent"],
       book_status: ["draft", "published"],
       document_status: ["draft", "signed", "pending_approval", "official"],
       notification_type: [

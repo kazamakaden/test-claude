@@ -25,8 +25,15 @@ import {
 import { getActivityStats, getMemberStats } from "@/services/dashboard";
 
 async function ActivityStatsChart({ lang, dict }: { lang: Locale; dict: Dictionary }) {
-  const stats = await getActivityStats();
-  return <ActivityStatsCard stats={stats} lang={lang} dict={dict} />;
+  const { stats, attendanceScope } = await getActivityStats();
+  return (
+    <ActivityStatsCard
+      stats={stats}
+      attendanceScope={attendanceScope}
+      lang={lang}
+      dict={dict}
+    />
+  );
 }
 
 async function MemberStatsChart({ lang, dict }: { lang: Locale; dict: Dictionary }) {

@@ -1,16 +1,27 @@
+import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { getDictionary } from "@/lib/i18n/get-dictionary";
-import { createClient } from "@/lib/supabase/server";
-import { isSupabaseConfigured } from "@/lib/supabase/env";
+import { HANDOFF_COOKIE_NAME, isWellFormedToken } from "@/lib/password-tokens";
+import { peekToken } from "@/services/password-setup";
 import type { Locale } from "@/lib/i18n/config";
 import { ResetPasswordForm } from "./reset-password-form";
 
 /**
- * Only reachable with the short-lived session app/[lang]/auth/reset/route.ts
- * established from the recovery link — no session means either a stale
- * link, a direct hit on this URL, or Supabase not configured yet, all of
- * which should land back on /login rather than showing a form that would
- * just fail on submit.
+ * The password + confirm screen, reached only through the handoff cookie
+ * app/[lang]/auth/set-password/route.ts sets after validating an emailed
+ * link (0064).
+ *
+ * Gated on the COOKIE, not on a Supabase session — this flow establishes no
+ * session, because the person using it is by definition someone who cannot
+ * sign in. A stale cookie, a direct hit on this URL, or a link that expired
+ * between the click and the page load all land back on /login with the
+ * message that says to request a new one, rather than showing a form whose
+ * submit could only fail.
+ *
+ * peekToken() here is a re-check, not the check: the token was already
+ * validated by the route that set the cookie. It costs one indexed lookup
+ * and closes the window where a link expires (or is spent in another tab)
+ * while this page sits open.
  */
 export default async function ResetPasswordPage({
   params,
@@ -21,12 +32,9 @@ export default async function ResetPasswordPage({
   const lang = rawLang as Locale;
   const dict = await getDictionary(lang);
 
-  if (isSupabaseConfigured) {
-    const supabase = await createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) redirect(`/${lang}/login`);
+  const token = (await cookies()).get(HANDOFF_COOKIE_NAME)?.value;
+  if (!isWellFormedToken(token) || !(await peekToken(token))) {
+    redirect(`/${lang}/login?error=sessionExpired`);
   }
 
   return (

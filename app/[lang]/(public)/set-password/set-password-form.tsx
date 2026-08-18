@@ -22,10 +22,10 @@ function SubmitButton({ label, pendingLabel }: { label: string; pendingLabel: st
 
 /**
  * Reuses requestPasswordReset as-is — it already handles the captcha token,
- * the uniform-response enumeration guard, and the /auth/reset redirect
- * target. The only difference from /forgot-password's form is that email
- * comes from the caller's own verified session (a hidden field, never a
- * typed/editable one) instead of an anonymous visitor typing an address.
+ * the uniform-response enumeration guard, and building the emailed link. The
+ * only difference from /forgot-password's form is that email comes from the
+ * caller's own verified session (a hidden field, never a typed/editable one)
+ * instead of an anonymous visitor typing an address.
  */
 export function SetPasswordForm({
   lang,
