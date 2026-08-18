@@ -2742,6 +2742,181 @@ measure and no banner, attendee row or co-editor grant has been seen in a
 browser. The guards, the route move, the build and the whole database layer are
 proven; the pixels are not.
 
+**Password emails are sent by this app over SMTP; Supabase Auth's mailer is
+out of that path entirely (`0064`).** Reported plainly: setting a password
+"should be Nodemailer because [Supabase] is too much trouble — anyone should
+be able to set a password from a phone, a PC, anything, by clicking one
+link." That is what shipped.
+
+Three separate Supabase blockers made the old path unfixable rather than
+merely annoying, and this file already recorded each one in isolation
+without connecting them: the built-in sender caps around two messages an
+hour (`429 over_email_send_rate_limit`); custom SMTP through Resend was
+**cleared by the dashboard itself** when its toggle was switched off and its
+domain never finished DNS verification (`resend._domainkey.udontech.ac.th`
+still resolves to nothing); and — the one no configuration fixes — this
+project enables Supabase's **project-level CAPTCHA**, so a server-initiated
+`resetPasswordForEmail()` is refused outright with `captcha protection:
+request disallowed`. That last one is the *only* reason `/set-password`
+exists as an interstitial page at all rather than the callback route just
+sending the mail.
+
+**A bigger change than swapping a transport, stated up front.** Supabase's
+link worked because it established a *recovery session* that
+`updateUser({password})` then acted on. A link this app mints carries no
+session, so the password is set through `admin.auth.updateUserById()` — the
+service-role key. **This is the first unauthenticated path to that key in
+the codebase**, and that, not the email, is where the risk lives. Three
+properties carry it, and none is incidental:
+
+1. **The GET does not consume the token.** Gmail, Outlook and corporate
+   antivirus all fetch links in mail before a human does; a token spent by
+   that fetch is dead by the time the recipient clicks — intermittently,
+   depending on whose scanner saw it first, which is the worst possible
+   failure to diagnose. `peekToken()` (a SELECT) runs on the GET;
+   `consumeToken()` (the UPDATE) runs on the POST. Single-use is intact
+   because "use" means setting a password.
+2. **The handoff cookie carries the RAW TOKEN, not the token row's id.** A
+   row id in a cookie is a bearer credential anyone who guesses one could
+   spend; the token is 256 bits minted for exactly that job. Moving it out
+   of the URL also gets the secret out of the address bar before the
+   password screen renders, so it cannot leak via Referer, a screenshot or
+   history. `path: "/"` rather than `/{lang}/reset-password`, deliberately —
+   the narrow scope is tempting and wrong, because the header's language
+   toggle rewrites the locale segment and the cookie would silently vanish
+   on a `/th` → `/en` switch.
+3. **Consumption is ONE atomic statement** — `update … where token_hash = $1
+   and used_at is null and expires_at > now() returning user_id` — so two
+   concurrent submissions cannot both win, and **the account acted on is the
+   one that statement returned**. No form field, cookie or query parameter
+   anywhere in `updatePassword` names a user.
+
+`token_hash` is **hex `text`, not `bytea`**, with a `CHECK (~
+'^[0-9a-f]{64}$')`. bytea crosses the PostgREST boundary as a backslash-x
+escape string whose round-trip depends on URL escaping behaving exactly
+right in both directions — unverifiable from this session, since outbound
+access to `*.supabase.co` is blocked. Hex has no escape path to get wrong,
+indexes identically, and the CHECK makes a malformed write impossible rather
+than unlikely. No policies and no grants, the `qr_scan_attempts` (0056)
+shape; RLS is still *enabled* so a future accidental grant still meets a
+fail-closed table.
+
+**No constant-time comparison anywhere, and that is deliberate rather than
+forgotten** — the plan called for reusing `lib/push-server.ts`'s
+hash-both-sides compare, but the token is never compared in application
+code. It is looked up by indexed equality inside Postgres, which leaks
+nothing an attacker could walk a byte at a time the way a naive `memcmp`
+would. Recorded so it is not "fixed" later by someone reading the plan.
+
+**SMTP is enforced by the build guard, unlike the VAPID keys.**
+`lib/env-guard.ts` now fails a Vercel production build when
+`SMTP_USER`/`SMTP_PASSWORD`/`SMTP_FROM` are not all set. The VAPID comment
+in that file argues the opposite for push, correctly — a missing push key
+degrades to "no toggle shown." A missing SMTP key does not degrade: setting
+a password is the only route into an account that has none, and that route
+is now one emailed link. **Operationally this means the next production
+deploy FAILS until those three variables are set in Vercel** — which is the
+guard doing its job, not a regression, but it is the first thing to hit.
+
+Throttle: 3 links per account per 15 minutes, fixed-window `count(*)`, same
+shape as `qr_scan_attempts`. **Being throttled must not change the
+response** — `requestPasswordReset` returns `{ok:true}` whether the address
+is registered, throttled, or the send failed, because that uniformity is the
+entire account-enumeration guard and a "too many requests" message hands
+back exactly what it hides. An address with no `profiles` row mints nothing
+and so has no row to count; that path is bounded by Turnstile alone, which
+is proportionate — it costs one indexed lookup and sends no mail. Turnstile
+stays on the request form for precisely that reason: an unprotected "email
+this address" endpoint is a way to make the server mail college addresses on
+demand.
+
+The emailed link is built from `resolveConfiguredSiteUrl()` only — **never**
+`resolveOrigin()`, which is header-first. Header-first is right for an OAuth
+redirect (the user is standing in front of the browser that sent it) and
+wrong for a link that goes in an inbox: a poisoned `Host` would mail a real
+college address a link pointing at an attacker's host, carrying a token
+valid for their account. Development falls back to the request origin so
+`npm run dev` works unconfigured; anything else refuses to send and says so
+in the log.
+
+`app/[lang]/auth/reset/route.ts` was **deleted**, not kept as a fallback —
+it existed only to exchange a Supabase recovery `code`, which nothing issues
+any more. Two reset systems means two kinds of link in the wild and a path
+nobody exercises; this project already made that argument when it dropped
+the direct-INSERT fallback on `attendance`.
+
+**A real defect found by testing rather than review, and it was not in the
+new code.** The route matrix showed `/th/auth/set-password?token=garbage`
+correctly redirecting to `/th/login?error=sessionExpired` — so the check
+looked green. Grepping the actual response HTML showed the message appears
+**exactly once, inside the serialized dictionary payload, and nowhere as
+visible text**: every `?error=`/`?notice=` on `/login` was delivered only as
+a sonner toast inside a `useEffect`. Pre-existing (it has always been how
+`?error=auth`/`oauthFailed`/`sessionTimedOut` behaved) but newly
+load-bearing, because an expired or already-used link is a *routine* outcome
+of this flow and that message is now the only thing explaining it — and it
+was invisible with JavaScript off, against §30.9 item 3. Fixed by
+server-rendering the message on `login/page.tsx` (`role="alert"` /
+`role="status"`) and removing the URL-carried toast; the submit-result toast
+is untouched. Re-checked in the raw HTML per case: `sessionExpired`,
+`signupComplete` and `passwordUpdated` each render outside `<script>`, an
+unknown `?error=bogusKey` renders nothing, and a bare `/login` renders
+nothing.
+
+**Verified live, this session:**
+* **`supabase/tests/0064_…_test.sql`, 20/20 against the hosted project**,
+  self-rolling-back (0 rows left after, confirmed). The cases that matter:
+  `authenticated` and `anon` can neither SELECT, INSERT, UPDATE nor DELETE
+  the table (`42501` each, with `sqlerrm` recorded — a missing grant and an
+  RLS violation both raise `42501`, so the message is what distinguishes
+  them); a token consumed twice returns a row then nothing; expired and
+  already-used are refused; **user B's token returns user B, never user A**;
+  the CHECK refuses a raw token stored by mistake (`23514`) and the unique
+  index refuses a duplicate hash (`23505`).
+* **The email-scanner simulation (cases 18-20)** — peek, peek, then consume.
+  Both peeks see a valid token and the human's POST still works. This is the
+  assertion that proves an inbox scanner cannot silently kill the flow.
+* **The email itself, through the real modules**, via a temporary route on a
+  real dev server (`app/api/selftest-temp`, removed afterwards; `grep
+  TEMP_SELF_TEST` → 0): Thai and English subjects, the link present in both
+  the text and HTML parts, `{email}`/`{minutes}` interpolated with no
+  unreplaced tokens left, an adversarial link containing `"><script>`
+  escaped (no raw `<script>` in the output), and nodemailer's
+  `jsonTransport` building a real MIME envelope with both parts. Also the
+  token primitives: 43-char base64url, 64-hex digest, stable per token,
+  different across tokens, `../../etc/passwd` and `""` rejected.
+* **Route matrix on the dev server**: `/{lang}/auth/set-password` with no
+  token, a garbage token and a well-formed unknown token all `307` to
+  `/{lang}/login?error=sessionExpired` with the locale preserved and **no
+  Set-Cookie**; `/{lang}/reset-password` without the cookie does the same;
+  `/forgot-password` and `/login` stay `200`.
+* `npx tsc --noEmit`, `npm run lint`, `npm run build` clean;
+  `npm run check:responsive` **78/78, 0 overflow, self-test detecting its
+  injected 3000px element**; dictionary parity checked programmatically (944
+  keys per locale). `types/database.ts` updated and the new table's six
+  columns diffed against `information_schema` both ways rather than trusted.
+
+**Not verified, stated plainly rather than implied:** **no real email has
+been sent.** `smtp.gmail.com:465` is unreachable from this session — the
+same network policy that blocks `*.supabase.co` directly — so everything up
+to the transport is proven and the transport itself is not. Nor has the full
+click-through been run against live Supabase (`findUserIdByEmail`/`mintToken`
+need the service-role key, which this environment has no working route to).
+The first deploy is what confirms both; `docs/email-setup.md` names the exact
+server log line for each failure mode, because the action deliberately
+reports success either way.
+
+Two smaller things worth not rediscovering: `@types/nodemailer` is still
+`8.x` while the runtime is `9.0.5` — 9.0.0's only breaking change is
+stricter TLS validation when fetching remote attachment content, which this
+app never does — and `pool` is not passed to `createTransport` because the
+8.x types reject it on the SMTP overload; unpooled is the default anyway,
+which is what we want (a pooled socket on Vercel never gets a second send to
+amortise over). And a Next.js detail that cost a debug cycle: an App Router
+folder whose name starts with `_` is a **private folder**, excluded from
+routing — `app/api/__selftest` 404'd until it was renamed.
+
+
 ### ❌ Remaining
 
 * **RLS policy performance (`auth_rls_initplan`, `multiple_permissive_policies`)**
@@ -2789,14 +2964,23 @@ proven; the pixels are not.
   therefore higher than when this bullet was first written, not the same.
   Still not fixable without a paid-plan upgrade, which is a billing decision
   for the user, not something to change unilaterally.
-* **Custom SMTP (Resend) needs to be manually reconfigured** — cleared as a
-  side effect of the round-trip proof above (Authentication → Emails → SMTP
-  Settings → toggle "Enable custom SMTP" → re-enter host `smtp.resend.com`,
-  port `465`, sender `noreply@udontech.ac.th` / "AFT UDONTECH", username
-  `resend`, and the Resend API key as the password → Save). Not urgent: it
-  won't actually send until `udontech.ac.th` also finishes Resend's DNS
-  verification, which is still pending — check `resend._domainkey.udontech.ac.th`
-  resolves before expecting it to work.
+* **Custom SMTP (Resend) — no longer on the critical path, and mostly
+  obsolete.** Password-setup and password-reset mail left Supabase entirely
+  (see the SMTP entry in Done above); what still goes through Supabase's
+  mailer is **signup confirmation only**, which is low volume and tolerates
+  the ~2/hour built-in cap. Re-entering the Resend credentials is therefore
+  optional rather than pending work. If it is ever done: Authentication →
+  Emails → SMTP Settings, host `smtp.resend.com`, port `465`, sender
+  `noreply@udontech.ac.th` / "AFT UDONTECH", username `resend`, the API key
+  as the password — and check `resend._domainkey.udontech.ac.th` resolves
+  first, since it still did not last time this was looked at.
+* **The three SMTP_* variables must be set in Vercel before the next
+  production deploy** — `lib/env-guard.ts` now fails the build without them
+  (deliberately; see Done). `SMTP_USER`, `SMTP_PASSWORD` (a 16-character
+  Google App Password, which requires 2-Step Verification on the sending
+  account) and `SMTP_FROM`. The App Password is the user's to generate and
+  paste; it must never be handled by an agent session or written to the
+  repo, exactly as the Resend key was kept out.
 * **Correction to this section's own prior claim**: it used to say
   "`project_drafts` (Projects workflow) ... Plus Documents digital-signature
   ... none of those phases started." That was wrong by the time it was
@@ -3442,9 +3626,15 @@ activities          attendance         projects
 documents           document_drafts    signature_records
 books               content_blocks
 notifications       notification_reads push_subscriptions
+qr_sessions         qr_scan_attempts   audit_logs
+announcements       activity_banners   activity_editors
+password_setup_tokens
 ```
 
-Not built yet (§30.10): `qr_sessions`, `audit_logs`.
+All of §20's original list now exists. `password_setup_tokens` (0064) is the
+one table that was never in it: it holds the SHA-256 of the password-setup
+link this app emails itself, and nothing but the service-role client may
+touch it (no policies, no grants — the `qr_scan_attempts` shape).
 
 Deviations from the original list, deliberate and already shipped:
 

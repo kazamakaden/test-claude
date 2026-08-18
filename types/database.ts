@@ -3,7 +3,7 @@
  * `generate_typescript_types` after migrations 0001–0056 were applied live
  * (2026-08-03/04, 0030 applied 2026-08-09, 0036–0038 applied 2026-08-11,
  * 0053 applied 2026-08-14, 0055–0056 applied 2026-08-17,
- * 0061–0063 applied 2026-08-18).
+ * 0061–0063 applied 2026-08-18, 0064 applied 2026-08-18).
  *
  * The 0061–0063 pass was verified against the live catalog rather than
  * trusting the edit: table names, function names and every column of
@@ -793,6 +793,41 @@ export type Database = {
           {
             foreignKeyName: "notifications_recipient_id_fkey"
             columns: ["recipient_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      password_setup_tokens: {
+        Row: {
+          created_at: string
+          expires_at: string
+          id: string
+          token_hash: string
+          used_at: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          expires_at: string
+          id?: string
+          token_hash: string
+          used_at?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          expires_at?: string
+          id?: string
+          token_hash?: string
+          used_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "password_setup_tokens_user_id_fkey"
+            columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]

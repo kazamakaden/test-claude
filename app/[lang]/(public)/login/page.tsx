@@ -50,12 +50,32 @@ export default async function LoginPage({
           {dict.nav.login}
         </h1>
       </div>
-      <LoginForm
-        lang={lang}
-        dict={dict}
-        initialErrorKey={initialErrorKey}
-        initialNoticeKey={initialNoticeKey}
-      />
+      {/* Server-rendered, not a toast. An expired or already-used
+          password link is a routine outcome of the 0064 email flow, and
+          this message is the ONLY thing that explains it — so it has to
+          survive JavaScript being off (§30.9 item 3), which a sonner toast
+          in a useEffect does not. Checked directly in the raw HTML rather
+          than assumed: before this, ?error=sessionExpired rendered nothing
+          visible at all, the message appearing only inside the serialized
+          dictionary payload. */}
+      {initialErrorKey ? (
+        <p
+          role="alert"
+          className="rounded-xl border border-destructive/40 bg-destructive/5 px-4 py-3 text-sm text-destructive"
+        >
+          {dict.auth.errors[initialErrorKey]}
+        </p>
+      ) : null}
+      {initialNoticeKey ? (
+        <p
+          role="status"
+          className="rounded-xl border border-border bg-card px-4 py-3 text-sm text-foreground"
+        >
+          {dict.auth.notices[initialNoticeKey]}
+        </p>
+      ) : null}
+
+      <LoginForm lang={lang} dict={dict} />
     </div>
   );
 }

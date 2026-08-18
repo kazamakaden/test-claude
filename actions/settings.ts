@@ -36,12 +36,11 @@ export type ChangePasswordResult = { ok: true } | { ok: false; messageKey: Chang
 
 /**
  * Settings > change password. Deliberately a NEW action, not a reuse of
- * actions/auth.ts#updatePassword — that one is reached only via the
- * short-lived recovery session app/[lang]/auth/reset/route.ts mints from a
- * password-reset link, and its trailing signOut()+redirect(/login?notice=)
- * is load-bearing there (a recovery session must not continue as an
- * ordinary session, and it's the terminal step of "Google sign-in -> set
- * password -> now sign in"). This action runs under the caller's ordinary,
+ * actions/auth.ts#updatePassword — that one is reached only by spending an
+ * emailed one-time token (0064) and runs with NO session at all, which is
+ * why it goes through the service-role client and ends on
+ * redirect(/login?notice=): the person using it cannot sign in yet, so the
+ * terminal step has to be signing in. This action runs under the caller's ordinary,
  * already-signed-in session and must NOT sign them out or redirect — the
  * settings dialog needs to render a success state in place.
  *

@@ -5,9 +5,9 @@ import { signedInLandingTarget } from "@/lib/auth/require-role";
 import { isLocale, defaultLocale } from "@/lib/i18n/config";
 
 /**
- * Google OAuth landing point (password recovery has its own route,
- * app/[lang]/auth/reset/route.ts, since a recovery code must land on
- * /reset-password rather than here). The redirect target is fixed at
+ * Google OAuth landing point (setting a password has its own route,
+ * app/[lang]/auth/set-password/route.ts, which validates a token this app
+ * emailed itself and lands on /reset-password rather than here). The redirect target is fixed at
  * /set-password, /dashboard, or /pending — never reflects a caller-supplied
  * `next` param (that would be an open redirect).
  */
