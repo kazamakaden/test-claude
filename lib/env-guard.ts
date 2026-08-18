@@ -36,6 +36,17 @@ export function assertDeployEnvConfigured(): void {
     );
   }
 
+  // The secret half is as required as the sitekey. Since this app now runs
+  // Cloudflare's siteverify itself (lib/turnstile-server.ts), a missing secret
+  // means verifyTurnstileToken() fails closed in production and nobody can
+  // sign in — the same "locked front door" argument as SMTP above, not the
+  // graceful degradation the VAPID note below describes.
+  if (!process.env.TURNSTILE_SECRET_KEY) {
+    problems.push(
+      "TURNSTILE_SECRET_KEY is not set — the app verifies captcha tokens itself now, and without the secret every submission is refused. See README \"CAPTCHA\"."
+    );
+  }
+
   const turnstileSiteKey = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY ?? "";
   if (!turnstileSiteKey) {
     problems.push("NEXT_PUBLIC_TURNSTILE_SITE_KEY is not set.");

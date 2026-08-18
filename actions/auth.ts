@@ -17,6 +17,7 @@ import {
 } from "@/services/password-setup";
 import { signInSchema, resetRequestSchema, newPasswordSchema } from "@/schemas/auth";
 import { assertTurnstileSafeForProduction, isTurnstileConfigured } from "@/lib/turnstile";
+import { verifyTurnstileToken } from "@/lib/turnstile-server";
 import { resolveConfiguredSiteUrl } from "@/lib/site-url";
 import { signedInLandingTarget } from "@/lib/auth/require-role";
 import { defaultLocale, isLocale, type Locale } from "@/lib/i18n/config";
@@ -69,6 +70,28 @@ function getLang(formData: FormData): Locale {
 function readCaptchaToken(formData: FormData): string | null {
   const token = formData.get("cf-turnstile-response");
   return typeof token === "string" && token.length > 0 ? token : null;
+}
+
+/**
+ * Runs the real Cloudflare check (lib/turnstile-server.ts) for one submission.
+ *
+ * Skipped entirely when no sitekey is configured, because then no widget ever
+ * rendered and there is no token to check — the same dev fallback the presence
+ * check used to have. When a sitekey IS configured, a token that Cloudflare
+ * does not vouch for is refused.
+ *
+ * A Turnstile token is single-use, so this must be called exactly ONCE per
+ * submission and the token must not also be handed to anyone else.
+ */
+async function passesCaptcha(formData: FormData): Promise<boolean> {
+  if (!isTurnstileConfigured) return true;
+
+  const headerList = await headers();
+  return verifyTurnstileToken(readCaptchaToken(formData), {
+    // Left-most entry is the client; the rest are proxies.
+    remoteIp: headerList.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null,
+    expectedHostname: headerList.get("host"),
+  });
 }
 
 /**
@@ -150,16 +173,18 @@ export async function signInWithPassword(
     return { ok: false, messageKey: fieldErrorKey(rawKey, "invalidEmail") };
   }
 
-  const captchaToken = readCaptchaToken(formData);
-  if (isTurnstileConfigured && !captchaToken) {
+  if (!(await passesCaptcha(formData))) {
     return { ok: false, messageKey: "captchaFailed" };
   }
 
+  // The token is NOT forwarded to Supabase any more. Turnstile tokens are
+  // single-use, so verifying it here and passing it on would make Supabase's
+  // own check fail — which is why the project-level captcha (Authentication ->
+  // Bot and Abuse Protection) must be OFF. See README "CAPTCHA".
   const supabase = await createClient();
   const { data, error } = await supabase.auth.signInWithPassword({
     email: parsed.data.email,
     password: parsed.data.password,
-    options: captchaToken ? { captchaToken } : undefined,
   });
 
   if (error || !data.user) {
@@ -190,12 +215,12 @@ export async function requestPasswordReset(
     return { ok: false, messageKey: fieldErrorKey(rawKey, "invalidEmail") };
   }
 
-  // Turnstile still guards this endpoint even though Supabase's mailer is no
-  // longer involved — an unprotected "email this address" endpoint is a way
-  // to make the server mail college addresses on demand. The token is only
-  // checked for presence here, exactly as before; Cloudflare's server-side
-  // siteverify is the project-level setting, not this action's job.
-  if (isTurnstileConfigured && !readCaptchaToken(formData)) {
+  // Turnstile guards this endpoint because an unprotected "email this address"
+  // endpoint is a way to make the server mail college addresses on demand.
+  // Until now that guard was a presence check only — nothing verified the
+  // token once 0064 stopped handing it to Supabase — so `cf-turnstile-response
+  // =anything` passed. This is the real check.
+  if (!(await passesCaptcha(formData))) {
     return { ok: false, messageKey: "captchaFailed" };
   }
 

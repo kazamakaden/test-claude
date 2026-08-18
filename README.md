@@ -35,6 +35,7 @@ cp .env.example .env.local
 | `SUPABASE_PUBLISHABLE_KEY` | Same publishable key, unprefixed — read by `@supabase/server` |
 | `SUPABASE_JWKS_URL` | `https://<project>.supabase.co/auth/v1/.well-known/jwks.json` — read by `@supabase/server` |
 | `NEXT_PUBLIC_TURNSTILE_SITE_KEY` | Cloudflare Turnstile sitekey (public by design). Login form renders no CAPTCHA widget at all when unset — see "CAPTCHA + SMTP setup" below |
+| `TURNSTILE_SECRET_KEY` | Turnstile secret. Server-only. The app verifies tokens itself, so Supabase's project-level CAPTCHA must be OFF — see "CAPTCHA + SMTP setup" |
 
 Until `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` are set, sign-in falls back to a dev-only role cookie (the switcher in the bottom-right corner, development mode only). The moment both are set, that switcher disappears and local dev requires a real sign-in (password sign-up, or Google) — see "Auth setup" below.
 
@@ -320,13 +321,39 @@ enters this repo:
 1. **Cloudflare Turnstile** — create a widget at the
    [Cloudflare dashboard](https://dash.cloudflare.com/login), add `localhost`
    to its allowed hostnames for local dev, copy the **Sitekey** into
-   `NEXT_PUBLIC_TURNSTILE_SITE_KEY`. Then paste the **Secret Key** into
-   Supabase → **Authentication → Bot and Abuse Protection** → Enable CAPTCHA
-   protection → provider Turnstile. Supabase Auth verifies the token itself;
-   there is no separate verify endpoint or Edge Function in this app. The
-   login form renders no widget at all when the sitekey env var is unset —
+   `NEXT_PUBLIC_TURNSTILE_SITE_KEY` and the **Secret Key** into
+   `TURNSTILE_SECRET_KEY`. Both go in the app's own environment; the secret is
+   server-only and never `NEXT_PUBLIC_`.
+
+   **This app verifies the token itself** — `lib/turnstile-server.ts` calls
+   Cloudflare's `siteverify` — so **Supabase's project-level CAPTCHA must be
+   turned OFF** (Authentication → Bot and Abuse Protection). This is not
+   optional: a Turnstile token is single-use, so verifying it here *and*
+   forwarding it to Supabase makes Supabase's check fail and every sign-in
+   break.
+
+   **Order matters when changing this.** Disable Supabase's CAPTCHA *first*,
+   then deploy. The other way round sends no token to a Supabase that still
+   demands one, and sign-in fails for everyone in between.
+
+   Why it moved: a project-level CAPTCHA applies to every public auth
+   endpoint, which is why server-initiated calls were refused with
+   `captcha protection: request disallowed` and why `/set-password` had to
+   exist as an interstitial page. It also meant the app itself never checked
+   anything — before this change `readCaptchaToken()` only tested that the
+   field was non-empty, so a `POST` with `cf-turnstile-response=x` passed.
+
+   Verification **fails closed**: a non-200, malformed JSON, a network error
+   or a timeout all refuse the submission, and the `error-codes` array is
+   logged server-side. The reported `hostname` is checked against the current
+   request's own host (not a hardcoded list — this project has lost sign-in
+   twice to stale hostname allow-lists); `TURNSTILE_ALLOWED_HOSTNAMES` adds
+   exceptions if a proxy makes those differ.
+
+   The login form renders no widget at all when the sitekey env var is unset —
    same dev-fallback pattern as `isSupabaseConfigured`, centralized in
-   `lib/turnstile.ts`.
+   `lib/turnstile.ts`. With a sitekey but no secret, verification is skipped
+   **in development only** (logged); in production it refuses everything.
 
    **Trade-off, not a bug:** a CAPTCHA token cannot be produced without
    JavaScript, so login/signup/reset can no longer *complete* with JS
@@ -339,7 +366,10 @@ enters this repo:
    no widget yet, `NEXT_PUBLIC_TURNSTILE_SITE_KEY=1x00000000000000000000AA` —
    one of [Cloudflare's documented testing sitekeys](https://developers.cloudflare.com/turnstile/troubleshooting/testing/)
    that always passes — renders the real widget and self-completes with no
-   external calls. **Never let a test key reach production** —
+   external calls. Pair it with a
+   [test **secret** key](https://developers.cloudflare.com/turnstile/troubleshooting/testing/),
+   `TURNSTILE_SECRET_KEY=1x0000000000000000000000000000000AA`, so the
+   server-side check has something to verify against. **Never let a test key reach production** —
    `lib/turnstile.ts`'s `assertTurnstileSafeForProduction()` throws at the
    top of every password-auth Server Action if `NODE_ENV === "production"`
    and the sitekey is either
