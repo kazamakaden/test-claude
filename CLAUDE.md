@@ -2662,6 +2662,86 @@ the end). `types/database.ts` is verified against the live catalog by an
 automated drift check — extended mid-work to cover **functions** as well as
 tables, since the table-only version silently missed three new RPCs.
 
+**Activity detail page, co-editors, banners, manual attendance, and students
+scanning (`0061`–`0063`) — plus a fatal escalation caught by review before it
+shipped.** `/activities` was a list and nothing else: there was no detail page
+at all, so `/activities/{id}` 404'd and `[id]` existed only to host the QR
+child, leaving `/activities/{id}/qr` reachable only by typing a URL nothing in
+the app would ever show.
+
+**The finding that mattered was not in the feature.** `activities.created_by`
+had existed since `0007` and **no policy ever referenced it**, so any
+aft/teacher could edit any other teacher's activity. The obvious fix — point the
+UPDATE policy at ownership — would have shipped a self-service ownership
+transfer: verified live via `information_schema.column_privileges`,
+`authenticated` (and `anon`) held **UPDATE on every column including
+`created_by` and `id`**, Supabase defaults never revoked here the way `0055`
+revoked them for `attendance`. A co-editor could run `update activities set
+created_by = <self>`. **RLS cannot prevent this** — `WITH CHECK` only ever sees
+the NEW row, so no policy can say "this column must not change". A column-grant
+allow-list is the only mechanism that can. Corollary now written into the
+migration: column grants are per-*role* and `authenticated` is one shared role,
+so "the owner may transfer ownership but a co-editor may not" is
+**inexpressible** in RLS.
+
+Three more design corrections, each verified rather than argued:
+* **The banner cap is a constraint, not a trigger.** A counting trigger is racy
+  — two concurrent inserts under READ COMMITTED each see 9 and both commit.
+  `check (sort_order between 0 and 9)` + `unique (activity_id, sort_order)` is a
+  hard cap, and it is the ordering key the carousel needs anyway. Proven from
+  both directions: slot 10 fails the check, a taken slot fails the index.
+* **DELETE is owner+admin, never co-editors.** `attendance.activity_id` is `ON
+  DELETE CASCADE` (confirmed live), so deleting an activity destroys its whole
+  attendance record — bypassing both RLS and the fact that DELETE has never been
+  granted on `attendance` to anyone.
+* **`attendance.method` has NO default.** Defaulting to `'qr'` would let any
+  future writer that forgets the column silently produce rows claiming
+  cryptographic verification — fail-open, the exact class `0055` exists to
+  prevent.
+
+**Students can now scan.** `record_attendance()` admits `student`, and
+`attendance:submit` **moved** into `studentPermissions` (a copy would duplicate,
+since `organisationPermissions` spreads it). `attendance_insert_own` is
+deliberately **not** relaxed to match: with no INSERT grant that policy is
+unreachable, so keeping it narrow costs nothing and still holds if a future
+migration re-grants INSERT. The migration says so, or a later reader will "fix"
+the apparent contradiction.
+
+**The percentage has a real denominator.** `activities.expected_attendees` is
+owner-stated, because `attendance` rows exist only for people who checked in —
+so the obvious denominator makes the figure checked-in/checked-in, always 100%.
+
+**Live: 49 cases across `0061`–`0063`, all passing**, plus `0055`'s boundary
+re-verified 9/9 after the schema change. `0056` case 01 asserted the student
+refusal and was **inverted in the same commit** rather than left to fail.
+
+**Three harness traps found by running rather than reading**, worth keeping:
+1. **RLS FILTERS on UPDATE/DELETE rather than raising** — a forbidden statement
+   succeeds affecting zero rows, so an exception-based helper reads it as
+   *allowed*. Two cases false-FAILed this way before write-effect cases were
+   switched to assert `ROW_COUNT`. INSERT is the asymmetric case: a `WITH CHECK`
+   violation does raise.
+2. Matching a policy predicate with `like '%student%'` hits the **column name
+   `student_id`**, reporting a hole in a correct policy. Match the role literal.
+3. `types/database.ts` was verified against the live catalog rather than trusted:
+   tables, PostgREST-reachable functions and every column of the four
+   changed/new tables diffed both ways, zero rows. That also surfaced two
+   **pre-existing** drifts — `assert_report_viewer` (0058) was never added, and
+   the Constants block never got `attendance_status` (0056).
+
+A real break came out of it: adding `recorded_by` gives `attendance` a **second
+FK into `profiles`**, so `listActivityAttendance`'s `profiles(...)` embed became
+ambiguous — a runtime PostgREST failure, not just a type error, caught by `tsc`
+first. Hinted to `profiles!attendance_student_id_fkey`. Also worth knowing: the
+`.select()` string must be a single literal, since postgrest-js parses it at the
+type level and `"a" + "b"` collapses the row type to `GenericStringError`.
+
+**Not verified**: the rendered page with real data. Without Supabase the detail
+page correctly `notFound()`s, so there is nothing for the responsive suite to
+measure and no banner, attendee row or co-editor grant has been seen in a
+browser. The guards, the route move, the build and the whole database layer are
+proven; the pixels are not.
+
 ### ❌ Remaining
 
 * **RLS policy performance (`auth_rls_initplan`, `multiple_permissive_policies`)**
