@@ -85,10 +85,16 @@ begin
   bkt := floor(extract(epoch from now())/30)::bigint;
 
   -- Authorization -------------------------------------------------------
-  -- 01 is SEC-1 restated at the RPC layer: a read-only student holds no
-  -- attendance:submit, and a SECURITY DEFINER function bypasses the RLS that
-  -- would otherwise say so, hence the explicit guard inside it.
-  perform pg_temp.try('01 student calls record_attendance', fx.student_id,
+  -- 01 was INVERTED by 0062 and now expects 'recorded'. It originally asserted
+  -- SEC-1 at the RPC layer: a read-only student held no attendance:submit, so
+  -- the definer function refused them with 42501. 0062 deliberately admitted
+  -- `student` to record_attendance -- an attendance list of ordinary students is
+  -- the point of the feature -- so the old expectation is now wrong, not broken.
+  -- What did NOT change is the WRITE BOUNDARY: attendance still has no INSERT
+  -- grant for any client, attendance_insert_own still excludes `student`, and
+  -- this RPC is still the only path in. Case 02 below is the unchanged half --
+  -- a student still cannot MINT a session, only answer one.
+  perform pg_temp.try('01 student calls record_attendance (0062: now allowed)', fx.student_id,
     format('select public.record_attendance(%L, 17.413, 102.787, ''fp'')',
            public.qr_token_for_bucket(sl1, sec1, bkt)));
   perform pg_temp.try('02 student creates a session', fx.student_id,
