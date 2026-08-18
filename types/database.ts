@@ -2,7 +2,15 @@
  * Generated from the live project (hmkciwgzbdszsgnbeakc) via
  * `generate_typescript_types` after migrations 0001–0056 were applied live
  * (2026-08-03/04, 0030 applied 2026-08-09, 0036–0038 applied 2026-08-11,
- * 0053 applied 2026-08-14, 0055–0056 applied 2026-08-17).
+ * 0053 applied 2026-08-14, 0055–0056 applied 2026-08-17,
+ * 0061–0063 applied 2026-08-18).
+ *
+ * The 0061–0063 pass was verified against the live catalog rather than
+ * trusting the edit: table names, function names and every column of
+ * activities/attendance/activity_banners/activity_editors were diffed both
+ * ways against information_schema and returned zero rows. That check also
+ * surfaced two PRE-EXISTING drifts, fixed here: assert_report_viewer (0058)
+ * was never added, and the Constants block never got attendance_status (0056).
  * Genuinely regenerated each time a migration adds/removes a column or
  * table — do not hand-patch this file; the discipline that broke down
  * before (a hand-patched type drifting from the live schema) is exactly
@@ -134,6 +142,7 @@ export type Database = {
           department_id: string | null
           description: string | null
           ends_at: string | null
+          expected_attendees: number | null
           id: string
           is_public: boolean
           location: string | null
@@ -150,6 +159,7 @@ export type Database = {
           department_id?: string | null
           description?: string | null
           ends_at?: string | null
+          expected_attendees?: number | null
           id?: string
           is_public?: boolean
           location?: string | null
@@ -166,6 +176,7 @@ export type Database = {
           department_id?: string | null
           description?: string | null
           ends_at?: string | null
+          expected_attendees?: number | null
           id?: string
           is_public?: boolean
           location?: string | null
@@ -245,6 +256,91 @@ export type Database = {
           },
         ]
       }
+      activity_banners: {
+        Row: {
+          activity_id: string
+          created_at: string
+          id: string
+          sort_order: number
+          storage_path: string
+          uploaded_by: string | null
+        }
+        Insert: {
+          activity_id: string
+          created_at?: string
+          id?: string
+          sort_order: number
+          storage_path: string
+          uploaded_by?: string | null
+        }
+        Update: {
+          activity_id?: string
+          created_at?: string
+          id?: string
+          sort_order?: number
+          storage_path?: string
+          uploaded_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "activity_banners_activity_id_fkey"
+            columns: ["activity_id"]
+            isOneToOne: false
+            referencedRelation: "activities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "activity_banners_uploaded_by_fkey"
+            columns: ["uploaded_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      activity_editors: {
+        Row: {
+          activity_id: string
+          created_at: string
+          granted_by: string | null
+          user_id: string
+        }
+        Insert: {
+          activity_id: string
+          created_at?: string
+          granted_by?: string | null
+          user_id: string
+        }
+        Update: {
+          activity_id?: string
+          created_at?: string
+          granted_by?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "activity_editors_activity_id_fkey"
+            columns: ["activity_id"]
+            isOneToOne: false
+            referencedRelation: "activities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "activity_editors_granted_by_fkey"
+            columns: ["granted_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "activity_editors_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       announcements: {
         Row: {
           author_id: string | null
@@ -310,7 +406,9 @@ export type Database = {
           gps_lng: number | null
           id: string
           ip: unknown
+          method: Database["public"]["Enums"]["attendance_method"]
           recorded_at: string
+          recorded_by: string | null
           room: string | null
           status: Database["public"]["Enums"]["attendance_status"]
           student_id: string
@@ -326,7 +424,9 @@ export type Database = {
           gps_lng?: number | null
           id?: string
           ip?: unknown
+          method: Database["public"]["Enums"]["attendance_method"]
           recorded_at?: string
+          recorded_by?: string | null
           room?: string | null
           status?: Database["public"]["Enums"]["attendance_status"]
           student_id: string
@@ -342,7 +442,9 @@ export type Database = {
           gps_lng?: number | null
           id?: string
           ip?: unknown
+          method?: Database["public"]["Enums"]["attendance_method"]
           recorded_at?: string
+          recorded_by?: string | null
           room?: string | null
           status?: Database["public"]["Enums"]["attendance_status"]
           student_id?: string
@@ -360,6 +462,13 @@ export type Database = {
             columns: ["department_id"]
             isOneToOne: false
             referencedRelation: "departments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attendance_recorded_by_fkey"
+            columns: ["recorded_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
           {
@@ -1059,6 +1168,22 @@ export type Database = {
           status: string
         }[]
       }
+      assert_report_viewer: { Args: never; Returns: undefined }
+      can_edit_activity: { Args: { p_activity_id: string }; Returns: boolean }
+      is_activity_editor: { Args: { p_activity_id: string }; Returns: boolean }
+      record_attendance_manual: {
+        Args: {
+          p_activity_id: string
+          p_status?: Database["public"]["Enums"]["attendance_status"]
+          p_student_id: string
+        }
+        Returns: string
+      }
+      remove_manual_attendance: {
+        Args: { p_activity_id: string; p_student_id: string }
+        Returns: string
+      }
+      safe_uuid: { Args: { p_text: string }; Returns: string }
       get_citizen_id: { Args: { member_id: string }; Returns: string }
       get_member_stats: {
         Args: never
@@ -1135,6 +1260,7 @@ export type Database = {
     Enums: {
       activity_status: "pending" | "completed" | "cancelled"
       announcement_status: "draft" | "published"
+      attendance_method: "qr" | "manual"
       attendance_status: "present" | "late" | "absent"
       book_status: "draft" | "published"
       document_status: "draft" | "signed" | "pending_approval" | "official"
@@ -1291,6 +1417,8 @@ export const Constants = {
     Enums: {
       activity_status: ["pending", "completed", "cancelled"],
       announcement_status: ["draft", "published"],
+      attendance_method: ["qr", "manual"],
+      attendance_status: ["present", "late", "absent"],
       book_status: ["draft", "published"],
       document_status: ["draft", "signed", "pending_approval", "official"],
       notification_type: [

@@ -50,6 +50,8 @@ export interface QrToken {
 }
 
 /** A recorded check-in, as staff see it on the activity's attendance list. */
+export type AttendanceMethod = "qr" | "manual";
+
 export interface AttendanceRow {
   id: string;
   studentId: string;
@@ -58,5 +60,27 @@ export interface AttendanceRow {
   className: string | null;
   departmentName: string | null;
   status: "present" | "late" | "absent";
+  /**
+   * How the row was created (0062). `qr` is a verified scan; `manual` is a
+   * staff assertion. Shown in the attendee table because the two are not
+   * equally strong evidence, and only `manual` rows can be undone.
+   */
+  method: AttendanceMethod;
   recordedAt: string;
+}
+
+/** This event's attendance, for the detail-page dashboard. */
+export interface ActivityAttendanceStats {
+  total: number;
+  present: number;
+  late: number;
+  absent: number;
+  viaQr: number;
+  viaManual: number;
+  /**
+   * Owner-stated headcount (activities.expected_attendees, 0061), or null.
+   * There is no enrolment table in this schema, so without it a percentage
+   * would be checked-in/checked-in = 100% and mean nothing.
+   */
+  expected: number | null;
 }

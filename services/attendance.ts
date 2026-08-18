@@ -1,6 +1,6 @@
 import "server-only";
 import { createClient, tryCreateClient } from "@/lib/supabase/server";
-import { isAttendanceOutcome, type AttendanceOutcome, type AttendanceRow, type QrSession, type QrToken } from "@/types/attendance";
+import { isAttendanceOutcome, type ActivityAttendanceStats, type AttendanceOutcome, type AttendanceRow, type QrSession, type QrToken } from "@/types/attendance";
 import type { CreateQrSessionInput, RecordAttendanceInput } from "@/schemas/attendance";
 
 /**
@@ -167,26 +167,91 @@ export async function revokeQrSession(
  * NOT selected: they are not in the `authenticated` allow-list (0008), so
  * asking for them would 42501 the whole query.
  */
-export async function listActivityAttendance(activityId: string): Promise<AttendanceRow[]> {
+export async function listActivityAttendance(
+  activityId: string,
+  search?: string
+): Promise<AttendanceRow[]> {
   const supabase = await tryCreateClient();
   if (!supabase) return [];
 
-  const { data, error } = await supabase
+  // profiles!attendance_student_id_fkey, not a bare profiles(...): 0062 added
+  // `recorded_by`, giving this table TWO foreign keys into profiles, and
+  // PostgREST refuses an ambiguous embed ("more than one relationship was
+  // found"). The hint names the one we mean -- the person who attended, never
+  // the staff member who recorded them.
+  let query = supabase
     .from("attendance")
-    .select("id, student_id, class_name, status, recorded_at, profiles(full_name, student_id), departments(name_th)")
-    .eq("activity_id", activityId)
-    .order("recorded_at", { ascending: false });
+    // One string literal, not a concatenation: @supabase/postgrest-js parses the
+    // select at the TYPE level, so `"a" + "b"` collapses the row type to
+    // GenericStringError and every field access below fails to compile.
+    .select("id, student_id, class_name, status, method, recorded_at, profiles!attendance_student_id_fkey(full_name, student_id), departments(name_th)")
+    .eq("activity_id", activityId);
 
+  const term = search?.trim();
+  if (term) {
+    // Same wildcard escaping as services/members.ts: an unescaped % or _ would
+    // turn a name search into a bulk listing.
+    const escaped = term.replace(/[%_]/g, (c) => `\\${c}`);
+    query = query.or(
+      `full_name.ilike.%${escaped}%,student_id.ilike.%${escaped}%`,
+      { referencedTable: "profiles" }
+    );
+  }
+
+  const { data, error } = await query.order("recorded_at", { ascending: false });
   if (error || !data) return [];
 
-  return data.map((r) => ({
-    id: r.id,
-    studentId: r.student_id,
-    studentName: r.profiles?.full_name ?? null,
-    studentCode: r.profiles?.student_id ?? null,
-    className: r.class_name,
-    departmentName: r.departments?.name_th ?? null,
-    status: r.status,
-    recordedAt: r.recorded_at,
-  }));
+  return data
+    // An inner-join filter on an embedded table still returns the parent row
+    // with a null embed, so a non-matching row would render as a blank line
+    // rather than disappear. Drop those here.
+    .filter((r) => (term ? r.profiles !== null : true))
+    .map((r) => ({
+      id: r.id,
+      studentId: r.student_id,
+      studentName: r.profiles?.full_name ?? null,
+      studentCode: r.profiles?.student_id ?? null,
+      className: r.class_name,
+      departmentName: r.departments?.name_th ?? null,
+      status: r.status,
+      method: r.method,
+      recordedAt: r.recorded_at,
+    }));
+}
+
+/**
+ * This event's attendance figures for the detail-page dashboard.
+ *
+ * Counts are derived from the rows the CALLER can see, which is deliberate:
+ * attendance_select_own / attendance_select_reviewer (0008/0049) mean a student
+ * sees only their own row and staff see all. The numbers therefore describe
+ * what the viewer is entitled to know, with no second scoping rule in TypeScript.
+ */
+export async function getActivityAttendanceStats(
+  activityId: string,
+  expected: number | null
+): Promise<ActivityAttendanceStats> {
+  const empty: ActivityAttendanceStats = {
+    total: 0, present: 0, late: 0, absent: 0, viaQr: 0, viaManual: 0, expected,
+  };
+
+  const supabase = await tryCreateClient();
+  if (!supabase) return empty;
+
+  const { data, error } = await supabase
+    .from("attendance")
+    .select("status, method")
+    .eq("activity_id", activityId);
+
+  if (error || !data) return empty;
+
+  return data.reduce<ActivityAttendanceStats>((acc, r) => {
+    acc.total += 1;
+    if (r.status === "present") acc.present += 1;
+    else if (r.status === "late") acc.late += 1;
+    else if (r.status === "absent") acc.absent += 1;
+    if (r.method === "qr") acc.viaQr += 1;
+    else acc.viaManual += 1;
+    return acc;
+  }, { ...empty });
 }
