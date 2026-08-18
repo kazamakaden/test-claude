@@ -95,14 +95,27 @@ export type Permission = (typeof permissions)[number];
 const guestPermissions = ["content:read:official"] as const satisfies readonly Permission[];
 
 /**
- * Signed in, but READ-ONLY. A student sees public content, their own profile
- * and notifications, and — via workspace:access — which activities they have
- * missed. They author nothing: no project drafts, no attendance submissions,
- * no signatures, no e-books.
+ * Signed in, and read-only WITH ONE EXCEPTION.
+ *
+ * A student sees public content, their own profile and notifications, and — via
+ * workspace:access — which activities they have missed. They author nothing:
+ * no project drafts, no signatures, no e-books.
+ *
+ * The exception is attendance:submit (0062). Checking in to an event you are
+ * standing at is not authoring: the student supplies no content, and every
+ * field that matters — who, when, where, present-or-late — is derived
+ * server-side by record_attendance(), which additionally verifies a rotating
+ * HMAC token, the activity's time window and a GPS fence. Without this an
+ * attendance list could only ever contain อวท. members and staff, which is not
+ * what an attendance list is for.
+ *
+ * This is a MOVE from organisationPermissions, not a copy: that list spreads
+ * this one, so duplicating the entry would put it in twice.
  */
 const studentPermissions = [
   ...guestPermissions,
   "workspace:access",
+  "attendance:submit",
   "notification:read",
   "profile:read",
   "profile:update",
@@ -119,8 +132,9 @@ const studentPermissions = [
  * ever need to diverge, that should be a deliberate split of this constant.
  *
  * Everything a student has, plus authoring (project drafts, e-book drafts,
- * attendance, digital signature), the review stage of §11/§12, and management
- * of activities and public page copy.
+ * digital signature), the review stage of §11/§12, and management of activities
+ * and public page copy. Note attendance:submit is NOT listed here — it moved
+ * down to studentPermissions (0062) and arrives by the spread.
  *
  * Deliberately NOT here: project:approve / document:approve. The approver has
  * to sit above whoever submits, and these roles submit — so approval is
@@ -132,7 +146,6 @@ const organisationPermissions = [
   ...studentPermissions,
   "project:draft:submit",
   "document:draft:submit",
-  "attendance:submit",
   "document:sign",
   "report:view",
   "project:draft:review",

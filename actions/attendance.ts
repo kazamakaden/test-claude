@@ -3,7 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { requirePermission } from "@/lib/auth/require-role";
 import { recordAttendanceSchema, createQrSessionSchema } from "@/schemas/attendance";
-import { recordAttendance, createQrSession, revokeQrSession } from "@/services/attendance";
+import { manualAttendanceSchema } from "@/schemas/activities";
+import { recordAttendance, createQrSession, revokeQrSession, recordManualAttendance, removeManualAttendance } from "@/services/attendance";
 import { readLang, type Locale } from "@/lib/i18n/config";
 import type { AttendanceOutcome } from "@/types/attendance";
 
@@ -12,9 +13,9 @@ export type RecordAttendanceResult =
   | { ok: false; messageKey: "invalidToken" | "confirmTextMismatch" | AttendanceOutcome };
 
 /**
- * §13 submit. Gated on `attendance:submit` (aft/teacher/admin — a plain
- * `student` is read-only per §6), re-checked server-side here and AGAIN inside
- * record_attendance() (0056).
+ * §13 submit. Gated on `attendance:submit` — which a plain `student` now holds
+ * (0062), since checking in to an event you are standing at is not authoring.
+ * Re-checked server-side here and AGAIN inside record_attendance() (0056).
  *
  * The duplication is deliberate rather than redundant: this guard gives a
  * signed-out or unauthorised viewer a clean redirect, while the one inside the
@@ -130,4 +131,54 @@ export async function revokeQrSessionAction(
 
   revalidatePath(`/${lang}/activities/${activityId}/qr`);
   return { ok: true };
+}
+
+// ---------------------------------------------------------------------------
+// Manual entry (0062)
+
+export type ManualAttendanceResult = { ok: true; outcome: string } | { ok: false; messageKey: string };
+
+/**
+ * Staff records a student who attended without scanning.
+ *
+ * Guarded on `activity:manage` here for a clean redirect, but that permission is
+ * role-wide and does NOT say the caller may touch THIS activity. The real
+ * authority is can_edit_activity() (0061) inside record_attendance_manual(),
+ * which is SECURITY DEFINER and reachable directly over REST — so it cannot
+ * rely on anything this file does.
+ */
+export async function manualAttendanceAction(
+  lang: Locale,
+  activityId: string,
+  studentId: string,
+  status: "present" | "late" | "absent"
+): Promise<ManualAttendanceResult> {
+  await requirePermission("activity:manage", lang);
+
+  const parsed = manualAttendanceSchema.safeParse({ activityId, studentId, status });
+  if (!parsed.success) return { ok: false, messageKey: "invalidInput" };
+
+  const result = await recordManualAttendance(parsed.data);
+  if (!result.ok) return { ok: false, messageKey: result.error };
+
+  revalidatePath(`/${lang}/activities/${activityId}`);
+  return { ok: true, outcome: result.outcome };
+}
+
+/**
+ * Undo. Reaches `manual` rows only — a QR check-in is evidence the student was
+ * physically present, and remove_manual_attendance() refuses to erase one.
+ */
+export async function removeAttendanceAction(
+  lang: Locale,
+  activityId: string,
+  studentId: string
+): Promise<ManualAttendanceResult> {
+  await requirePermission("activity:manage", lang);
+
+  const result = await removeManualAttendance(activityId, studentId);
+  if (!result.ok) return { ok: false, messageKey: result.error };
+
+  revalidatePath(`/${lang}/activities/${activityId}`);
+  return { ok: true, outcome: result.outcome };
 }

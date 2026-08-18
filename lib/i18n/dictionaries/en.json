@@ -469,6 +469,89 @@
       "attendanceNote": "Shows only your own records or reviewer access",
       "completed": "Completed",
       "pending": "Pending"
+    },
+    "backToList": "Back to activities",
+    "notFound": "Activity not found",
+    "banners": {
+      "heading": "Photos",
+      "add": "Add photo",
+      "remove": "Remove photo",
+      "removeLabel": "Remove photo {index}",
+      "empty": "No photos yet",
+      "limit": "Up to 10 photos per activity",
+      "uploading": "Uploading…",
+      "tooLarge": "File is larger than 5 MB",
+      "alt": "{title} photo {index}"
+    },
+    "dashboard": {
+      "heading": "Attendance summary",
+      "checkedIn": "Checked in",
+      "present": "On time",
+      "late": "Late",
+      "absent": "Absent",
+      "viaQr": "QR scan",
+      "viaManual": "Added manually",
+      "ofExpected": "of {expected} expected",
+      "noExpected": "No expected headcount set",
+      "expectedLabel": "Expected attendees",
+      "expectedHint": "Used as the denominator for the percentage. Leave blank to hide it.",
+      "save": "Save"
+    },
+    "attendees": {
+      "heading": "Attendees",
+      "search": "Search name or student ID",
+      "columnName": "Name",
+      "columnCode": "Student ID",
+      "columnClass": "Class",
+      "columnDepartment": "Department",
+      "columnStatus": "Status",
+      "columnMethod": "Recorded by",
+      "columnTime": "Time",
+      "empty": "No attendees yet",
+      "emptySearch": "No attendees match that search",
+      "guestNote": "Sign in to see the attendee list",
+      "add": "Add attendee",
+      "addTitle": "Add an attendee manually",
+      "addHint": "Search for a member, then choose a status",
+      "remove": "Remove entry",
+      "removeConfirm": "Remove this person from the attendee list?",
+      "qrOnlyNote": "QR check-ins cannot be removed"
+    },
+    "qrPanel": {
+      "heading": "Check-in QR",
+      "generate": "Generate QR code",
+      "hide": "Hide QR code",
+      "openFull": "Open full screen",
+      "note": "Attendees scan with their phone camera. The code rotates automatically."
+    },
+    "editors": {
+      "heading": "Who can edit",
+      "description": "Only the activity owner and admins can grant or revoke editing.",
+      "search": "Search for a member",
+      "add": "Grant editing",
+      "remove": "Revoke",
+      "removeLabel": "Revoke editing for {name}",
+      "empty": "Nobody has been granted editing",
+      "owner": "Owner",
+      "noResults": "No members found"
+    },
+    "method": {
+      "qr": "QR scan",
+      "manual": "Added manually"
+    },
+    "detailErrors": {
+      "invalidInput": "That input is not valid",
+      "forbidden": "You do not have permission to edit this activity",
+      "bannerLimit": "Up to 10 photos per activity",
+      "alreadyEditor": "That member already has editing rights",
+      "ownerAlreadyEdits": "The owner already has editing rights",
+      "notStaffOrForbidden": "Editing can only be granted to teachers or อวท. members, and only by the owner",
+      "already_recorded": "That person is already on the list",
+      "unknown_student": "No such member",
+      "invalid_activity": "Activity not found",
+      "qr_verified_not_removable": "QR check-ins cannot be removed",
+      "not_found": "No such entry",
+      "unknown": "Something went wrong. Please try again."
     }
   },
   "projects": {

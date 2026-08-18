@@ -1,5 +1,34 @@
 export type ActivityStatus = "pending" | "completed" | "cancelled";
 
+/** One banner photo. Max 10 per activity, enforced by 0063's sort_order constraint. */
+export interface ActivityBanner {
+  id: string;
+  storagePath: string;
+  /** Public URL. The activity-banners bucket is public (0063), so no signing round trip. */
+  url: string;
+  sortOrder: number;
+}
+
+/** Somebody the owner granted edit rights to (0061). */
+export interface ActivityEditor {
+  userId: string;
+  fullName: string | null;
+  studentCode: string | null;
+  createdAt: string;
+}
+
+/** An activity plus everything the detail page needs. */
+export interface ActivityDetail extends Activity {
+  createdBy: string | null;
+  expectedAttendees: number | null;
+  banners: ActivityBanner[];
+  /**
+   * Whether the VIEWER may edit. Mirrors can_edit_activity() (0061) for the UI
+   * only -- every write is re-checked by the database, which is the boundary.
+   */
+  canEdit: boolean;
+}
+
 export interface Activity {
   id: string;
   title: string;

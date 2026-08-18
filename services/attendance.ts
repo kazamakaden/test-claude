@@ -2,6 +2,7 @@ import "server-only";
 import { createClient, tryCreateClient } from "@/lib/supabase/server";
 import { isAttendanceOutcome, type ActivityAttendanceStats, type AttendanceOutcome, type AttendanceRow, type QrSession, type QrToken } from "@/types/attendance";
 import type { CreateQrSessionInput, RecordAttendanceInput } from "@/schemas/attendance";
+import type { ManualAttendanceInput } from "@/schemas/activities";
 
 /**
  * §13. Every function here is a thin wrapper over a database routine, and
@@ -254,4 +255,46 @@ export async function getActivityAttendanceStats(
     else acc.viaManual += 1;
     return acc;
   }, { ...empty });
+}
+
+// ---------------------------------------------------------------------------
+// Manual entry (0062)
+
+/**
+ * Staff asserts that a student attended.
+ *
+ * createClient(), not tryCreateClient(): a write with no real client SHOULD
+ * throw rather than silently report success. The RPC returns a status string
+ * for every outcome a caller can legitimately reach; a 42501 means the caller
+ * is neither owner, co-editor nor admin for this activity.
+ */
+export async function recordManualAttendance(
+  input: ManualAttendanceInput
+): Promise<{ ok: true; outcome: string } | { ok: false; error: string }> {
+  const supabase = await createClient();
+
+  const { data, error } = await supabase.rpc("record_attendance_manual", {
+    p_activity_id: input.activityId,
+    p_student_id: input.studentId,
+    p_status: input.status,
+  });
+
+  if (error) return { ok: false, error: error.code === "42501" ? "forbidden" : "unknown" };
+  return { ok: true, outcome: data ?? "unknown" };
+}
+
+/** Undo a MANUAL row. A qr row comes back as 'qr_verified_not_removable'. */
+export async function removeManualAttendance(
+  activityId: string,
+  studentId: string
+): Promise<{ ok: true; outcome: string } | { ok: false; error: string }> {
+  const supabase = await createClient();
+
+  const { data, error } = await supabase.rpc("remove_manual_attendance", {
+    p_activity_id: activityId,
+    p_student_id: studentId,
+  });
+
+  if (error) return { ok: false, error: error.code === "42501" ? "forbidden" : "unknown" };
+  return { ok: true, outcome: data ?? "unknown" };
 }
