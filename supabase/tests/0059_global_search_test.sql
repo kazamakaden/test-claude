@@ -70,29 +70,34 @@ begin
     case when n >= 1 then 'PASS - ' || n || ' rows' else 'FAIL - 0 rows' end);
 end $$;
 
+-- reset role BEFORE writing _r. The temp table is owned by the session role;
+-- `set local role anon` makes the DO block run as anon, which has no INSERT on
+-- it, so recording a result while still anon raises 42501 and aborts the whole
+-- file at case 7. Capture every count as anon first, restore the role, then
+-- record. (The authenticated cases above avoid this because count_as() resets
+-- the role before returning.)
 do $$
-declare n bigint;
+declare n7 bigint; n8 bigint; n9 bigint;
 begin
   set local role anon;
-
-  select count(*) into n from public.search_all('ZZSECRETDRAFT', 20);
-  insert into _r values ('7 anon sees drafts',
-    case when n = 0 then 'PASS - 0 rows' else 'FAIL - ' || n || ' rows leaked' end);
-
+  select count(*) into n7 from public.search_all('ZZSECRETDRAFT', 20);
   -- profiles.email is not searched at all. It is column-granted to
   -- `authenticated` but not `anon` (0026), so including it would ALSO break
   -- search outright for guests -- see case 9.
-  select count(*) into n from public.search_all('udontech', 20);
-  insert into _r values ('8 anon can search by email domain',
-    case when n = 0 then 'PASS - 0 rows (email not searched)' else 'FAIL - ' || n || ' rows' end);
-
+  select count(*) into n8 from public.search_all('udontech', 20);
   -- Regression guard for a real bug: the first version selected
   -- profiles.created_at, which is outside anon's column allow-list, so the
   -- WHOLE function failed for guests with 42501 -- not just the member
   -- section. Found by running as anon, not by reading the code.
-  select count(*) into n from public.search_all('า', 20);
+  select count(*) into n9 from public.search_all('า', 20);
+  reset role;
+
+  insert into _r values ('7 anon sees drafts',
+    case when n7 = 0 then 'PASS - 0 rows' else 'FAIL - ' || n7 || ' rows leaked' end);
+  insert into _r values ('8 anon can search by email domain',
+    case when n8 = 0 then 'PASS - 0 rows (email not searched)' else 'FAIL - ' || n8 || ' rows' end);
   insert into _r values ('9 anon search returns public content',
-    case when n > 0 then 'PASS - ' || n || ' rows' else 'FAIL - 0 rows or error' end);
+    case when n9 > 0 then 'PASS - ' || n9 || ' rows' else 'FAIL - 0 rows or error' end);
 end $$;
 
 select case_name, outcome from _r order by case_name;
