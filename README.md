@@ -200,15 +200,12 @@ this repo:
 
 ### Google sign-in setup
 
-**Two flows exist right now, on purpose.** The live one still goes through
-Supabase's hosted OAuth (`signInWithOAuth`). A second, app-owned flow is built
-and deployed at `/{lang}/auth/google/start` but is **not wired to the login
-button yet** — sign-in is the highest-consequence path in the app, and the new
-flow cannot be exercised from a build environment that can reach neither Google
-nor the deployed site. It gets proven on a real browser first, then the button
-switches and the old path is removed.
+Google sign-in runs entirely through **this app's own OAuth flow**. Supabase's
+hosted flow (`signInWithOAuth`, `/{lang}/auth/callback`) is gone — it was kept
+alongside the new one only until a real browser proved the new path, which it
+did.
 
-#### The app-owned flow (new)
+#### How it works
 
 ```
 /{lang}/auth/google/start   our route: PKCE + state + nonce, our client id
@@ -247,12 +244,11 @@ Setup, both dashboards:
    our tokens.
 
 Then set `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` (see `.env.example`).
-They are deliberately **not** enforced by `lib/env-guard.ts` yet — the flow is
-not on the login button, so a missing value degrades to "that URL doesn't work"
-rather than breaking sign-in. They move to required in the same change that
-flips the button.
+Both are **required in production** — `lib/env-guard.ts` fails the build without
+them, same tier as the SMTP and Turnstile secrets. This is the only way into the
+app, so a missing value is a locked front door, not a degraded feature.
 
-#### The Supabase-hosted flow (still live)
+#### History: the Supabase-hosted flow
 
 Two dashboards, no credential enters this repo:
 

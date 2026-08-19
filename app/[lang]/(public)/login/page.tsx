@@ -20,7 +20,7 @@ export default async function LoginPage({
     redirect(signedInLandingTarget(role, lang));
   }
 
-  // Set by app/[lang]/auth/callback/route.ts when a redirect back here
+  // Set by app/[lang]/auth/google/callback/route.ts when a redirect back here
   // carries a reason — a non-college Google account or a failed OAuth
   // handshake. Checked against dict.auth.errors' own keys rather than a
   // hardcoded list, so a renamed or removed error key can't silently go

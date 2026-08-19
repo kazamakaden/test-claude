@@ -7,7 +7,7 @@ import { SetPasswordForm } from "./set-password-form";
 
 /**
  * Reached right after a first-time Google sign-in
- * (app/[lang]/auth/callback/route.ts redirects here when profiles.password_set
+ * (app/[lang]/auth/google/callback/route.ts redirects here when profiles.password_set
  * is false). Supabase never emails a Google user on its own — the identity
  * is already verified, so there's nothing to confirm — so this page's one
  * job is to trigger that email itself via the existing requestPasswordReset

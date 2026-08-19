@@ -47,6 +47,17 @@ export function assertDeployEnvConfigured(): void {
     );
   }
 
+  // Required from the moment the login button routes through this app's own
+  // Google flow. While that flow was reachable only by typing its URL, a
+  // missing value degraded to "that URL doesn't work"; now it is the only way
+  // in, so a missing value is a locked front door — the same argument as SMTP
+  // above, and the opposite of the VAPID note below.
+  if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
+    problems.push(
+      "GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET are not both set — Google sign-in now runs through this app's own OAuth flow, so without them nobody can sign in. See README \"Google sign-in setup\"."
+    );
+  }
+
   const turnstileSiteKey = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY ?? "";
   if (!turnstileSiteKey) {
     problems.push("NEXT_PUBLIC_TURNSTILE_SITE_KEY is not set.");

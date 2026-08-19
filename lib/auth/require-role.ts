@@ -30,7 +30,7 @@ export function signedInLandingTarget(_role: Role, lang: Locale): string {
  * does.
  *
  * This has to be re-checked per request, not once at sign-in. The callback
- * (app/[lang]/auth/callback/route.ts) does redirect a fresh Google sign-in
+ * (app/[lang]/auth/google/callback/route.ts) does redirect a fresh Google sign-in
  * here, but /set-password renders inside the (public) layout — which includes
  * the full TopNav — so a single click on the nav skipped the whole step and
  * landed the user in the app with no password. Two live accounts, one of them
