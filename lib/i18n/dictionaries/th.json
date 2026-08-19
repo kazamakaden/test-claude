@@ -20,6 +20,54 @@
     "approvals": "อนุมัติบัญชี",
     "audit": "บันทึกการใช้งาน"
   },
+  "home": {
+    "banners": {
+      "heading": "แบนเนอร์",
+      "alt": "แบนเนอร์ {index} จาก {total}",
+      "previous": "แบนเนอร์ก่อนหน้า",
+      "next": "แบนเนอร์ถัดไป",
+      "position": "{index} / {total}",
+      "termCaption": "ปีการศึกษา {year} เทอม {term}",
+      "empty": "ยังไม่มีแบนเนอร์",
+      "manage": {
+        "heading": "จัดการแบนเนอร์",
+        "description": "อัปโหลดภาพแบนเนอร์ แล้วระบุปีการศึกษาและเทอมก่อนเผยแพร่",
+        "add": "อัปโหลดแบนเนอร์",
+        "uploading": "กำลังอัปโหลด...",
+        "tooLarge": "ไฟล์ใหญ่เกิน 5 MB",
+        "limit": "JPG, PNG หรือ WebP ขนาดไม่เกิน 5 MB",
+        "draftBadge": "ฉบับร่าง",
+        "publishedBadge": "เผยแพร่แล้ว",
+        "sourceFacebook": "จาก Facebook",
+        "yearLabel": "ปีการศึกษา",
+        "termLabel": "เทอม",
+        "publish": "เผยแพร่",
+        "publishing": "กำลังเผยแพร่...",
+        "published": "เผยแพร่แบนเนอร์แล้ว",
+        "uploaded": "อัปโหลดแล้ว รอระบุปีการศึกษาและเทอมก่อนเผยแพร่",
+        "noBanners": "ยังไม่มีแบนเนอร์",
+        "delete": "ลบแบนเนอร์",
+        "deleteTitle": "ลบแบนเนอร์",
+        "deleteDescription": "เลือกช่วงที่ต้องการลบ แล้วพิมพ์ \"ยืนยัน\" การลบนี้ไม่สามารถกู้คืนได้",
+        "deleteTarget": "ช่วงที่ต้องการลบ",
+        "deleteDrafts": "ฉบับร่างทั้งหมด ({count})",
+        "deleteGroupOption": "ปีการศึกษา {year} เทอม {term} ({count} ภาพ)",
+        "deleteNothing": "ยังไม่มีแบนเนอร์ให้ลบ",
+        "confirmInstructions": "พิมพ์คำว่า \"ยืนยัน\" เพื่อลบ",
+        "confirmPlaceholder": "พิมพ์ \"ยืนยัน\" เพื่อยืนยัน",
+        "cancel": "ยกเลิก",
+        "confirmDelete": "ลบถาวร",
+        "deleting": "กำลังลบ...",
+        "deleted": "ลบแบนเนอร์แล้ว",
+        "errors": {
+          "invalidInput": "ข้อมูลไม่ถูกต้อง",
+          "forbidden": "คุณไม่มีสิทธิ์ดำเนินการนี้",
+          "confirmTextMismatch": "กรุณาพิมพ์ \"ยืนยัน\" ให้ถูกต้อง",
+          "unknown": "เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง"
+        }
+      }
+    }
+  },
   "common": {
     "skipToContent": "ข้ามไปยังเนื้อหาหลัก",
     "toggleTheme": "สลับธีมสว่าง/มืด",

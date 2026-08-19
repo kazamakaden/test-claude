@@ -3,7 +3,8 @@
  * `generate_typescript_types` after migrations 0001–0056 were applied live
  * (2026-08-03/04, 0030 applied 2026-08-09, 0036–0038 applied 2026-08-11,
  * 0053 applied 2026-08-14, 0055–0056 applied 2026-08-17,
- * 0061–0063 applied 2026-08-18, 0064 applied 2026-08-18).
+ * 0061–0063 applied 2026-08-18, 0064 applied 2026-08-18,
+ * 0065 applied 2026-08-19).
  *
  * The 0061–0063 pass was verified against the live catalog rather than
  * trusting the edit: table names, function names and every column of
@@ -1120,6 +1121,53 @@ export type Database = {
           {
             foreignKeyName: "signature_records_signer_id_fkey"
             columns: ["signer_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      site_banners: {
+        Row: {
+          academic_year: number | null
+          created_at: string
+          created_by: string | null
+          facebook_post_id: string | null
+          id: string
+          published_at: string | null
+          source: string
+          status: string
+          storage_path: string
+          term: number | null
+        }
+        Insert: {
+          academic_year?: number | null
+          created_at?: string
+          created_by?: string | null
+          facebook_post_id?: string | null
+          id?: string
+          published_at?: string | null
+          source?: string
+          status?: string
+          storage_path: string
+          term?: number | null
+        }
+        Update: {
+          academic_year?: number | null
+          created_at?: string
+          created_by?: string | null
+          facebook_post_id?: string | null
+          id?: string
+          published_at?: string | null
+          source?: string
+          status?: string
+          storage_path?: string
+          term?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "site_banners_created_by_fkey"
+            columns: ["created_by"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]

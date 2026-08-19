@@ -20,6 +20,54 @@
     "approvals": "Account Approvals",
     "audit": "Audit log"
   },
+  "home": {
+    "banners": {
+      "heading": "Banners",
+      "alt": "Banner {index} of {total}",
+      "previous": "Previous banner",
+      "next": "Next banner",
+      "position": "{index} / {total}",
+      "termCaption": "Academic year {year}, term {term}",
+      "empty": "No banners yet",
+      "manage": {
+        "heading": "Manage banners",
+        "description": "Upload a banner image, then set its academic year and term before publishing.",
+        "add": "Upload banner",
+        "uploading": "Uploading...",
+        "tooLarge": "That file is larger than 5 MB",
+        "limit": "JPG, PNG or WebP, up to 5 MB",
+        "draftBadge": "Draft",
+        "publishedBadge": "Published",
+        "sourceFacebook": "From Facebook",
+        "yearLabel": "Academic year",
+        "termLabel": "Term",
+        "publish": "Publish",
+        "publishing": "Publishing...",
+        "published": "Banner published",
+        "uploaded": "Uploaded — set its academic year and term to publish it",
+        "noBanners": "No banners yet",
+        "delete": "Delete banners",
+        "deleteTitle": "Delete banners",
+        "deleteDescription": "Choose what to delete, then type \"ยืนยัน\" to confirm. This cannot be undone.",
+        "deleteTarget": "What to delete",
+        "deleteDrafts": "All drafts ({count})",
+        "deleteGroupOption": "Academic year {year}, term {term} ({count} images)",
+        "deleteNothing": "There are no banners to delete",
+        "confirmInstructions": "Type \"ยืนยัน\" to delete",
+        "confirmPlaceholder": "Type \"ยืนยัน\" to confirm",
+        "cancel": "Cancel",
+        "confirmDelete": "Delete permanently",
+        "deleting": "Deleting...",
+        "deleted": "Banners deleted",
+        "errors": {
+          "invalidInput": "That input is not valid",
+          "forbidden": "You do not have permission to do that",
+          "confirmTextMismatch": "Please type \"ยืนยัน\" exactly",
+          "unknown": "Something went wrong. Please try again."
+        }
+      }
+    }
+  },
   "common": {
     "skipToContent": "Skip to main content",
     "toggleTheme": "Toggle light/dark theme",
