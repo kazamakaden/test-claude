@@ -3037,6 +3037,169 @@ Console — sign-in was proven only on `swart-delta`, and a missing URI fails th
 domain with `redirect_uri_mismatch`, the same shape as the two hostname
 allow-list outages above.
 
+**The front of the app was restructured: the dashboard moved onto `/calendar`,
+the homepage became a banner carousel, and the activity time picker stopped
+showing AM/PM (migration `0065`).** Seven requests in one pass.
+
+**The AM/PM picker was not a formatting bug.** Nothing in this codebase formats
+time that way — every `format()` call is already `HH:mm`. `<input type="time">`
+renders from the **browser's** language, ignoring the page's `lang`, so a Thai
+page in an English-language browser shows an AM/PM picker and no attribute or
+stylesheet reaches it. `components/ui/time-input.tsx` replaces it with two
+native `<select>`s (00–23 / 00–59) writing `HH:mm` into a hidden input, so the
+`name="startTime"`/`name="endTime"` form contract, `actions/activities.ts` and
+the Zod schema are untouched. Native selects keep the OS picker on mobile and
+need no JavaScript. Minutes are 0–59 rather than 5-minute steps so no existing
+activity time becomes unselectable.
+
+The §8 card grid moved out of `app/[lang]/(app)/dashboard/page.tsx` into
+`components/dashboard/dashboard-grid.tsx`, and `/{lang}/calendar` now serves
+**two pages**: a guest keeps the plain public month view, a signed-in viewer
+(`can(role, "workspace:access")` — the same predicate the `(app)` layout
+enforced, so nothing became visible to a role that could not already see it)
+gets the grid. The grid carries its own month view and holiday panel, so the
+two are never rendered together. Every card keeps its own `<Suspense>` +
+`CardBoundary`; that per-card isolation is why one failing card cannot take the
+page down (§30.7) and it would have been easy to lose in a move.
+
+**The trap this created, and why three changes had to land in one commit.**
+`/{lang}` redirected signed-in viewers to `signedInLandingTarget()`, which
+returned `/{lang}/dashboard`. Making `/dashboard` redirect to `/` would have
+produced an **infinite redirect loop for every signed-in visitor on the whole
+site**, not one page. So: the homepage's redirect is gone, `signedInLandingTarget()`
+returns `/{lang}`, and `homeHrefFor()` is gone entirely (home is `/` for
+everyone, so `navFor()`'s per-role override and `Logo`'s `role` prop went with
+it). Verified rather than argued — `/th` and `/th/dashboard` curled for all five
+roles, **every result exactly one hop**, `/th` 200 throughout.
+
+`/{lang}/dashboard` is kept as a `redirect()` rather than deleted: it is the old
+sign-in landing target, sits in bookmarks, and is still written into
+notification links by `0036`/`0039`. It stays inside the `(app)` group on
+purpose, so its layout still sends a guest to `/login` rather than bouncing them
+around the public site.
+
+**Four collateral breakages found while moving, each fixed rather than left:**
+the calendar card's month arrows pointed at `/{lang}/dashboard`, which would now
+redirect and drop the `?month=` param; the attendance "back to dashboard" link
+and its dictionary key; the `revalidatePath()` targets in
+`actions/{activities,attendance}.ts`, which were refreshing a route that no
+longer renders anything; and `holiday-list.tsx`'s "ดูปฏิทินทั้งหมด" link, which
+now sat on the full calendar. `(app)/dashboard/error.tsx` was deleted — the page
+it protected is gone and `app/[lang]/error.tsx` covers the calendar route.
+
+**The homepage banner carousel (`0065_site_banners.sql`).** `/{lang}` leads with
+a carousel of images tagged with an academic year and เทอม, newest first, arrows
+as plain `<Link>`s driven by a `?b=` param so paging works with JavaScript
+disabled (§30.9) — the same choice `/calendar`'s month nav already makes. Staff
+(`content:manage` — `aft`/`teacher`/`admin`) additionally get an upload panel,
+a publish step, and a delete dialog that asks for the year + เทอม and then the
+typed `"ยืนยัน"`, reusing the confirm-text pattern from
+`attendance-confirm-form.tsx` and `signature-flow.tsx`. Upload is the two-phase
+flow `components/activities/banner-manager.tsx` already established (browser →
+Storage direct, the action carries only the path — Server Actions cap at 1MB).
+
+**Draft is a real state, not a flag, and that is what the CHECK enforces.** A
+Facebook post carries no year and no เทอม, so an imported banner cannot be
+described well enough to publish and an admin fills those in.
+`site_banners_published_needs_term` makes that an invariant rather than a form
+rule; combined with `site_banners_select_published` (anon sees published rows
+only) it gives **published ⇒ visible ⇒ fully described** — the same shape
+`books_published_needs_pdf` (0053) gives the shelf.
+
+**Column grants do the work RLS cannot**, the `0055`/`0061` lesson applied up
+front rather than after a live finding: a `WITH CHECK` clause only ever sees the
+NEW row, so no policy can say "this column must not change". `storage_path`,
+`source`, `facebook_post_id`, `created_by` and `published_at` are all
+un-updatable. `source` and `facebook_post_id` are granted to **nobody at all**,
+so only the importer's service-role client can create a row claiming a Facebook
+origin — a staff member cannot dress an upload up as one, and cannot write the
+dedupe key to make the next poll skip a real post. Verified against
+`information_schema.column_privileges` after applying, not assumed from the
+migration text.
+
+**A trap specific to this feature, worth naming**: staff hold *both*
+`site_banners_select_published` and `site_banners_select_staff`, and permissive
+policies OR together — so a signed-in staff member visiting the homepage would
+have seen their own unreviewed drafts rendered on the **public** carousel if the
+query leaned on RLS alone. `listPublishedBanners()` filters `status` explicitly
+for that reason. Same shape as `0038`'s `list_notifications` restating scope
+because `notifications_all_admin` was broader than the app's meaning of "mine".
+
+**Facebook import.** `services/facebook-banner.ts` fetches the Page's newest
+photo via the Graph API, **copies the image into our own bucket** and inserts it
+as `source = 'facebook'`, `status = 'draft'`, deduped on `facebook_post_id`.
+Copying rather than hotlinking is load-bearing: Facebook's CDN URLs are signed
+and short-lived and the Page token expires in ~60 days, so a homepage pointing
+straight at them would go blank on its own schedule. Triggered by a route
+handler a Vercel Cron calls daily, **not** on page load — the homepage must
+never wait on Facebook. The route is fail-closed on a `CRON_SECRET` bearer, the
+same shape as `/api/push/dispatch`: an endpoint that makes the server fetch and
+store a remote image is not one to leave open.
+
+**Why a daily poll and not a Meta Webhook** (asked directly, considered rather
+than dismissed): a webhook needs a Meta App, an App Secret, HMAC
+`X-Hub-Signature-256` verification on every delivery, a public callback
+answering `hub.challenge`, and App Review. It does **not** remove the Page token
+either — the `feed` payload carries a post id, not a usable image URL — and
+because Meta drops deliveries a webhook design still needs a polling fallback.
+Strictly more machinery for latency worth nothing on a banner that changes a few
+times a year.
+
+`FACEBOOK_PAGE_ID`/`FACEBOOK_PAGE_ACCESS_TOKEN` are deliberately **not** in
+`lib/env-guard.ts`: unset means "no Facebook banner", which is real graceful
+degradation — the same argument that file already makes for the VAPID keys, and
+the opposite of the SMTP/Turnstile/Google case, where a missing value is a
+locked front door. Do not "fix" that inconsistency without reading the comment.
+
+**Verified live this pass, via the Supabase MCP:** `0065` applied, and
+`supabase/tests/0065_site_banners_test.sql` run against the hosted project —
+**22/22, self-rolling-back, zero residue confirmed after** (0 banners, the
+temporarily-flipped `aft` profile back to `student`). The cases that carry the
+design: a `student` and `anon` are refused; `aft`, `teacher` and `admin` are
+allowed; `term = 3` and an out-of-range year are refused by their CHECKs;
+publishing without a year or เทอม is refused with `23514` both on INSERT and on
+a later UPDATE; a student sees only the published row while staff see the drafts
+too; anon sees **0** drafts; and a duplicate `facebook_post_id` is refused with
+`23505`. Deleting asserts `ROW_COUNT` rather than catching an exception, because
+**RLS FILTERS a DELETE instead of raising** — an exception-based helper reads a
+forbidden delete as "allowed". The helpers record `sqlerrm`, not just SQLSTATE,
+which is what distinguishes an RLS refusal (`42501 new row violates row-level
+security policy`) from a grant refusal (`42501 permission denied for table`) —
+both raise the same code.
+
+**A test-harness trap hit and worth not repeating:** `set local
+request.jwt.claims` inside a helper **outlives that helper's `reset role`**, so
+a later statement meant to run as a migration still saw the previous actor's
+`auth.uid()` — and `prevent_role_self_escalation` correctly refused a teacher
+changing anyone's role. The fix is `set_config('request.jwt.claims', null,
+true)` before the flip, since the carve-out that path relies on is
+`auth.uid() is null`. It looked like a policy bug and was a fixture bug.
+
+`npx tsc --noEmit`, `npm run lint` and `npm run build` all pass clean.
+Dictionary parity checked programmatically (850 keys per locale; the round trip
+was diffed against `HEAD` to prove nothing was silently dropped — exactly three
+keys added, one renamed). `npm run check:responsive` 72/72 on public pages, plus
+a separate 3-breakpoint × 2-theme CDP pass over the authenticated
+`/th/calendar` (which the script skips for want of credentials): zero horizontal
+overflow, and `window.innerWidth` asserted against the requested width every
+time so a silent emulation no-op fails loudly. Task 1 was proven in a real
+browser rather than by reading the JSX: the day sheet was opened over CDP, the
+add form shown, and the DOM read back — **0** `input[type="time"]`, four
+`<select>`s with 25/61 options and correct Thai `aria-label`s, and setting
+13 + 45 wrote `startTime=13:45` into the hidden field.
+
+**Not verified, stated plainly:** **no image has ever been uploaded to this
+bucket and the Facebook fetch has never run.** This session cannot reach
+Facebook (the proxy denies `CONNECT`, as it does to `*.supabase.co` and the
+Vercel domains), so the Graph call, the image copy, and a real
+`createSignedUrl`-free public object URL are all unexercised — the same gap
+`0053` left for book PDFs. The cron route is proven to **reject** (`401` with no
+header and with a wrong bearer); the accept path was not exercised. The rendered
+carousel, upload panel and delete dialog were checked with the `dev_role` cookie
+stub against an empty table, so the empty state is what actually rendered.
+`docs/facebook-banner.md` names the exact log line for each failure mode,
+because the import deliberately fails soft.
+
 
 ### ❌ Remaining
 
@@ -3104,6 +3267,25 @@ allow-list outages above.
   without reading its comment. `SUPABASE_JWT_SECRET` is NOT among them and can
   be deleted from Vercel; nothing reads it since the self-minted-JWT design was
   abandoned.
+* **The Facebook banner import is built but has never run.** Three server-only
+  vars have to be set in Vercel before it does anything:
+  `FACEBOOK_PAGE_ID`, `FACEBOOK_PAGE_ACCESS_TOKEN` and `CRON_SECRET`.
+  Deliberately **not** build-required (see the §0 entry) — unset means "no
+  Facebook banner", and uploading by hand works regardless. Once set, confirm
+  the accept path of `/api/banners/facebook`, which is the one branch this
+  session could not exercise: the reject path (`401` on a missing and on a
+  wrong bearer) is proven, the success path is not.
+* **A long-lived Page token expires in ~60 days.** When it does the fetch fails,
+  the log says so, and every already-imported banner keeps working, because the
+  image was copied into our own bucket rather than hotlinked. A System User
+  token is the only non-expiring option and needs a Business Manager. This is
+  the one part of the banner feature with a scheduled maintenance cost.
+* **No image has ever been uploaded to the `site-banners` bucket**, so the
+  public object URL, the MIME/size limits and the two-phase upload have not been
+  exercised against real Storage — the same gap `0053` still leaves for book
+  PDFs. First thing to confirm after deploy: a staff upload lands, publishing
+  with a year + เทอม makes it visible to a signed-out visitor, and the arrows
+  page correctly with more than one banner.
 * **Correction to this section's own prior claim**: it used to say
   "`project_drafts` (Projects workflow) ... Plus Documents digital-signature
   ... none of those phases started." That was wrong by the time it was
@@ -3331,7 +3513,10 @@ Guest = read-only official content.
 
 ### Authenticated
 
-* Dashboard
+* Dashboard — **no longer a page.** `/{lang}/dashboard` is a `redirect()` to
+  `/{lang}`; the §8 card grid renders on `/{lang}/calendar` for a signed-in
+  viewer. Kept as a redirect because it is the old sign-in landing target and
+  `0036`/`0039` still write it into notification links.
 * Profile
 * Notifications
 * Members
@@ -3428,6 +3613,12 @@ Include:
 * Quick Actions
 
 Dashboard must be responsive and visually balanced.
+
+**Where it renders:** `components/dashboard/dashboard-grid.tsx`, shown on
+`/{lang}/calendar` to a viewer holding `workspace:access`. A guest gets the
+plain public month view on that same route instead; the grid carries its own
+month view and holiday panel, so the two are never both on the page. There is
+no `/{lang}/dashboard` page any more — see §5.
 
 ---
 
@@ -3751,13 +3942,17 @@ books               content_blocks
 notifications       notification_reads push_subscriptions
 qr_sessions         qr_scan_attempts   audit_logs
 announcements       activity_banners   activity_editors
-password_setup_tokens
+password_setup_tokens                  site_banners
 ```
 
 All of §20's original list now exists. `password_setup_tokens` (0064) is the
 one table that was never in it: it holds the SHA-256 of the password-setup
 link this app emails itself, and nothing but the service-role client may
 touch it (no policies, no grants — the `qr_scan_attempts` shape).
+`site_banners` (0065) is the other: the homepage banner carousel. Do not
+confuse it with `activity_banners` (0063), which is photos attached to one
+activity — different table, different bucket, different write boundary
+(per-activity co-editor there, `content:manage` here).
 
 Deviations from the original list, deliberate and already shipped:
 
