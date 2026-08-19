@@ -18,9 +18,19 @@ function deniedRedirectTarget(_role: Role, lang: Locale): string {
   return `/${lang}/login`;
 }
 
-/** Where an already-signed-in viewer belongs instead of a guest-facing page (homepage, login, signup). */
+/**
+ * Where an already-signed-in viewer belongs after sign-in, or instead of a
+ * guest-facing page (login, signup).
+ *
+ * The homepage is NOT one of those pages any more. /{lang}/dashboard was
+ * folded into /{lang}/calendar and now redirects to `/`, so a home page that
+ * still bounced signed-in viewers here would redirect them straight back --
+ * an infinite loop taking down the whole site, not one page. The three
+ * changes that avoid it (this target, the removed home redirect, and
+ * navigation.ts#homeHrefFor) belong together; do not revert one alone.
+ */
 export function signedInLandingTarget(_role: Role, lang: Locale): string {
-  return `/${lang}/dashboard`;
+  return `/${lang}`;
 }
 
 

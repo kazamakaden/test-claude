@@ -93,7 +93,7 @@ export function MobileNav({
       <SheetContent side="left" className="w-3/4 p-0">
         <SheetHeader className="border-b border-border">
           <SheetTitle render={<div />}>
-            <Logo lang={lang} role={role} />
+            <Logo lang={lang} />
           </SheetTitle>
         </SheetHeader>
         <nav aria-label={dict.common.mainNav} className="flex-1 overflow-y-auto p-4">

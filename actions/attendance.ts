@@ -51,7 +51,7 @@ export async function recordAttendanceAction(
   // Only a real check-in refreshes anything. Every other outcome left the
   // database untouched, so revalidating would be a wasted render.
   if (outcome === "recorded") {
-    revalidatePath(`/${lang}/dashboard`);
+    revalidatePath(`/${lang}/calendar`);
     revalidatePath(`/${lang}/activities`);
   }
 

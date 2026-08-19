@@ -8,7 +8,8 @@ import { isChunkLoadError, recoverFromChunkError } from "@/lib/chunk-error";
 // Next's error.tsx boundary only receives {error, reset} — no route params —
 // so this fallback (the last resort for any route under [lang] whose own
 // throw wasn't caught by a page-local CardBoundary) is intentionally
-// untranslated, same reasoning as (app)/dashboard/error.tsx's own comment.
+// untranslated: error.tsx receives no route params, so there is no `lang`
+// to load a dictionary with.
 export default function RouteError({
   error,
   reset,

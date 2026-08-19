@@ -84,8 +84,8 @@ export function AttendanceConfirmForm({
         {/* buttonVariants on the Link, not <Button asChild>: this project's
             Button is Base UI's, which has no asChild -- alert-dialog.tsx uses
             the same approach. */}
-        <Link href={`/${lang}/dashboard`} className={buttonVariants({ variant: "outline" })}>
-          {d.backToDashboard}
+        <Link href={`/${lang}/calendar`} className={buttonVariants({ variant: "outline" })}>
+          {d.backToCalendar}
         </Link>
       </div>
     );

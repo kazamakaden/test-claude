@@ -61,7 +61,7 @@ export async function CalendarCard({
           <CalendarMonthNav
             month={month}
             todayIso={today.toISOString()}
-            pathname={`/${lang}/dashboard`}
+            pathname={`/${lang}/calendar`}
             lang={lang}
             dict={dict}
           />
