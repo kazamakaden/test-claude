@@ -200,6 +200,60 @@ this repo:
 
 ### Google sign-in setup
 
+**Two flows exist right now, on purpose.** The live one still goes through
+Supabase's hosted OAuth (`signInWithOAuth`). A second, app-owned flow is built
+and deployed at `/{lang}/auth/google/start` but is **not wired to the login
+button yet** — sign-in is the highest-consequence path in the app, and the new
+flow cannot be exercised from a build environment that can reach neither Google
+nor the deployed site. It gets proven on a real browser first, then the button
+switches and the old path is removed.
+
+#### The app-owned flow (new)
+
+```
+/{lang}/auth/google/start   our route: PKCE + state + nonce, our client id
+      → Google consent
+      → /th/auth/google/callback   our route, our domain, our client secret
+      → verify id_token against Google's JWKS
+      → supabase.auth.signInWithIdToken(...)  → normal Supabase session
+```
+
+Supabase still **issues** the session, which is the point: `auth.uid()` and all
+83 RLS policies behave exactly as before, and this app owns no signing key. (An
+earlier design had the app mint its own JWTs; the project moved to ECC signing,
+so the private key never leaves Supabase — and that responsibility was the wrong
+one to take on regardless, since it fails *open* when wrong.)
+
+What the app enforces itself, in `lib/google-oauth.ts`:
+
+* **`state`** in an httpOnly cookie, compared on return — CSRF on the callback
+* **`nonce`** we generate, asserted inside the returned `id_token` — this is
+  what stops a token obtained elsewhere being replayed into our callback
+* **PKCE S256** — the verifier never leaves our server
+* **signature, issuer, audience and expiry** against Google's JWKS
+* **`email_verified === true` and the `@udontech.ac.th` suffix**, server-side,
+  before any row is touched. `hd` is only a hint to Google's account picker —
+  a user can pick any account, and Google does not enforce it.
+
+Setup, both dashboards:
+
+1. **Google Cloud Console** → Credentials → your OAuth client → Authorised
+   redirect URIs, one per domain: `https://<domain>/th/auth/google/callback`
+   (plus `http://localhost:59500/th/auth/google/callback` for dev). The `/th`
+   is fixed — Google matches `redirect_uri` exactly, so the viewer's real
+   locale travels in a cookie rather than the path.
+2. **Supabase** → Authentication → Providers → Google → **enabled**, with the
+   same client id under *Authorized Client IDs* so `signInWithIdToken` accepts
+   our tokens.
+
+Then set `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` (see `.env.example`).
+They are deliberately **not** enforced by `lib/env-guard.ts` yet — the flow is
+not on the login button, so a missing value degrades to "that URL doesn't work"
+rather than breaking sign-in. They move to required in the same change that
+flips the button.
+
+#### The Supabase-hosted flow (still live)
+
 Two dashboards, no credential enters this repo:
 
 1. **Google Cloud Console** → APIs & Services → Credentials → Create OAuth
