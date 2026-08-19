@@ -2917,6 +2917,127 @@ folder whose name starts with `_` is a **private folder**, excluded from
 routing — `app/api/__selftest` 404'd until it was renamed.
 
 
+**Captcha and Google sign-in both moved out of Supabase and into this app
+(PRs #36, #40, #41). Both proven live the same day.**
+
+**The captcha was never actually being checked.** `grep siteverify` over the
+whole repo returned nothing. `readCaptchaToken` (`actions/auth.ts`) tested only
+that the form field was **non-empty**, then handed the token to Supabase, whose
+project-level CAPTCHA did the real verification. Once `0064` removed
+`resetPasswordForEmail`, `requestPasswordReset` checked presence and then
+**discarded** the token — so a `POST` carrying `cf-turnstile-response=x` sailed
+through the gate in front of the endpoint that makes the server send mail. Its
+only real protection was the 3-per-15-minutes mint throttle.
+
+`lib/turnstile-server.ts` now calls Cloudflare's `siteverify` directly and
+**fails closed** on a non-200, malformed JSON, a network error or a timeout,
+logging the `error-codes` array so a wrong secret is diagnosable rather than
+silent. `TURNSTILE_SECRET_KEY` is build-required, same tier as SMTP.
+
+Two ordering facts that are not obvious and will bite anyone who repeats this:
+a Turnstile token is **single-use**, so verifying it here *and* forwarding it to
+Supabase makes Supabase's check fail — which is why **Supabase's project-level
+CAPTCHA must be turned OFF, and turned off FIRST**. Doing it the other way round
+sends no token to a Supabase that still demands one and every sign-in fails. The
+gap between the two costs nothing, since the old presence check was never real
+protection anyway.
+
+The hostname returned by siteverify is compared against the **current request's
+own host**, deliberately not a hardcoded list. This project has lost sign-in
+twice to stale hostname allow-lists — Cloudflare's widget list (error 110200 on
+a second Vercel domain) and Supabase's redirect URLs — and a third list that
+silently breaks login on a new domain is the mistake worth not repeating.
+Cloudflare already refuses to render the widget on an unlisted hostname, so this
+is defence in depth, not the primary control.
+
+**Google sign-in now runs on the college's own OAuth client, with the callback
+on this app's own domain.** Previously `signInWithOAuth` ran the whole dance on
+Supabase's side with Supabase's Google app, putting two things outside this
+app's control that had each already broken sign-in in production. Now
+`app/[lang]/auth/google/start` builds the authorize URL (PKCE S256, `state`,
+`nonce`), `app/[lang]/auth/google/callback` exchanges the code and verifies the
+`id_token` against Google's JWKS, and only the finished identity is handed to
+Supabase via `signInWithIdToken`.
+
+**Where the line sits is the whole design.** Supabase still ISSUES the session,
+so `auth.uid()` and all 83 RLS policies behave exactly as before and this app
+owns no signing key. `redirect_uri` is fixed to `/th/...` regardless of the
+viewer's locale — Google matches it exactly, so a per-locale path would mean two
+URLs per domain and would silently break the day a third locale is added; the
+real locale travels in a cookie. The domain rule moved with the flow and got
+**stronger**: it used to rest on `profiles.email`'s CHECK failing an insert
+after the fact, and now an unverified or non-college address is refused before
+any row is touched. `hd` was never enforcement — Google does not enforce it.
+
+**The design that did NOT happen, and why that is the better outcome.** The
+approved plan was to mint our own session JWTs with the project's symmetric JWT
+secret. A gate was built to prove PostgREST would accept them — and then the
+project moved to **ECC (asymmetric) JWT signing**, where Supabase holds the
+private key and never releases it. The premise cannot be satisfied at all. Worth
+recording as a relief rather than a setback: token signing is the one part of
+this stack that fails **OPEN** when wrong, with 38 of 83 policies downstream of
+`auth.uid()`. A subtly wrong token would not error — every owner-scoped policy
+would quietly return zero rows, or the wrong ones.
+
+**Verification.** Both were proven against production the same day, by
+database evidence rather than by a page looking right: the captcha by a
+`/th/forgot-password` submission minting `password_setup_tokens` row 3 at
+`07:59:09` (baseline 2) with the mail arriving, which exercises `siteverify`
+and the SMTP path together; the OAuth flow by a real sign-in moving
+`auth.users.last_sign_in_at` to `07:50:12`, checked 47 seconds later so it could
+not be a leftover session. The flow was merged **alongside** the working
+Supabase path and reachable only by typing its URL, then switched once proven —
+sign-in is the one path that locks everyone out, and this environment can reach
+neither Google nor the deployed site.
+
+Offline, `checkGoogleClaims()` was split out of the JWKS call so the claim rules
+could be exercised without a live Google: **29/29**, including a token signed by
+a **different key**, `alg:none`, wrong audience, wrong issuer, expired, nonce
+mismatch, an **absent nonce claim against an empty expected nonce** (a missing
+cookie must never be equivalent to a passing check), `email_verified: false`,
+`gmail.com`, and a lookalike domain `evil-udontech.ac.th.attacker.com` — all
+refused; plus `code_challenge` asserted to equal `sha256(verifier)` and the
+verifier asserted never to appear in the authorize URL. Turnstile got the same
+treatment: 11/11 branches with a stubbed `fetch` (Cloudflare is unreachable from
+the build environment), then two further runs with the secret removed to prove
+both no-secret branches — development skips with a warning, production refuses
+every token.
+
+**Three things that cost real time and are worth not rediscovering:**
+
+1. **Route Handlers are outside `middleware.ts`'s matcher** (it skips `/api`),
+   and middleware is what refreshes the Supabase session cookie. So a direct hit
+   on `/api/...` can see a **signed-out caller while the site shows that person
+   signed in**. An admin-session gate on a diagnostic endpoint was unusable for
+   exactly this reason.
+2. **A 404 without `cache-control: no-store` gets cached by the browser** and
+   every later attempt is served from cache without reaching the server. This
+   looked precisely like a broken deployment and sent several rounds chasing a
+   deploy problem that did not exist. Incognito behaving differently from a
+   normal window is the tell.
+3. **A pre-check that aborts the run is worse than no pre-check.** The JWT gate
+   returned early when its offline secret check failed, which stopped it before
+   the two checks that actually decided anything — and its diagnosis conflated
+   "this is not a JWT at all" with "wrong secret", pointing at the wrong
+   variable. Both fixed, but the shape is general: a convenience check must not
+   gate the real one.
+
+**A prediction that was wrong, recorded because the process was right.** The
+prime suspect for a captcha failure was `remoteip` (taken from
+`x-forwarded-for`, which Cloudflare validates against the IP that solved the
+challenge). It works fine in production. Testing before changing avoided an
+unnecessary edit to working code — the alternative would have been shipping an
+untested change to fix an unconfirmed problem.
+
+**Not verified:** a sign-in through the **login button** itself. The proof above
+came from opening `/th/auth/google/start` directly, before the button was
+switched. Also unconfirmed: whether
+`test-claude-ka-600a.vercel.app/th/auth/google/callback` is registered in Google
+Console — sign-in was proven only on `swart-delta`, and a missing URI fails that
+domain with `redirect_uri_mismatch`, the same shape as the two hostname
+allow-list outages above.
+
+
 ### ❌ Remaining
 
 * **RLS policy performance (`auth_rls_initplan`, `multiple_permissive_policies`)**
@@ -2964,23 +3085,25 @@ routing — `app/api/__selftest` 404'd until it was renamed.
   therefore higher than when this bullet was first written, not the same.
   Still not fixable without a paid-plan upgrade, which is a billing decision
   for the user, not something to change unilaterally.
-* **Custom SMTP (Resend) — no longer on the critical path, and mostly
-  obsolete.** Password-setup and password-reset mail left Supabase entirely
-  (see the SMTP entry in Done above); what still goes through Supabase's
-  mailer is **signup confirmation only**, which is low volume and tolerates
-  the ~2/hour built-in cap. Re-entering the Resend credentials is therefore
-  optional rather than pending work. If it is ever done: Authentication →
-  Emails → SMTP Settings, host `smtp.resend.com`, port `465`, sender
-  `noreply@udontech.ac.th` / "AFT UDONTECH", username `resend`, the API key
-  as the password — and check `resend._domainkey.udontech.ac.th` resolves
-  first, since it still did not last time this was looked at.
-* **The three SMTP_* variables must be set in Vercel before the next
-  production deploy** — `lib/env-guard.ts` now fails the build without them
-  (deliberately; see Done). `SMTP_USER`, `SMTP_PASSWORD` (a 16-character
-  Google App Password, which requires 2-Step Verification on the sending
-  account) and `SMTP_FROM`. The App Password is the user's to generate and
-  paste; it must never be handled by an agent session or written to the
-  repo, exactly as the Resend key was kept out.
+* **Two secrets were pasted into a chat transcript and should be treated as
+  leaked** — the Google OAuth **client secret** and the Cloudflare Turnstile
+  **secret key**. Rotate both (Google Cloud Console → Credentials → Reset
+  Secret; Cloudflare → Turnstile → the widget → rotate). The Google one is now
+  load-bearing for **every** sign-in, so rotating it means updating Supabase's
+  Google provider *and* Vercel in the same sitting, in that order, or sign-in
+  breaks in between.
+* **Six env vars are now production-build-required, all set and confirmed
+  working** — `lib/env-guard.ts` fails a Vercel production build without any of
+  them, deliberately: `SMTP_USER` / `SMTP_PASSWORD` / `SMTP_FROM` (setting a
+  password is the only route into an account that has none),
+  `TURNSTILE_SECRET_KEY` (the app verifies captcha tokens itself now), and
+  `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` (Google is the only way in). Each
+  is in the guard for the same reason: a missing value is a locked front door,
+  not the graceful degradation a missing VAPID key gives. The same file argues
+  the opposite case for push, on purpose — do not "fix" that inconsistency
+  without reading its comment. `SUPABASE_JWT_SECRET` is NOT among them and can
+  be deleted from Vercel; nothing reads it since the self-minted-JWT design was
+  abandoned.
 * **Correction to this section's own prior claim**: it used to say
   "`project_drafts` (Projects workflow) ... Plus Documents digital-signature
   ... none of those phases started." That was wrong by the time it was
