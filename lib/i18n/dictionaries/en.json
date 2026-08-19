@@ -35,6 +35,7 @@
         "add": "Upload banner",
         "uploading": "Uploading...",
         "tooLarge": "That file is larger than 5 MB",
+        "unsupportedType": "Only JPG, PNG or WebP files are supported.",
         "limit": "JPG, PNG or WebP, up to 5 MB",
         "draftBadge": "Draft",
         "publishedBadge": "Published",
@@ -62,6 +63,7 @@
         "errors": {
           "invalidInput": "That input is not valid",
           "forbidden": "You do not have permission to do that",
+          "uploadFailed": "Upload failed. Check the file and try again.",
           "confirmTextMismatch": "Please type \"ยืนยัน\" exactly",
           "unknown": "Something went wrong. Please try again."
         }

@@ -18,6 +18,14 @@ import type { Dictionary } from "@/types/i18n";
 
 const MAX_BYTES = 5 * 1024 * 1024;
 
+// Keys are exactly 0065's allowed_mime_types; values are the extensions
+// bannerStoragePathSchema accepts. Both ends of the upload read this one map.
+const EXTENSION_BY_TYPE: Record<string, string> = {
+  "image/jpeg": "jpg",
+  "image/png": "png",
+  "image/webp": "webp",
+};
+
 /**
  * Staff-only banner management, rendered under the homepage carousel.
  *
@@ -64,21 +72,43 @@ export function BannerManagePanel({
       return;
     }
 
+    // Extension from the MIME TYPE, never the file name. `accept` is a hint the
+    // picker can be talked out of, and a name like "photo.jpe" or one with no
+    // dot at all would build a path that Storage happily accepts and
+    // bannerStoragePathSchema then rejects -- leaving an object in a PUBLIC
+    // bucket with no row pointing at it, unreachable by the app's own delete
+    // (which deletes by row). Deriving it from the type the bucket already
+    // validates makes client and server agree by construction.
+    const ext = EXTENSION_BY_TYPE[file.type];
+    if (!ext) {
+      toast.error(d.unsupportedType);
+      return;
+    }
+
     setUploading(true);
+    const supabase = createClient();
+    const path = `${crypto.randomUUID()}.${ext}`;
     try {
-      const ext = file.name.split(".").pop()?.toLowerCase() || "jpg";
-      const path = `${crypto.randomUUID()}.${ext}`;
-      const { error } = await createClient()
-        .storage.from("site-banners")
+      const { error } = await supabase.storage
+        .from("site-banners")
         .upload(path, file, { contentType: file.type, upsert: false });
 
       if (error) {
-        toast.error(d.errors.forbidden);
+        // Not necessarily a permission problem -- the bucket also refuses on
+        // size and MIME, and the network can simply fail. Saying "forbidden"
+        // for all three sends a staff member hunting for a role problem.
+        toast.error(d.errors.uploadFailed);
         return;
       }
 
       const result = await createBannerAction(lang, path);
       if (!result.ok) {
+        // The object is already in a public bucket and nothing references it,
+        // so nothing in the app could ever clean it up. Roll it back here --
+        // services/facebook-banner.ts already does exactly this on its own
+        // failed insert, and the path a human uses should not be the careless
+        // one.
+        await supabase.storage.from("site-banners").remove([path]);
         toast.error(d.errors[result.messageKey as keyof typeof d.errors] ?? d.errors.unknown);
         return;
       }
