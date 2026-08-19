@@ -326,32 +326,28 @@ export async function updatePassword(
 }
 
 /**
- * The single sign-in/sign-up entry point — restricted to @udontech.ac.th.
- * `hd` is a UI hint to Google's account picker only — it is NOT enforcement
- * and a user can bypass it by picking a different account than the one it
- * suggests. The actual boundary is profiles.email's CHECK constraint
- * (0001), which a non-college address fails at signup, plus the explicit
- * re-check in the callback route as defence in depth. Bound to the login
- * form's `action` (not an onClick handler) so it still works — as a real
- * redirect-driving POST — with JavaScript disabled.
+ * The single sign-in entry point — restricted to @udontech.ac.th.
+ *
+ * Hands off to this app's OWN Google flow (app/[lang]/auth/google/start).
+ * Until now this called supabase.auth.signInWithOAuth(), which ran the OAuth
+ * dance on Supabase's side with Supabase's Google app — putting two things
+ * outside this app's control that have each broken sign-in in production:
+ * Supabase's redirect-URL allow-list, and which Google app owned the consent
+ * screen. Now the app runs it with the college's own client and hands Supabase
+ * only the verified identity (signInWithIdToken), so Supabase still issues the
+ * session and every RLS policy is untouched.
+ *
+ * The domain rule moved with it and got stronger. It used to rest on
+ * profiles.email's CHECK constraint failing an insert after the fact; now
+ * lib/google-oauth.ts rejects a non-college or unverified address before any
+ * row is touched — `hd` remains a hint to Google's account picker, which
+ * Google does not enforce.
+ *
+ * Still bound to the login form's `action` rather than an onClick handler, so
+ * it works as a real POST with JavaScript disabled (§30.9).
  */
 export async function signInWithGoogle(lang: Locale) {
-  const origin = await resolveOrigin();
-  const supabase = await createClient();
-
-  const { data, error } = await supabase.auth.signInWithOAuth({
-    provider: "google",
-    options: {
-      redirectTo: `${origin}/${lang}/auth/callback`,
-      queryParams: { hd: "udontech.ac.th", prompt: "select_account" },
-    },
-  });
-
-  if (error || !data?.url) {
-    redirect(`/${lang}/login?error=oauthFailed`);
-  }
-
-  redirect(data.url);
+  redirect(`/${lang}/auth/google/start`);
 }
 
 /**
