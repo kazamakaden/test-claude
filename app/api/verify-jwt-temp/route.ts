@@ -64,17 +64,47 @@ export async function GET(request: Request) {
   const results: { name: string; ok: boolean; detail: string }[] = [];
   const record = (name: string, ok: boolean, detail: string) => results.push({ name, ok, detail });
 
-  // 1. Offline: is the secret even right? Cheap and decisive — a wrong secret
-  // makes every check below fail for a reason that looks like a server problem.
-  const knownJwt = process.env.SUPABASE_LEGACY_ANON_KEY ?? "";
+  // 0. Shape of the secret itself. A pasted credential goes wrong in boring
+  // ways — a trailing newline, a truncated copy, or the wrong value entirely —
+  // and none of those are visible from a signature mismatch alone.
+  record("0. SUPABASE_JWT_SECRET shape", secret === secret.trim() && secret.length >= 32,
+    `length ${secret.length}` +
+      (secret !== secret.trim() ? " — HAS LEADING/TRAILING WHITESPACE, strip it" : "") +
+      (secret.length < 32 ? " — shorter than any Supabase JWT secret; wrong value?" : "") +
+      (secret.startsWith("sb_") || secret.startsWith("eyJ")
+        ? " — this looks like an API KEY, not the JWT secret"
+        : ""));
+
+  // 1. Offline pre-check: does the secret verify a JWT this project issued?
+  // DELIBERATELY NON-FATAL. An earlier version returned here on failure, which
+  // meant a bad value in SUPABASE_LEGACY_ANON_KEY blocked us from learning the
+  // real answer — the pre-check is a convenience, checks 2 and 3 are the gate.
+  const knownJwt = (process.env.SUPABASE_LEGACY_ANON_KEY ?? "").trim();
   if (knownJwt) {
-    const [h, p, s] = knownJwt.split(".");
-    const ok = Boolean(h && p && s && sign(`${h}.${p}`, secret) === s);
-    record("1. secret verifies a JWT this project issued (offline)", ok,
-      ok ? "the secret is correct" : "signature mismatch — wrong SUPABASE_JWT_SECRET");
-    if (!ok) return NextResponse.json({ results, verdict: "BLOCKED: wrong JWT secret" });
+    const parts = knownJwt.split(".");
+    if (parts.length !== 3) {
+      record("1. offline pre-check", false,
+        `SUPABASE_LEGACY_ANON_KEY is not a JWT (${parts.length} segment(s)). The legacy anon key starts with "eyJ"; a "sb_publishable_..." key is NOT a JWT. This says nothing about the secret.`);
+    } else {
+      let alg = "?";
+      let ref = "?";
+      try {
+        alg = JSON.parse(Buffer.from(parts[0], "base64url").toString()).alg ?? "?";
+        ref = JSON.parse(Buffer.from(parts[1], "base64url").toString()).ref ?? "?";
+      } catch {
+        /* leave as "?" */
+      }
+      const ok = sign(`${parts[0]}.${parts[1]}`, secret) === parts[2];
+      record("1. secret verifies a JWT this project issued (offline)", ok,
+        ok
+          ? "the secret is correct"
+          : `signature mismatch. Key alg=${alg}, project ref=${ref}. ` +
+            (alg !== "HS256"
+              ? "That key is not HS256, so this check cannot apply."
+              : "Either SUPABASE_JWT_SECRET is the wrong value, or this anon key is from a different project. Checks 2-5 below are the real answer either way."));
+    }
   } else {
-    record("1. offline secret check", true, "skipped (SUPABASE_LEGACY_ANON_KEY not set)");
+    record("1. offline pre-check", true, "skipped (SUPABASE_LEGACY_ANON_KEY not set)");
   }
 
   const token = mint(subject, secret, urlBase);
@@ -123,13 +153,19 @@ export async function GET(request: Request) {
   });
   record("5. an expired token is refused", res.status === 401, `HTTP ${res.status}`);
 
+  // The verdict rests on checks 2 and 3 — acceptance AND auth.uid() resolving.
+  // Check 1 is a convenience and check 0 is a paste-error catcher; neither
+  // decides whether Phase B can work.
+  const gate = results.find((r) => r.name.startsWith("2."));
+  const uid = results.find((r) => r.name.startsWith("3."));
   const failed = results.filter((r) => !r.ok);
   return NextResponse.json({
     passed: results.length - failed.length,
     total: results.length,
-    verdict: failed.length
-      ? "BLOCKED — send this output"
-      : "VIABLE — self-minted JWTs are accepted and auth.uid() resolves",
+    verdict:
+      gate?.ok && uid?.ok
+        ? "VIABLE — self-minted JWTs are accepted and auth.uid() resolves"
+        : "BLOCKED — send this output",
     results,
   });
 }
