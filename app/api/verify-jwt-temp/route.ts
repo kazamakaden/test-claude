@@ -36,10 +36,41 @@ function mint(sub: string, secret: string, issuer: string, ttlSeconds = 300) {
   return `${header}.${payload}.${sign(`${header}.${payload}`, secret)}`;
 }
 
+/**
+ * A one-time key, checked instead of a session.
+ *
+ * The admin-session gate proved unusable in practice: Route Handlers are
+ * excluded from middleware (see middleware.ts's matcher), and middleware is
+ * what refreshes the Supabase session cookie -- so a direct hit on /api/... can
+ * see a signed-out caller while the site itself shows them signed in. That is
+ * worth knowing for Phase B independently of this route.
+ *
+ * Safe to hardcode: it guards a diagnostic that returns no secret, no token and
+ * no user data -- only pass/fail per check -- and the whole file is deleted as
+ * soon as it has answered.
+ */
+const ACCESS_KEY = "f333dd756d9850f2db12ccfab7a60180";
+
+const notFound = () =>
+  new NextResponse("Not found", {
+    status: 404,
+    // Without this the browser caches the 404 and every later attempt is
+    // served from cache without reaching the server -- which is exactly what
+    // happened while debugging this route.
+    headers: { "cache-control": "no-store, must-revalidate" },
+  });
+
 export async function GET(request: Request) {
+  const presented = new URL(request.url).searchParams.get("key") ?? "";
+  const keyOk =
+    presented.length === ACCESS_KEY.length &&
+    crypto.timingSafeEqual(Buffer.from(presented), Buffer.from(ACCESS_KEY));
+
+  // Either works. The session path is kept so the earlier URL still functions
+  // for anyone who does have a live session in a normal window.
   const profile = await getSessionProfile();
-  if (profile.role !== "admin") {
-    return new NextResponse("Not found", { status: 404 });
+  if (!keyOk && profile.role !== "admin") {
+    return notFound();
   }
 
   const secret = process.env.SUPABASE_JWT_SECRET ?? "";
@@ -160,6 +191,11 @@ export async function GET(request: Request) {
   const uid = results.find((r) => r.name.startsWith("3."));
   const failed = results.filter((r) => !r.ok);
   return NextResponse.json({
+    admittedVia: keyOk ? "url key" : "admin session",
+    sessionSeenByThisRouteHandler: {
+      userId: profile.userId ? "present" : "none",
+      role: profile.role,
+    },
     passed: results.length - failed.length,
     total: results.length,
     verdict:
