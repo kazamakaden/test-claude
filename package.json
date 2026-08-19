@@ -7,8 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "check:responsive": "node scripts/responsive-check.mjs",
-    "verify:jwt": "node scripts/verify-jwt-minting.mjs"
+    "check:responsive": "node scripts/responsive-check.mjs"
   },
   "dependencies": {
     "@animateicons/react": "^0.4.1",
