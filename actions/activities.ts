@@ -58,7 +58,6 @@ export async function createActivityAction(
   const result = await createActivity(parsed.data, user.id);
   if (!result.ok) return { ok: false, messageKey: "unknown" };
 
-  revalidatePath(`/${lang}/dashboard`);
   revalidatePath(`/${lang}/calendar`);
   return { ok: true };
 }
@@ -88,7 +87,6 @@ export async function updateActivityAction(
   const result = await updateActivity(parsed.data);
   if (!result.ok) return { ok: false, messageKey: "unknown" };
 
-  revalidatePath(`/${lang}/dashboard`);
   revalidatePath(`/${lang}/calendar`);
   return { ok: true };
 }
@@ -102,7 +100,6 @@ export async function deleteActivityAction(lang: Locale, id: string): Promise<De
   const result = await deleteActivity(parsed.data.id);
   if (!result.ok) return { ok: false, messageKey: "unknown" };
 
-  revalidatePath(`/${lang}/dashboard`);
   revalidatePath(`/${lang}/calendar`);
   return { ok: true };
 }

@@ -8,6 +8,7 @@ import { th, enUS } from "date-fns/locale";
 import { Plus, Pencil, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { TimeInput } from "@/components/ui/time-input";
 import { Textarea } from "@/components/ui/textarea";
 import { FormField, FormLabel, FormError } from "@/components/ui/form";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetFooter } from "@/components/ui/sheet";
@@ -98,11 +99,22 @@ function ActivityForm({
         <div className="flex gap-3">
           <FormField name="startTime" className="flex-1" invalid={Boolean(errorMessage)}>
             <FormLabel>{d.startTimeLabel}</FormLabel>
-            <Input type="time" name="startTime" defaultValue={timeOf(editing?.startsAt ?? null)} required />
+            <TimeInput
+              name="startTime"
+              defaultValue={timeOf(editing?.startsAt ?? null)}
+              required
+              hourLabel={`${d.startTimeLabel} — ${d.hourLabel}`}
+              minuteLabel={`${d.startTimeLabel} — ${d.minuteLabel}`}
+            />
           </FormField>
           <FormField name="endTime" className="flex-1">
             <FormLabel>{d.endTimeLabel}</FormLabel>
-            <Input type="time" name="endTime" defaultValue={timeOf(editing?.endsAt ?? null)} />
+            <TimeInput
+              name="endTime"
+              defaultValue={timeOf(editing?.endsAt ?? null)}
+              hourLabel={`${d.endTimeLabel} — ${d.hourLabel}`}
+              minuteLabel={`${d.endTimeLabel} — ${d.minuteLabel}`}
+            />
           </FormField>
         </div>
 

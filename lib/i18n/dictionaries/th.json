@@ -153,6 +153,8 @@
       "titleLabel": "ชื่อกิจกรรม",
       "startTimeLabel": "เวลาเริ่ม",
       "endTimeLabel": "เวลาสิ้นสุด",
+      "hourLabel": "ชั่วโมง",
+      "minuteLabel": "นาที",
       "locationLabel": "สถานที่",
       "descriptionLabel": "รายละเอียด",
       "cancel": "ยกเลิก",
@@ -876,7 +878,7 @@
     "recordedDescription": "ระบบบันทึกการเข้าร่วมกิจกรรมของคุณเรียบร้อยแล้ว",
     "alreadyTitle": "คุณเช็คชื่อไปแล้ว",
     "alreadyDescription": "ระบบบันทึกการเข้าร่วมกิจกรรมนี้ของคุณไว้ก่อนหน้านี้แล้ว",
-    "backToDashboard": "กลับสู่แดชบอร์ด",
+    "backToCalendar": "กลับสู่ปฏิทิน",
     "errors": {
       "invalidToken": "รหัส QR ไม่ถูกต้อง กรุณาสแกนใหม่อีกครั้ง",
       "expired_token": "รหัส QR หมดอายุแล้ว กรุณาสแกนรหัสใหม่บนหน้าจอ",

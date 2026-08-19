@@ -153,6 +153,8 @@
       "titleLabel": "Event title",
       "startTimeLabel": "Start time",
       "endTimeLabel": "End time",
+      "hourLabel": "Hour",
+      "minuteLabel": "Minute",
       "locationLabel": "Location",
       "descriptionLabel": "Description",
       "cancel": "Cancel",
@@ -876,7 +878,7 @@
     "recordedDescription": "Your attendance at this activity has been recorded.",
     "alreadyTitle": "Already checked in",
     "alreadyDescription": "Your attendance at this activity was already recorded.",
-    "backToDashboard": "Back to dashboard",
+    "backToCalendar": "Back to calendar",
     "errors": {
       "invalidToken": "That QR code is not valid. Please scan again.",
       "expired_token": "That QR code has expired. Scan the current code on screen.",

@@ -1,10 +1,9 @@
 import Link from "next/link";
 import Image from "next/image";
-import { redirect } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { getDictionary } from "@/lib/i18n/get-dictionary";
 import { getRole } from "@/lib/auth/get-role";
-import { signedInLandingTarget } from "@/lib/auth/require-role";
+import { can } from "@/lib/auth/permissions";
 import type { Locale } from "@/lib/i18n/config";
 
 export default async function HomePage({
@@ -15,10 +14,11 @@ export default async function HomePage({
   const { lang: rawLang } = await params;
   const lang = rawLang as Locale;
   const [dict, role] = await Promise.all([getDictionary(lang), getRole()]);
+  const signedIn = can(role, "workspace:access");
 
-  if (role !== "guest") {
-    redirect(signedInLandingTarget(role, lang));
-  }
+  // No signed-in redirect here any more. It used to send them to
+  // /{lang}/dashboard; that route now redirects back to `/`, so keeping it
+  // would loop every signed-in visitor on every page of the site.
 
   return (
     <div className="bg-hero relative mx-auto flex min-h-[calc(100dvh-5rem)] max-w-7xl flex-col items-center justify-center gap-8 overflow-hidden rounded-b-3xl px-4 py-20 text-center sm:px-6 lg:px-8">
@@ -43,12 +43,15 @@ export default async function HomePage({
         </p>
       </div>
       <div className="flex flex-wrap items-center justify-center gap-3">
+        {/* A signed-in viewer now lands here rather than being redirected past
+            it, so the primary action cannot be "log in" for everyone. Theirs
+            is the calendar, which carries the dashboard cards. */}
         <Button
           size="lg"
           nativeButton={false}
-          render={<Link href={`/${lang}/login`} />}
+          render={<Link href={signedIn ? `/${lang}/calendar` : `/${lang}/login`} />}
         >
-          {dict.nav.login}
+          {signedIn ? dict.nav.calendar : dict.nav.login}
         </Button>
         <Button
           size="lg"

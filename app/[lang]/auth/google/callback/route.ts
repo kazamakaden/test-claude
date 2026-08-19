@@ -23,7 +23,8 @@ import { isLocale, defaultLocale } from "@/lib/i18n/config";
  * client id, our secret, our callback, on our domain.
  *
  * The redirect target is never caller-supplied — the same property
- * /auth/callback has. It is one of /set-password, /dashboard or /pending, and
+ * /auth/callback has. It is one of /set-password or the signed-in landing
+ * page (now `/`, via signedInLandingTarget), and
  * the locale comes from a cookie we set ourselves, not from a query param.
  */
 function fail(request: NextRequest, lang: string, reason: string, errorKey = "oauthFailed") {

@@ -1,14 +1,13 @@
 import Image from "next/image";
 import Link from "next/link";
-import { homeHrefFor } from "@/lib/navigation";
-import type { Role } from "@/types/auth";
 
-export function Logo({ lang, role }: { lang: string; role: Role }) {
-  const href = homeHrefFor(role);
-
+// Always the homepage. It used to depend on `role`, because a signed-in
+// viewer's home was the dashboard -- that route is gone and `/` now renders
+// for everyone, so there is nothing left to branch on.
+export function Logo({ lang }: { lang: string }) {
   return (
     <Link
-      href={`/${lang}${href === "/" ? "" : href}`}
+      href={`/${lang}`}
       className="flex items-center gap-2 rounded-lg outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
     >
       <Image

@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { CalendarHeart } from "lucide-react";
 import { format } from "date-fns";
 import { th, enUS } from "date-fns/locale";
@@ -56,14 +55,6 @@ export function HolidayList({ feed, lang, dict }: { feed: HolidayFeed; lang: Loc
 
       <HolidayNotice status={status} dict={dict} />
 
-      {upcoming.length > 0 ? (
-        <Link
-          href={`/${lang}/calendar`}
-          className="mt-3 rounded-sm text-sm text-primary underline-offset-4 hover:underline focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
-        >
-          {d.emptyCta}
-        </Link>
-      ) : null}
     </div>
   );
 }
