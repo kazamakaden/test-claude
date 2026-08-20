@@ -59,6 +59,13 @@ const activityTimeField = z
 
 export const createActivitySchema = z.object({
   title: z.string().trim().min(1, { message: "titleRequired" }).max(200),
+  /**
+   * อวท. or ชมรม, chosen at creation. NO .catch() and no default: 0068 makes
+   * the column NOT NULL with no default precisely so a missing category is a
+   * refusal rather than a silent bucket somebody has to notice later, and this
+   * schema must not paper over that.
+   */
+  category: z.enum(["org", "club"], { message: "categoryRequired" }),
   date: activityDateField,
   startTime: activityTimeField,
   endTime: activityTimeField.nullable().catch(null),
@@ -76,6 +83,17 @@ export const updateActivitySchema = createActivitySchema.extend({
 export type UpdateActivityInput = z.infer<typeof updateActivitySchema>;
 
 export const deleteActivitySchema = z.object({ id: z.uuid() });
+
+/**
+ * The confirmation step. `isPublic` is what actually puts the activity in front
+ * of guests; 0068's activities_public_needs_published CHECK refuses a public
+ * draft, so the two move together in one statement.
+ */
+export const publishActivitySchema = z.object({
+  id: z.uuid(),
+  isPublic: z.boolean().catch(true),
+});
+export type PublishActivityInput = z.infer<typeof publishActivitySchema>;
 
 /**
  * Detail-page inputs (0061–0063).

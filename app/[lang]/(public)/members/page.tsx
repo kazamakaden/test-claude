@@ -136,7 +136,7 @@ export default async function MembersPage({
           departments={departments}
           clubs={clubs}
           years={filterOptions.years}
-          classNames={filterOptions.classNames}
+          levels={filterOptions.levels}
           dict={dict}
         />
       </CardBoundary>

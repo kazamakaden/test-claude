@@ -4,7 +4,7 @@ import { emailSchema, newPasswordField } from "@/schemas/auth";
 
 const PER_PAGE = 10;
 
-const sortColumns = ["fullName", "studentId", "academicYear", "className"] as const;
+const sortColumns = ["fullName", "studentId", "academicYear", "studentLevel"] as const;
 
 /**
  * Parses raw searchParams into validated filters. Sort column is whitelisted
@@ -15,7 +15,11 @@ export const membersFiltersSchema = z.object({
   search: z.string().trim().max(100).catch(""),
   departmentId: z.uuid().nullable().catch(null),
   academicYear: z.coerce.number().int().positive().nullable().catch(null),
-  className: z.string().trim().max(50).nullable().catch(null),
+  // The ?class= param is now a ระดับชั้น, whitelisted to the three real
+  // qualifications so an arbitrary string can never reach the query. It used
+  // to be free text matched against profiles.class_name, which nothing ever
+  // populated — see 0069.
+  studentLevel: z.enum(["vocational", "diploma", "bachelor"]).nullable().catch(null),
   clubId: z.uuid().nullable().catch(null),
   sort: z.enum(sortColumns).catch("fullName"),
   direction: z.enum(["asc", "desc"]).catch("asc"),
@@ -33,7 +37,7 @@ export function parseMembersSearchParams(
     search: single(searchParams.search) ?? "",
     departmentId: single(searchParams.dept) ?? null,
     academicYear: single(searchParams.year) ?? null,
-    className: single(searchParams.class) ?? null,
+    studentLevel: single(searchParams.class) ?? null,
     clubId: single(searchParams.club) ?? null,
     sort: single(searchParams.sort) ?? "fullName",
     direction: single(searchParams.dir) ?? "asc",
