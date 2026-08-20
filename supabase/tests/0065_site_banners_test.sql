@@ -152,11 +152,42 @@ end $$;
 do $$
 declare n bigint;
 begin
+  -- Clear the leftover claim first -- see case 21's note. Without this the
+  -- previous helper's `set local request.jwt.claims` is still live, and
+  -- current_role() reads the CLAIM rather than the Postgres role.
+  perform set_config('request.jwt.claims', null, true);
   set local role anon;
   select count(*) into n from public.site_banners where storage_path like 'ZZSB/%';
   reset role;
   -- Only the draft2 row survives case 18, and it is a draft.
   insert into _r values ('19 anon sees drafts',
+    case when n = 0 then 'PASS - 0 rows' else 'FAIL - ' || n || ' rows' end);
+end $$;
+
+-- 19b is a REGRESSION TEST, not a variant of 19. It deliberately holds a staff
+-- JWT claim while switching to the anon Postgres role -- role and claim
+-- disagreeing -- and asserts anon still sees no drafts.
+--
+-- This is what a single merged `to anon, authenticated` SELECT policy fails
+-- (0066, reverted by 0067): its staff clause evaluates for the anon role, and
+-- current_role() answers from the claim. The split policies pass because
+-- site_banners_select_staff is `to authenticated`, so it is unreachable for
+-- anon BY GRANT rather than by trusting role and claim to agree.
+--
+-- PostgREST never lets them diverge for a real request. That is precisely why
+-- this needs a test: the guarantee is structural, and nothing else would notice
+-- it being removed.
+do $$
+declare fx record; n bigint;
+begin
+  select * into fx from _fx;
+  perform set_config('request.jwt.claims',
+    json_build_object('sub', fx.teacher_id, 'role','authenticated')::text, true);
+  set local role anon;
+  select count(*) into n from public.site_banners where storage_path like 'ZZSB/%';
+  reset role;
+  perform set_config('request.jwt.claims', null, true);
+  insert into _r values ('19b anon role + staff claim sees drafts',
     case when n = 0 then 'PASS - 0 rows' else 'FAIL - ' || n || ' rows' end);
 end $$;
 

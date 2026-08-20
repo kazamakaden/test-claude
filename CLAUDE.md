@@ -3200,26 +3200,120 @@ stub against an empty table, so the empty state is what actually rendered.
 `docs/facebook-banner.md` names the exact log line for each failure mode,
 because the import deliberately fails soft.
 
+**Advisor sweep after the banner work: five FK indexes added, one policy merge
+attempted and REVERTED, and two of this file's own claims corrected
+(`0066`/`0067`).**
+
+Both advisor sets were run live rather than trusted from this file, and the
+first result was that **two ❌ Remaining claims here were stale**:
+
+* `auth_rls_initplan` — the bullet said "~10 policies call `auth.uid()`
+  directly". `get_advisors(performance)` returns **zero** such findings; the
+  `rls_initplan` migration (2026-08-12) already fixed them. The bullet is
+  corrected.
+* `assert_report_viewer` "was never added" (recorded in the `0061`–`0063`
+  entry) — it exists in `0058`, in the live catalog, and in
+  `types/database.ts`, and all three report RPCs gate on it, confirmed by
+  reading `pg_proc.prosrc`. That entry recorded a drift the same pass then
+  fixed; §0 is a running log and is not revised, so this is noted here instead.
+
+Every remaining **security** advisory was checked and is by-design or
+plan-gated, so nothing was changed for its own sake: `rls_enabled_no_policy` on
+`password_setup_tokens`/`qr_scan_attempts` is the deliberate no-policy-no-grant
+shape; the SECURITY DEFINER warnings are the app's own RPCs, each of which
+enforces its own authorization (`get_citizen_id` gates on admin, verified);
+leaked-password protection remains Pro-plan-gated.
+
+**Five unindexed foreign keys were real and were fixed** (`0066`), the same
+lint and the same fix as `0015`: `activity_banners.uploaded_by`,
+`activity_editors.granted_by`, `attendance.recorded_by`,
+`content_blocks.updated_by`, and `site_banners.created_by` — the last one
+introduced by `0065` hours earlier, fixed rather than left as a known wart.
+
+**The 18 `unused_index` findings were deliberately NOT acted on**, recorded so
+nobody "fixes" them later by reading the lint without this note: those indexes
+are unused because the project holds almost no production rows yet, not because
+they are pointless — `profiles_full_name_trgm_idx` backs §18 global search and
+`activities_department_idx` backs the §10 filters. Dropping them removes
+exactly what the app needs once it has data.
+
+**The part worth remembering: the `multiple_permissive_policies` merge was
+tried on ONE pair and it was wrong.** `0066` merged `site_banners`' two SELECT
+policies into one, argued as behaviour-preserving, on the grounds that both had
+been written the same day and `0065`'s 22-case matrix could check it. The
+matrix **failed case 19 — anon saw a draft** — and a direct probe isolated why:
+
+    merged policy is `to anon, authenticated`, so its staff clause is evaluated
+    for the anon ROLE too, and current_role() answers from the JWT CLAIM, not
+    the Postgres role.
+      role anon + a stale JWT claim  => current_role() = 'teacher' => drafts visible
+      role anon + no claims (real prod) => 0 drafts, correct
+
+Not exploitable today — PostgREST sets the Postgres role and the claims
+together, so a genuine anon request cannot diverge. But that is exactly what
+the merge threw away: the split makes the staff clause unreachable for anon
+**by grant** (`to authenticated`) rather than by trusting role and claim to
+agree. Trading an enforced boundary for an assumed one, to save a planner pass
+on a table holding double-digit rows, is the wrong side of §28. Reverted in
+`0067`, with the advisor warning left standing on purpose.
+
+`0066`'s own header had cited this risk as the reason not to touch the other
+~23 findings, and then made an exception for this one. **The exception was
+wrong for the same reason the rule is right.** New case **19b** in
+`supabase/tests/0065_site_banners_test.sql` pins it: it holds a staff JWT claim
+while switching to the anon role and asserts zero drafts — the merged policy
+fails it, the split passes. The suite is **23/23** live, self-rolling-back,
+zero residue confirmed after (0 rows, the temporarily-flipped `aft` profile
+back to `student`).
+
+**A harness slip worth naming, because it cost the first diagnosis:** the
+isolation probe ran through `execute_sql` **outside** an explicit transaction,
+so its `do $$` block committed and left one `ZZPROBE/` row behind. Caught and
+deleted in `0067`, and confirmed 0 afterwards. The test suites wrap everything
+in `begin … rollback`; an ad-hoc probe does not unless it says so.
+
+**Two banner-upload defects found by reading the code rather than by a
+failure**, both in the path a human uses. The upload built its object path from
+the **file name's** extension — `accept` is a hint the picker can be talked out
+of, so `photo.jpe`, or a name with no dot, produced a path Storage accepts and
+`bannerStoragePathSchema` then rejects. The extension now comes from the MIME
+type, the same value the bucket itself validates, so client and server agree by
+construction. And when that rejection happened the uploaded object **stayed in
+a public bucket with no row pointing at it**, unreachable by the app's own
+delete (which works by row) — `services/facebook-banner.ts` already rolled its
+object back on a failed insert; the human path now does too.
+
+**The cron route's ACCEPT path is now exercised**, which was the one branch
+left open when the banner work shipped: correct bearer → `200`, and a lowercase
+`authorization: bearer …` also works (Vercel's header casing is not
+guaranteed). The three reject cases — no header, wrong secret, empty bearer —
+all return `401`.
+
 
 ### ❌ Remaining
 
-* **RLS policy performance (`auth_rls_initplan`, `multiple_permissive_policies`)**
-  — ~10 policies across `profiles`/`attendance`/`projects`/`documents`/
-  `document_drafts`/`notifications` call `auth.uid()`/`current_role()`
-  directly instead of `(select auth.uid())`, causing Postgres to
-  re-evaluate the function per row instead of once per query; several
-  tables also stack multiple permissive policies for the same role+action
-  (an inherent side effect of this project's additive "role gets its own
-  policy on top of the base ones" RLS design). Both are real at scale, both
-  are currently harmless (every table here has single-digit-to-low-hundreds
-  rows). Not fixed this pass because both require rewriting the
-  security-critical access-control layer itself — the risk of introducing an
-  actual RLS gap while chasing a query-planner optimization outweighs the
-  current benefit. A correct fix needs its own pass: rewrite each policy,
-  then re-run the full guest/student/aft/teacher/admin × table
-  verification matrix this project has already established the pattern for
-  (see the `0005`/`0008` citizen_id and attendance column-grant proofs
-  above) before trusting it.
+* **RLS policy performance — HALF OF THIS IS DONE, and this bullet's own
+  earlier text was stale.** It claimed "~10 policies ... call `auth.uid()`/
+  `current_role()` directly instead of `(select auth.uid())`". Checked against
+  the live project rather than re-read from here: `get_advisors(performance)`
+  returns **zero** `auth_rls_initplan` findings. The `rls_initplan` migration
+  (applied 2026-08-12) already fixed them. Corrected here rather than left to
+  mislead the next reader into re-doing finished work.
+  What remains is **`multiple_permissive_policies` — ~23 findings** across
+  `activities`/`books`/`documents`/`projects`/`profiles`/`attendance`/
+  `notifications`/`document_drafts`/`announcements`/`signature_records`/
+  `activity_banners`/`site_banners`: an inherent side effect of the additive
+  "each role gets its own policy on top of the base ones" design. Real at
+  scale, harmless at today's row counts. **Still deliberately not fixed, and
+  now with direct evidence rather than caution** — see the `0066`/`0067` entry
+  in §0: merging exactly ONE such pair, on a table written the same day, with a
+  22-case matrix to check it, silently removed a structural guarantee and was
+  reverted. A merged `to anon, authenticated` policy evaluates its staff clause
+  for the anon role, and `current_role()` answers from the JWT claim rather
+  than the Postgres role; the split makes that clause unreachable for anon **by
+  grant**. If this is ever attempted again it needs the full
+  guest/student/aft/teacher/admin × table matrix AND a case per merged pair
+  holding a mismatched role/claim, which is what `0065`'s new case 19b does.
 * **No Content-Security-Policy headers** — §19 asks for XSS protection,
   achieved today via React's default escaping and the absence of any
   `dangerouslySetInnerHTML` (verified this pass, see Done above), but a CSP
