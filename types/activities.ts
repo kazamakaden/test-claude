@@ -85,4 +85,12 @@ export interface MonthActivity {
   startsAt: string;
   endsAt: string | null;
   location: string | null;
+  /** อวท. or ชมรม (0068). Chosen at creation, never null. */
+  category: "org" | "club";
+  /**
+   * draft until someone confirms it (0068). Only staff ever see a draft here —
+   * the SELECT policies hide them from students and guests — so the day sheet
+   * can render the badge unconditionally.
+   */
+  publishStatus: "draft" | "published";
 }

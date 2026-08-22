@@ -122,7 +122,7 @@ export async function getMonthActivities(month: Date): Promise<MonthActivity[]> 
 
   const { data, error } = await supabase
     .from("activities")
-    .select("id, title, description, starts_at, ends_at, location")
+    .select("id, title, description, starts_at, ends_at, location, category, publish_status")
     .gte("starts_at", start)
     .lt("starts_at", end)
     .order("starts_at", { ascending: true });
@@ -136,6 +136,8 @@ export async function getMonthActivities(month: Date): Promise<MonthActivity[]> 
     startsAt: a.starts_at,
     endsAt: a.ends_at,
     location: a.location,
+    category: a.category,
+    publishStatus: a.publish_status,
   }));
 }
 

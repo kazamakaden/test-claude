@@ -5,7 +5,7 @@ import { useFormStatus } from "react-dom";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { th, enUS } from "date-fns/locale";
-import { Plus, Pencil, Trash2 } from "lucide-react";
+import { Plus, Pencil, Trash2, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { TimeInput } from "@/components/ui/time-input";
@@ -27,6 +27,7 @@ import {
   createActivityAction,
   updateActivityAction,
   deleteActivityAction,
+  publishActivityAction,
   type ActivityFormResult,
 } from "@/actions/activities";
 import type { MonthActivity } from "@/types/activities";
@@ -95,6 +96,34 @@ function ActivityForm({
           <FormLabel>{d.titleLabel}</FormLabel>
           <Input name="title" maxLength={200} defaultValue={editing?.title ?? ""} required />
         </FormField>
+
+        {/* Native radios, not a Select: two options, no JavaScript needed, and
+            `required` on both means the browser itself refuses an empty
+            submission. 0068 makes the column NOT NULL with no default, so a
+            missing category is a database refusal too — this is the friendly
+            layer, not the boundary. Only offered on CREATE: category is
+            updatable in the database, but the day sheet's edit form has no room
+            for a decision the creator already made. */}
+        {editing === null ? (
+          <fieldset className="flex flex-col gap-2">
+            <legend className="text-sm font-medium text-foreground">{d.categoryLabel}</legend>
+            <div className="flex gap-4">
+              {(["org", "club"] as const).map((value) => (
+                <label key={value} className="flex items-center gap-2 text-sm text-foreground">
+                  <input
+                    type="radio"
+                    name="category"
+                    value={value}
+                    required
+                    defaultChecked={value === "org"}
+                    className="size-4 accent-primary"
+                  />
+                  {value === "org" ? d.categoryOrg : d.categoryClub}
+                </label>
+              ))}
+            </div>
+          </fieldset>
+        ) : null}
 
         <div className="flex gap-3">
           <FormField name="startTime" className="flex-1" invalid={Boolean(errorMessage)}>
@@ -191,6 +220,63 @@ function DeleteActivityTrigger({
 }
 
 /**
+ * The confirmation step the spec asks for: a draft is not public until someone
+ * says so on purpose.
+ *
+ * AlertDialog, the same primitive as the delete trigger above — its Action
+ * closes on click, so isPending is discarded here for the same reason
+ * documented there. The staff-only rule is re-checked server-side in
+ * publishActivityAction AND again by activities_publish_guard (0068/0070); this
+ * dialog is the friendly layer, never the boundary.
+ */
+function PublishActivityTrigger({
+  activity,
+  lang,
+  dict,
+}: {
+  activity: MonthActivity;
+  lang: Locale;
+  dict: Dictionary;
+}) {
+  const d = dict.dashboard.calendar;
+  const [, startTransition] = useTransition();
+
+  const handlePublish = () => {
+    startTransition(async () => {
+      const result = await publishActivityAction(lang, activity.id);
+      if (!result.ok) {
+        toast.error(d.errors[result.messageKey] ?? d.errors.unknown);
+        return;
+      }
+      toast.success(d.published);
+    });
+  };
+
+  return (
+    <AlertDialog>
+      <AlertDialogTrigger
+        render={<Button variant="outline" size="xs" aria-label={`${d.publish} ${activity.title}`} />}
+      >
+        <Send className="size-3.5" aria-hidden />
+        {d.publish}
+      </AlertDialogTrigger>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>{d.publishConfirmTitle}</AlertDialogTitle>
+          <AlertDialogDescription>
+            {d.publishConfirmDescription.replace("{title}", activity.title)}
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>{d.cancel}</AlertDialogCancel>
+          <AlertDialogAction onClick={handlePublish}>{d.confirmPublish}</AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+}
+
+/**
  * Opens when a calendar day is clicked (components/dashboard/calendar-grid.tsx
  * owns `date`/selection). Everyone sees that day's activities read-only;
  * canManage (activity:manage — aft_teacher/admin, re-checked server-side in
@@ -257,9 +343,22 @@ export function CalendarDaySheet({
                 {events.map((e) => (
                   <li key={e.id} className="flex flex-col gap-1 rounded-lg border border-border p-3">
                     <div className="flex items-start justify-between gap-2">
-                      <p className="text-sm font-medium text-foreground">{e.title}</p>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="text-sm font-medium text-foreground">{e.title}</p>
+                        {/* Only staff can see a draft at all — the 0068 SELECT
+                            policies hide them from everyone else — so this badge
+                            needs no role check of its own. */}
+                        {e.publishStatus === "draft" ? (
+                          <span className="inline-flex items-center rounded-full border border-border bg-muted/60 px-2 py-0.5 text-xs text-muted-foreground">
+                            {d.draftBadge}
+                          </span>
+                        ) : null}
+                      </div>
                       {canManage ? (
                         <div className="flex shrink-0 items-center gap-1">
+                          {e.publishStatus === "draft" ? (
+                            <PublishActivityTrigger activity={e} lang={lang} dict={dict} />
+                          ) : null}
                           <Button
                             variant="ghost"
                             size="xs"

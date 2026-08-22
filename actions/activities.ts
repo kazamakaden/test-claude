@@ -3,17 +3,29 @@
 import { revalidatePath } from "next/cache";
 import { requirePermission } from "@/lib/auth/require-role";
 import { createClient } from "@/lib/supabase/server";
-import { createActivitySchema, updateActivitySchema, deleteActivitySchema } from "@/schemas/activities";
-import { createActivity, updateActivity, deleteActivity } from "@/services/activities";
+import {
+  createActivitySchema,
+  updateActivitySchema,
+  deleteActivitySchema,
+  publishActivitySchema,
+} from "@/schemas/activities";
+import { createActivity, updateActivity, deleteActivity, publishActivity } from "@/services/activities";
 import { readLang, type Locale } from "@/lib/i18n/config";
 
-type ActivityErrorKey = "invalidDate" | "invalidTime" | "titleRequired" | "descriptionTooLong" | "unknown";
+type ActivityErrorKey =
+  | "invalidDate"
+  | "invalidTime"
+  | "titleRequired"
+  | "categoryRequired"
+  | "descriptionTooLong"
+  | "unknown";
 
 function isActivityErrorKey(value: string | undefined): value is ActivityErrorKey {
   return (
     value === "invalidDate" ||
     value === "invalidTime" ||
     value === "titleRequired" ||
+    value === "categoryRequired" ||
     value === "descriptionTooLong"
   );
 }
@@ -37,6 +49,7 @@ export async function createActivityAction(
 
   const parsed = createActivitySchema.safeParse({
     title: formData.get("title"),
+    category: formData.get("category"),
     date: formData.get("date"),
     startTime: formData.get("startTime"),
     endTime: formData.get("endTime") || null,
@@ -88,6 +101,33 @@ export async function updateActivityAction(
   if (!result.ok) return { ok: false, messageKey: "unknown" };
 
   revalidatePath(`/${lang}/calendar`);
+  return { ok: true };
+}
+
+/**
+ * The confirmation step (§2 of the spec): draft -> public.
+ *
+ * `activity:manage` here is the COARSE gate, as everywhere else in this file.
+ * The real boundaries are activities_update_editor (only the owner, a
+ * co-editor or an admin reaches the row at all) and activities_publish_guard
+ * (0068/0070), which refuses a non-staff publisher even when they own the row.
+ * A demoted owner is additionally filtered out by the SELECT policies before
+ * either runs.
+ */
+export async function publishActivityAction(
+  lang: Locale,
+  id: string
+): Promise<{ ok: true } | { ok: false; messageKey: ActivityErrorKey }> {
+  await requirePermission("activity:manage", lang);
+
+  const parsed = publishActivitySchema.safeParse({ id, isPublic: true });
+  if (!parsed.success) return { ok: false, messageKey: "unknown" };
+
+  const result = await publishActivity(parsed.data);
+  if (!result.ok) return { ok: false, messageKey: "unknown" };
+
+  revalidatePath(`/${lang}/calendar`);
+  revalidatePath(`/${lang}/activities`);
   return { ok: true };
 }
 
