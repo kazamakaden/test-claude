@@ -4,7 +4,7 @@
  * (2026-08-03/04, 0030 applied 2026-08-09, 0036–0038 applied 2026-08-11,
  * 0053 applied 2026-08-14, 0055–0056 applied 2026-08-17,
  * 0061–0063 applied 2026-08-18, 0064 applied 2026-08-18,
- * 0065 applied 2026-08-19).
+ * 0065 applied 2026-08-19, 0066-0069 applied 2026-08-20).
  *
  * The 0061–0063 pass was verified against the live catalog rather than
  * trusting the edit: table names, function names and every column of
@@ -137,6 +137,7 @@ export type Database = {
       activities: {
         Row: {
           academic_year: number | null
+          category: Database["public"]["Enums"]["activity_category"]
           club_id: string | null
           created_at: string
           created_by: string | null
@@ -147,6 +148,8 @@ export type Database = {
           id: string
           is_public: boolean
           location: string | null
+          publish_status: Database["public"]["Enums"]["activity_publish_status"]
+          published_at: string | null
           starts_at: string
           status: Database["public"]["Enums"]["activity_status"]
           title: string
@@ -154,6 +157,7 @@ export type Database = {
         }
         Insert: {
           academic_year?: number | null
+          category: Database["public"]["Enums"]["activity_category"]
           club_id?: string | null
           created_at?: string
           created_by?: string | null
@@ -164,6 +168,8 @@ export type Database = {
           id?: string
           is_public?: boolean
           location?: string | null
+          publish_status?: Database["public"]["Enums"]["activity_publish_status"]
+          published_at?: string | null
           starts_at: string
           status?: Database["public"]["Enums"]["activity_status"]
           title: string
@@ -171,6 +177,7 @@ export type Database = {
         }
         Update: {
           academic_year?: number | null
+          category?: Database["public"]["Enums"]["activity_category"]
           club_id?: string | null
           created_at?: string
           created_by?: string | null
@@ -181,6 +188,8 @@ export type Database = {
           id?: string
           is_public?: boolean
           location?: string | null
+          publish_status?: Database["public"]["Enums"]["activity_publish_status"]
+          published_at?: string | null
           starts_at?: string
           status?: Database["public"]["Enums"]["activity_status"]
           title?: string
@@ -851,6 +860,7 @@ export type Database = {
           position: Database["public"]["Enums"]["member_position"] | null
           role: Database["public"]["Enums"]["user_role"]
           student_id: string | null
+          student_level: string | null
           updated_at: string
         }
         Insert: {
@@ -868,6 +878,7 @@ export type Database = {
           position?: Database["public"]["Enums"]["member_position"] | null
           role?: Database["public"]["Enums"]["user_role"]
           student_id?: string | null
+          student_level?: string | null
           updated_at?: string
         }
         Update: {
@@ -885,6 +896,7 @@ export type Database = {
           position?: Database["public"]["Enums"]["member_position"] | null
           role?: Database["public"]["Enums"]["user_role"]
           student_id?: string | null
+          student_level?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -1341,6 +1353,8 @@ export type Database = {
       }
     }
     Enums: {
+      activity_category: "org" | "club"
+      activity_publish_status: "draft" | "published"
       activity_status: "pending" | "completed" | "cancelled"
       announcement_status: "draft" | "published"
       attendance_method: "qr" | "manual"
@@ -1498,6 +1512,8 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      activity_category: ["org", "club"],
+      activity_publish_status: ["draft", "published"],
       activity_status: ["pending", "completed", "cancelled"],
       announcement_status: ["draft", "published"],
       attendance_method: ["qr", "manual"],

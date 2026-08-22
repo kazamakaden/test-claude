@@ -1,6 +1,6 @@
 "use client";
 
-import { departmentOptionLabel } from "@/lib/student-id";
+import { departmentOptionLabel, type StudentLevel } from "@/lib/student-id";
 
 import { useEffect, useState, useTransition } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
@@ -25,13 +25,13 @@ export function MembersFilters({
   departments,
   clubs,
   years,
-  classNames,
+  levels,
   dict,
 }: {
   departments: Department[];
   clubs: Club[];
   years: number[];
-  classNames: string[];
+  levels: Exclude<StudentLevel, null>[];
   dict: Dictionary;
 }) {
   const router = useRouter();
@@ -135,20 +135,29 @@ export function MembersFilters({
         </SelectContent>
       </Select>
 
+      {/* ระดับชั้น. The stored value is the generated `student_level` (0069), so
+          the option list can never be empty the way the old distinct-class_name
+          scan always was. The SelectValue children function is not optional —
+          without it Base UI renders the raw stored value, which is the exact
+          `__all__` defect this project already hit once on these filters. */}
       <Select
         value={searchParams.get("class") ?? ALL}
         onValueChange={(v) => setParam("class", v)}
       >
         <SelectTrigger aria-label={d.filterClass}>
           <SelectValue placeholder={d.filterClass}>
-            {(value: string) => (value === ALL ? d.allClasses : value)}
+            {(value: string) =>
+              value === ALL
+                ? d.allClasses
+                : dict.common.levels[value as Exclude<StudentLevel, null>]
+            }
           </SelectValue>
         </SelectTrigger>
         <SelectContent>
           <SelectItem value={ALL}>{d.allClasses}</SelectItem>
-          {classNames.map((c) => (
-            <SelectItem key={c} value={c}>
-              {c}
+          {levels.map((l) => (
+            <SelectItem key={l} value={l}>
+              {dict.common.levels[l]}
             </SelectItem>
           ))}
         </SelectContent>

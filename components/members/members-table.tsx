@@ -23,7 +23,7 @@ const SORTABLE_COLUMNS: {
 }[] = [
   { key: "fullName", labelKey: "columnName" },
   { key: "studentId", labelKey: "columnStudentId" },
-  { key: "className", labelKey: "columnClass" },
+  { key: "studentLevel", labelKey: "columnClass" },
   { key: "academicYear", labelKey: "columnYear" },
 ];
 
@@ -122,7 +122,13 @@ export function MembersTable({
               </div>
             </TableCell>
             <TableCell className="text-muted-foreground">{m.studentId ?? "—"}</TableCell>
-            <TableCell className="text-muted-foreground">{m.className ?? "—"}</TableCell>
+            {/* ระดับชั้น derived from the student ID (0069), not the free-text
+                class_name column — nothing ever populated that, so this cell was
+                blank for every member. class_name remains an admin override and
+                wins when it is set. */}
+            <TableCell className="text-muted-foreground">
+              {m.className ?? (m.studentLevel ? dict.common.levels[m.studentLevel] : "—")}
+            </TableCell>
             <TableCell className="text-muted-foreground">{m.academicYear ?? "—"}</TableCell>
             {/* Office is public information — who the committee is — so it
                 renders for every viewer, guests included. Assigning one stays

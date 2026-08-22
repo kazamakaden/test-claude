@@ -11,7 +11,7 @@ import type {
   MonthActivity,
 } from "@/types/activities";
 import { ACTIVITIES_PER_PAGE_SIZE } from "@/schemas/activities";
-import type { CreateActivityInput, UpdateActivityInput } from "@/schemas/activities";
+import type { CreateActivityInput, UpdateActivityInput, PublishActivityInput } from "@/schemas/activities";
 
 /**
  * §10 → snake_case column mapping. Whitelisted so an un-mapped column can
@@ -122,7 +122,7 @@ export async function getMonthActivities(month: Date): Promise<MonthActivity[]> 
 
   const { data, error } = await supabase
     .from("activities")
-    .select("id, title, description, starts_at, ends_at, location")
+    .select("id, title, description, starts_at, ends_at, location, category, publish_status")
     .gte("starts_at", start)
     .lt("starts_at", end)
     .order("starts_at", { ascending: true });
@@ -136,6 +136,8 @@ export async function getMonthActivities(month: Date): Promise<MonthActivity[]> 
     startsAt: a.starts_at,
     endsAt: a.ends_at,
     location: a.location,
+    category: a.category,
+    publishStatus: a.publish_status,
   }));
 }
 
@@ -153,13 +155,16 @@ function toBangkokInstant(date: string, time: string): string {
 
 /**
  * Dashboard calendar day-sheet create (activity:manage — enforced by RLS's
- * activities_insert_aft_teacher/activities_all_admin, 0008/0011, not just
- * this function). `status` stays at its `'pending'` column default;
- * `is_public` defaults true here — an activity created from the dashboard
- * calendar is the org-wide case this quick form targets, matching what a
- * guest browsing /calendar or /activities would expect to find. Nothing in
- * the current UI offers an is_public toggle; a richer creation flow can add
- * one later without a schema change.
+ * activities_write_staff, 0061, not just this function). `status` stays at its
+ * `'pending'` column default.
+ *
+ * NEITHER `is_public` NOR `publish_status` IS PASSED, and that is the feature.
+ * 0068 removed is_public from the INSERT grant and defaults publish_status to
+ * 'draft', so every entry created here is a draft by construction — the
+ * database decides it, not this function. It used to hardcode `is_public: true`,
+ * which is why there was no draft step at all.
+ *
+ * Publishing is publishActivity() below, behind an explicit confirmation.
  */
 export async function createActivity(
   input: CreateActivityInput,
@@ -174,7 +179,7 @@ export async function createActivity(
       ends_at: input.endTime ? toBangkokInstant(input.date, input.endTime) : null,
       location: input.location,
       description: input.description,
-      is_public: true,
+      category: input.category,
       created_by: createdBy,
     })
     .select("id")
@@ -182,6 +187,39 @@ export async function createActivity(
 
   if (error || !data) return { ok: false, error: error?.message ?? "insert failed" };
   return { ok: true, id: data.id };
+}
+
+/**
+ * The confirmation step: draft -> published, and optionally public.
+ *
+ * `.select().maybeSingle()` is load-bearing, not decoration. RLS FILTERS an
+ * UPDATE rather than raising, so a refused statement returns success affecting
+ * zero rows — reading the row back is the only way to tell "published" from
+ * "silently did nothing". Same shape as services/site-banners.ts#publishBanner.
+ *
+ * Both columns move in ONE statement because 0068's
+ * activities_public_needs_published CHECK refuses a public draft, so setting
+ * them separately would fail on whichever went first.
+ *
+ * The staff-only rule is NOT enforced here: activities_publish_guard (0068)
+ * raises 42501 for a non-staff caller, including an owner who has since been
+ * demoted — a case RLS cannot express, because a WITH CHECK clause never sees
+ * the OLD row.
+ */
+export async function publishActivity(
+  input: PublishActivityInput
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("activities")
+    .update({ publish_status: "published", is_public: input.isPublic })
+    .eq("id", input.id)
+    .select("id")
+    .maybeSingle();
+
+  if (error) return { ok: false, error: error.message };
+  if (!data) return { ok: false, error: "not found or not allowed" };
+  return { ok: true };
 }
 
 export async function updateActivity(

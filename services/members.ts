@@ -4,6 +4,7 @@ import { createClient, tryCreateClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { Club, Department, DepartmentUsage, Member, MemberFilters, MembersResult } from "@/types/members";
 import type { Role } from "@/types/auth";
+import type { StudentLevel } from "@/lib/student-id";
 import { PER_PAGE_SIZE, type CreateMemberInput, type CreateDepartmentInput } from "@/schemas/members";
 
 /**
@@ -14,8 +15,19 @@ const SORT_COLUMNS = {
   fullName: "full_name",
   studentId: "student_id",
   academicYear: "academic_year",
-  className: "class_name",
+  studentLevel: "student_level",
 } as const;
+
+/**
+ * `student_level` is a generated text column (0069), so it arrives as a plain
+ * string like every other column. Narrowed here rather than cast, the same
+ * fail-closed discipline toRole() applies: a value the union does not know --
+ * a future qualification digit, a schema/code skew -- becomes null, which the
+ * UI renders as "ไม่ทราบระดับชั้น" instead of crashing.
+ */
+function toStudentLevel(value: string | null): StudentLevel {
+  return value === "vocational" || value === "diploma" || value === "bachelor" ? value : null;
+}
 
 // Explicit column list — never select("*"); citizen_id is column-revoked
 // (0005_citizen_id_column_grants.sql) and a "*" would fail outright anyway.
@@ -29,7 +41,7 @@ const SORT_COLUMNS = {
 // total: 0 }` on any error), which would look like "no members exist"
 // rather than "you can't see this column". This split is what avoids that.
 const MEMBER_COLUMNS_BASE =
-  "id, full_name, avatar_url, role, position, student_id, department_id, class_name, club_id, academic_year, departments(name_th), clubs(name_th)";
+  "id, full_name, avatar_url, role, position, student_id, department_id, class_name, student_level, club_id, academic_year, departments(name_th), clubs(name_th)";
 const MEMBER_COLUMNS_WITH_EMAIL = `${MEMBER_COLUMNS_BASE}, email`;
 
 /**
@@ -67,7 +79,7 @@ export async function getMembers(
     }
     if (filters.departmentId) query = query.eq("department_id", filters.departmentId);
     if (filters.academicYear !== null) query = query.eq("academic_year", filters.academicYear);
-    if (filters.className) query = query.eq("class_name", filters.className);
+    if (filters.studentLevel) query = query.eq("student_level", filters.studentLevel);
     if (filters.clubId) query = query.eq("club_id", filters.clubId);
 
     const { data, error, count } = await query
@@ -87,6 +99,7 @@ export async function getMembers(
       departmentId: m.department_id,
       departmentName: m.departments?.name_th ?? null,
       className: m.class_name,
+      studentLevel: toStudentLevel(m.student_level),
       clubId: m.club_id,
       clubName: m.clubs?.name_th ?? null,
       academicYear: m.academic_year,
@@ -105,7 +118,7 @@ export async function getMembers(
   }
   if (filters.departmentId) query = query.eq("department_id", filters.departmentId);
   if (filters.academicYear !== null) query = query.eq("academic_year", filters.academicYear);
-  if (filters.className) query = query.eq("class_name", filters.className);
+  if (filters.studentLevel) query = query.eq("student_level", filters.studentLevel);
   if (filters.clubId) query = query.eq("club_id", filters.clubId);
 
   const { data, error, count } = await query
@@ -125,6 +138,7 @@ export async function getMembers(
     departmentId: m.department_id,
     departmentName: m.departments?.name_th ?? null,
     className: m.class_name,
+    studentLevel: toStudentLevel(m.student_level),
     clubId: m.club_id,
     clubName: m.clubs?.name_th ?? null,
     academicYear: m.academic_year,
@@ -317,20 +331,29 @@ export async function getClubs(): Promise<Club[]> {
   }));
 }
 
-/** Distinct year/class values for the filter dropdowns. */
-export async function getFilterOptions(): Promise<{ years: number[]; classNames: string[] }> {
+/**
+ * Distinct year/level values for the filter dropdowns.
+ *
+ * `levels` replaced a distinct-`class_name` scan that could only ever return
+ * an empty array: handle_new_user() never wrote that column (0069's header has
+ * the detail), so the Class dropdown had no options for anyone, ever.
+ * `student_level` is generated from student_id, so every student has one.
+ */
+export async function getFilterOptions(): Promise<{ years: number[]; levels: Exclude<StudentLevel, null>[] }> {
   const supabase = await tryCreateClient();
-  if (!supabase) return { years: [], classNames: [] };
+  if (!supabase) return { years: [], levels: [] };
   const { data, error } = await supabase
     .from("profiles")
-    .select("academic_year, class_name");
+    .select("academic_year, student_level");
 
-  if (error || !data) return { years: [], classNames: [] };
+  if (error || !data) return { years: [], levels: [] };
 
   const years = [...new Set(data.map((r) => r.academic_year).filter((y): y is number => y !== null))].sort();
-  const classNames = [...new Set(data.map((r) => r.class_name).filter((c): c is string => c !== null))];
+  const levels = [...new Set(data.map((r) => toStudentLevel(r.student_level)))].filter(
+    (l): l is Exclude<StudentLevel, null> => l !== null
+  );
 
-  return { years, classNames };
+  return { years, levels };
 }
 
 /**

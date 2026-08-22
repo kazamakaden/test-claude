@@ -1,4 +1,5 @@
 import type { MemberPosition, Role } from "@/types/auth";
+import type { StudentLevel } from "@/lib/student-id";
 
 export interface Department {
   id: string;
@@ -48,19 +49,28 @@ export interface Member {
   departmentId: string | null;
   departmentName: string | null;
   className: string | null;
+  /**
+   * ระดับชั้น (ปวช./ปวส./ทล.บ.), generated from student_id (0069). This is what
+   * the directory shows as the member's class: `className` is a free-text
+   * admin override that nothing populates automatically, so it is null for
+   * every real account.
+   */
+  studentLevel: StudentLevel;
   clubId: string | null;
   clubName: string | null;
   academicYear: number | null;
 }
 
-export type MemberSortColumn = "fullName" | "studentId" | "academicYear" | "className";
+export type MemberSortColumn = "fullName" | "studentId" | "academicYear" | "studentLevel";
 export type SortDirection = "asc" | "desc";
 
 export interface MemberFilters {
   search: string;
   departmentId: string | null;
   academicYear: number | null;
-  className: string | null;
+  /** ระดับชั้น. Replaces the old free-text `className` filter, which could never
+   *  match anything — see 0069. */
+  studentLevel: StudentLevel;
   clubId: string | null;
   sort: MemberSortColumn;
   direction: SortDirection;

@@ -39,6 +39,8 @@ function toMonthActivity(row: ActivityRow): MonthActivity {
     startsAt: row.starts_at,
     endsAt: row.ends_at,
     location: row.location,
+    category: row.category,
+    publishStatus: row.publish_status,
   };
 }
 
