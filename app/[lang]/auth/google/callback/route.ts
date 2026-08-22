@@ -3,10 +3,12 @@ import crypto from "node:crypto";
 import { toRole } from "@/types/auth";
 import { createClient } from "@/lib/supabase/server";
 import { signedInLandingTarget } from "@/lib/auth/require-role";
+import { attendanceTokenSchema } from "@/schemas/attendance";
 import { resolveConfiguredSiteUrl } from "@/lib/site-url";
 import {
   exchangeCodeForIdToken,
   verifyGoogleIdToken,
+  OAUTH_ATTEND_COOKIE,
   OAUTH_LANG_COOKIE,
   OAUTH_NONCE_COOKIE,
   OAUTH_STATE_COOKIE,
@@ -35,7 +37,15 @@ function fail(request: NextRequest, lang: string, reason: string, errorKey = "oa
 }
 
 function clearOAuthCookies(response: NextResponse) {
-  for (const name of [OAUTH_STATE_COOKIE, OAUTH_NONCE_COOKIE, OAUTH_VERIFIER_COOKIE, OAUTH_LANG_COOKIE]) {
+  for (const name of [
+    OAUTH_STATE_COOKIE,
+    OAUTH_NONCE_COOKIE,
+    OAUTH_VERIFIER_COOKIE,
+    OAUTH_LANG_COOKIE,
+    // Cleared with the rest: a leftover token would send the NEXT ordinary
+    // sign-in to a stale scan instead of the homepage.
+    OAUTH_ATTEND_COOKIE,
+  ]) {
     response.cookies.delete(name);
   }
 }
@@ -129,10 +139,24 @@ export async function GET(request: NextRequest) {
       .eq("id", user.id);
   }
 
+  // A QR token the student scanned before signing in, stashed by the start
+  // route. The path is BUILT here from a regex-validated token
+  // (^[a-z0-9]{10}\.[0-9a-f]{8}$ -- no slash, colon or second dot), never taken
+  // from the request as a URL, so this keeps the "redirect target is never
+  // caller-supplied" property the rest of this route relies on.
+  //
+  // set-password still wins: an account that has not finished onboarding must
+  // not be routed past it, and the scan can be repeated afterwards.
+  const attend = attendanceTokenSchema.safeParse(
+    request.cookies.get(OAUTH_ATTEND_COOKIE)?.value ?? ""
+  );
+
   const target =
     profile && !profile.password_set
       ? `/${lang}/set-password`
-      : signedInLandingTarget(toRole(profile?.role), lang);
+      : attend.success
+        ? `/${lang}/attend/${attend.data}`
+        : signedInLandingTarget(toRole(profile?.role), lang);
 
   const response = NextResponse.redirect(new URL(target, request.url));
   clearOAuthCookies(response);

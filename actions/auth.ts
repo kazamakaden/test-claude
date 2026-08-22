@@ -16,6 +16,7 @@ import {
   mintToken,
 } from "@/services/password-setup";
 import { signInSchema, resetRequestSchema, newPasswordSchema } from "@/schemas/auth";
+import { attendanceTokenSchema } from "@/schemas/attendance";
 import { assertTurnstileSafeForProduction, isTurnstileConfigured } from "@/lib/turnstile";
 import { verifyTurnstileToken } from "@/lib/turnstile-server";
 import { resolveConfiguredSiteUrl } from "@/lib/site-url";
@@ -197,7 +198,15 @@ export async function signInWithPassword(
     .eq("id", data.user.id)
     .single();
 
-  redirect(signedInLandingTarget(toRole(profile?.role), lang));
+  // A student who scanned while signed out came in through /login?attend=...;
+  // land them back on the scan instead of the homepage. The path is BUILT from
+  // a regex-validated token, never taken from the form as a URL.
+  const attend = attendanceTokenSchema.safeParse(formData.get("attend") ?? "");
+  redirect(
+    attend.success
+      ? `/${lang}/attend/${attend.data}`
+      : signedInLandingTarget(toRole(profile?.role), lang)
+  );
 }
 
 /** Uniform response regardless of whether the address is registered — same enumeration guard. */
@@ -346,8 +355,12 @@ export async function updatePassword(
  * Still bound to the login form's `action` rather than an onClick handler, so
  * it works as a real POST with JavaScript disabled (§30.9).
  */
-export async function signInWithGoogle(lang: Locale) {
-  redirect(`/${lang}/auth/google/start`);
+export async function signInWithGoogle(lang: Locale, attendToken?: string) {
+  // Validated here as well as in the start route: a malformed value is dropped
+  // rather than forwarded, so nothing arbitrary ever reaches a query string.
+  const parsed = attendanceTokenSchema.safeParse(attendToken ?? "");
+  const suffix = parsed.success ? `?attend=${encodeURIComponent(parsed.data)}` : "";
+  redirect(`/${lang}/auth/google/start${suffix}`);
 }
 
 /**

@@ -51,6 +51,16 @@ export const OAUTH_STATE_COOKIE = "g_state";
 export const OAUTH_NONCE_COOKIE = "g_nonce";
 export const OAUTH_VERIFIER_COOKIE = "g_verifier";
 export const OAUTH_LANG_COOKIE = "g_lang";
+/**
+ * A QR attendance token being carried through sign-in, so a student who scans
+ * while signed out is not sent back to re-scan. Holds ONLY the token, never a
+ * URL or a path: the callback rebuilds `/{lang}/attend/{token}` itself, and
+ * attendanceTokenSchema's `^[a-z0-9]{10}\.[0-9a-f]{8}$` admits no slash, colon
+ * or second dot — so this cannot become an open redirect the way a
+ * caller-supplied `returnTo` could. That property is why the redirect target
+ * stays hard-coded everywhere else in this flow.
+ */
+export const OAUTH_ATTEND_COOKIE = "g_attend";
 /** Long enough to read a consent screen, short enough not to linger. */
 export const OAUTH_COOKIE_MAX_AGE_S = 10 * 60;
 

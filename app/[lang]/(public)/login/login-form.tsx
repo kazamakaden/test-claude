@@ -31,7 +31,17 @@ function SubmitButton({ label, pendingLabel }: { label: string; pendingLabel: st
  * open and its form is a real POST via useActionState (§30.9's
  * JS-disabled guarantee holds for both paths independently).
  */
-export function LoginForm({ lang, dict }: { lang: Locale; dict: Dictionary }) {
+export function LoginForm({
+  lang,
+  dict,
+  attendToken,
+}: {
+  lang: Locale;
+  dict: Dictionary;
+  /** Set when the viewer arrived from a QR scan while signed out — carried so
+   *  they land back on the scan instead of having to scan again. */
+  attendToken?: string;
+}) {
   const [state, formAction] = useActionState<SignInResult | null, FormData>(
     signInWithPassword,
     null
@@ -58,7 +68,7 @@ export function LoginForm({ lang, dict }: { lang: Locale; dict: Dictionary }) {
   return (
     <div className="flex flex-col gap-4">
       <div className="rounded-xl border border-border bg-card p-6 shadow-sm">
-        <GoogleSignIn lang={lang} label={dict.auth.googleSignIn} />
+        <GoogleSignIn lang={lang} label={dict.auth.googleSignIn} attendToken={attendToken} />
       </div>
 
       <details className="group rounded-xl border border-border bg-card">
@@ -68,6 +78,9 @@ export function LoginForm({ lang, dict }: { lang: Locale; dict: Dictionary }) {
 
         <form action={formAction} className="flex flex-col gap-4 border-t border-border p-6">
           <input type="hidden" name="lang" value={lang} />
+          {/* Re-validated in signInWithPassword before it is used to build a
+              path, so a hand-edited value cannot redirect anywhere. */}
+          {attendToken ? <input type="hidden" name="attend" value={attendToken} /> : null}
 
           <FormField name="email" invalid={Boolean(errorMessage)}>
             <FormLabel>{dict.auth.emailLabel}</FormLabel>

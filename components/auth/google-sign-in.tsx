@@ -25,14 +25,24 @@ export function GoogleSignIn({
   lang,
   label,
   dividerLabel,
+  attendToken,
 }: {
   lang: Locale;
   label: string;
   dividerLabel?: string;
+  /**
+   * A QR token the viewer scanned while signed out. Carried as a hidden field
+   * so it survives the JS-disabled path too, and re-validated server-side --
+   * the action drops anything that is not a well-formed token.
+   */
+  attendToken?: string;
 }) {
   return (
     <div className="flex flex-col gap-4">
-      <form action={signInWithGoogle.bind(null, lang)}>
+      {/* Both arguments bound: this is a Client Component, so an inline
+          "use server" closure is not available, and binding keeps the action a
+          real <form action> that still works with JavaScript disabled. */}
+      <form action={signInWithGoogle.bind(null, lang, attendToken)}>
         <GoogleSubmitButton label={label} />
       </form>
 
