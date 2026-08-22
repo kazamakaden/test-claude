@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowDown, ArrowUp, ArrowUpDown, Users } from "lucide-react";
+import { ArrowDown, ArrowUp, ArrowUpDown, User, Users } from "lucide-react";
 import {
   Table,
   TableBody,
@@ -8,15 +8,22 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { CardEmpty } from "@/components/dashboard/card-states";
-import type { Member, MemberFilters, MemberSortColumn } from "@/types/members";
+import { MemberEditSheet } from "@/components/members/member-edit-sheet";
+import { MemberDeleteDialog } from "@/components/members/member-delete-dialog";
+import type { Club, Department, Member, MemberFilters, MemberSortColumn } from "@/types/members";
 import type { Locale } from "@/lib/i18n/config";
 import type { Dictionary } from "@/types/i18n";
+import type { Role } from "@/types/auth";
 
-const SORTABLE_COLUMNS: { key: MemberSortColumn; labelKey: keyof Dictionary["members"] }[] = [
+const SORTABLE_COLUMNS: {
+  key: MemberSortColumn;
+  labelKey: "columnName" | "columnStudentId" | "columnClass" | "columnYear";
+}[] = [
   { key: "fullName", labelKey: "columnName" },
   { key: "studentId", labelKey: "columnStudentId" },
-  { key: "className", labelKey: "columnClass" },
+  { key: "studentLevel", labelKey: "columnClass" },
   { key: "academicYear", labelKey: "columnYear" },
 ];
 
@@ -38,6 +45,11 @@ export function MembersTable({
   filters,
   pathname,
   searchParams,
+  departments,
+  clubs,
+  canEdit,
+  canManage,
+  actorRole,
   lang,
   dict,
 }: {
@@ -45,6 +57,13 @@ export function MembersTable({
   filters: MemberFilters;
   pathname: string;
   searchParams: URLSearchParams;
+  departments: Department[];
+  clubs: Club[];
+  /** Whether the viewer holds member:approve — shows the Edit action. */
+  canEdit: boolean;
+  /** Whether the viewer holds member:manage (admin-only) — shows Delete; the actions column itself is gated on canEdit || canManage. */
+  canManage: boolean;
+  actorRole: Role;
   lang: Locale;
   dict: Dictionary;
 }) {
@@ -82,19 +101,77 @@ export function MembersTable({
               </TableHead>
             );
           })}
+          <TableHead>{d.positionLabel}</TableHead>
           <TableHead>{d.columnDepartment}</TableHead>
           <TableHead>{d.columnClub}</TableHead>
+          {canEdit || canManage ? <TableHead>{d.columnActions}</TableHead> : null}
         </TableRow>
       </TableHeader>
       <TableBody>
         {members.map((m) => (
           <TableRow key={m.id}>
-            <TableCell className="font-medium text-foreground">{m.fullName}</TableCell>
+            <TableCell className="font-medium text-foreground">
+              <div className="flex items-center gap-2">
+                <Avatar size="sm">
+                  <AvatarImage src={m.avatarUrl ?? undefined} referrerPolicy="no-referrer" />
+                  <AvatarFallback>
+                    <User className="size-3.5" aria-hidden />
+                  </AvatarFallback>
+                </Avatar>
+                {m.fullName}
+              </div>
+            </TableCell>
             <TableCell className="text-muted-foreground">{m.studentId ?? "—"}</TableCell>
-            <TableCell className="text-muted-foreground">{m.className ?? "—"}</TableCell>
+            {/* ระดับชั้น derived from the student ID (0069), not the free-text
+                class_name column — nothing ever populated that, so this cell was
+                blank for every member. class_name remains an admin override and
+                wins when it is set. */}
+            <TableCell className="text-muted-foreground">
+              {m.className ?? (m.studentLevel ? dict.common.levels[m.studentLevel] : "—")}
+            </TableCell>
             <TableCell className="text-muted-foreground">{m.academicYear ?? "—"}</TableCell>
+            {/* Office is public information — who the committee is — so it
+                renders for every viewer, guests included. Assigning one stays
+                admin-only (0044); this is display. */}
+            <TableCell>
+              {m.position ? (
+                <span className="inline-flex items-center rounded-full border border-border bg-muted/40 px-2 py-0.5 text-xs font-medium text-foreground">
+                  {dict.positions[m.position]}
+                </span>
+              ) : (
+                <span className="text-muted-foreground">—</span>
+              )}
+            </TableCell>
             <TableCell className="text-muted-foreground">{m.departmentName ?? "—"}</TableCell>
             <TableCell className="text-muted-foreground">{m.clubName ?? "—"}</TableCell>
+            {canEdit || canManage ? (
+              <TableCell>
+                {/* "admin" is deliberately never an assignable role (same
+                    reasoning as approve-user-card.tsx) — the role Select
+                    has no matching option for it, so an admin row can't be
+                    edited through this sheet at all, and deleteMemberAction
+                    refuses an admin target server-side regardless. Hide
+                    both triggers on an admin row rather than open an
+                    action that can never succeed. */}
+                {m.role !== "admin" ? (
+                  <div className="flex items-center gap-1">
+                    {canEdit ? (
+                      <MemberEditSheet
+                        member={m}
+                        departments={departments}
+                        clubs={clubs}
+                        actorRole={actorRole}
+                        lang={lang}
+                        dict={dict}
+                      />
+                    ) : null}
+                    {canManage ? (
+                      <MemberDeleteDialog memberId={m.id} memberName={m.fullName} lang={lang} dict={dict} />
+                    ) : null}
+                  </div>
+                ) : null}
+              </TableCell>
+            ) : null}
           </TableRow>
         ))}
       </TableBody>

@@ -1,5 +1,7 @@
 "use client";
 
+import { departmentOptionLabel, type StudentLevel } from "@/lib/student-id";
+
 import { useEffect, useState, useTransition } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Search, X } from "lucide-react";
@@ -23,13 +25,13 @@ export function MembersFilters({
   departments,
   clubs,
   years,
-  classNames,
+  levels,
   dict,
 }: {
   departments: Department[];
   clubs: Club[];
   years: number[];
-  classNames: string[];
+  levels: Exclude<StudentLevel, null>[];
   dict: Dictionary;
 }) {
   const router = useRouter();
@@ -38,6 +40,14 @@ export function MembersFilters({
   const [, startTransition] = useTransition();
   const [search, setSearch] = useState(searchParams.get("search") ?? "");
   const d = dict.members;
+
+  // สาขา names repeat across levels (เทคโนโลยีสารสนเทศ is 20901, 30901 and
+  // 31901), so an option must carry its ปวช./ปวส./ทล.บ. prefix to be
+  // distinguishable. Level is derived from the code, never stored.
+  const departmentLabel = (id: string) => {
+    const dept = departments.find((x) => x.id === id);
+    return dept ? departmentOptionLabel(dept.code, dept.nameTh, dict.common.levels) : undefined;
+  };
 
   const setParam = (key: string, value: string | null) => {
     const params = new URLSearchParams(searchParams.toString());
@@ -92,7 +102,7 @@ export function MembersFilters({
         <SelectTrigger aria-label={d.filterDepartment}>
           <SelectValue placeholder={d.filterDepartment}>
             {(value: string) =>
-              value === ALL ? d.allDepartments : departments.find((dept) => dept.id === value)?.nameTh
+              value === ALL ? d.allDepartments : departmentLabel(value)
             }
           </SelectValue>
         </SelectTrigger>
@@ -100,7 +110,7 @@ export function MembersFilters({
           <SelectItem value={ALL}>{d.allDepartments}</SelectItem>
           {departments.map((dept) => (
             <SelectItem key={dept.id} value={dept.id}>
-              {dept.nameTh}
+              {departmentOptionLabel(dept.code, dept.nameTh, dict.common.levels)}
             </SelectItem>
           ))}
         </SelectContent>
@@ -125,20 +135,29 @@ export function MembersFilters({
         </SelectContent>
       </Select>
 
+      {/* ระดับชั้น. The stored value is the generated `student_level` (0069), so
+          the option list can never be empty the way the old distinct-class_name
+          scan always was. The SelectValue children function is not optional —
+          without it Base UI renders the raw stored value, which is the exact
+          `__all__` defect this project already hit once on these filters. */}
       <Select
         value={searchParams.get("class") ?? ALL}
         onValueChange={(v) => setParam("class", v)}
       >
         <SelectTrigger aria-label={d.filterClass}>
           <SelectValue placeholder={d.filterClass}>
-            {(value: string) => (value === ALL ? d.allClasses : value)}
+            {(value: string) =>
+              value === ALL
+                ? d.allClasses
+                : dict.common.levels[value as Exclude<StudentLevel, null>]
+            }
           </SelectValue>
         </SelectTrigger>
         <SelectContent>
           <SelectItem value={ALL}>{d.allClasses}</SelectItem>
-          {classNames.map((c) => (
-            <SelectItem key={c} value={c}>
-              {c}
+          {levels.map((l) => (
+            <SelectItem key={l} value={l}>
+              {dict.common.levels[l]}
             </SelectItem>
           ))}
         </SelectContent>

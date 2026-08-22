@@ -18,8 +18,15 @@ export const permissions = [
    */
   "workspace:access",
 
-  /** Student — §6 "submit project drafts". */
+  /** นักศึกษา อวท./ครู — §6 "submit project drafts". */
   "project:draft:submit",
+  /**
+   * Authoring an e-book / document draft. Split out from workspace:access,
+   * which every signed-in user holds — without it a read-only student could
+   * still create a book, contradicting the four-role model. RLS agrees
+   * (books_insert_own/update/delete, 0047).
+   */
+  "document:draft:submit",
   /** Student — §6 "QR attendance". */
   "attendance:submit",
   /** Student — §6 "digital signature". */
@@ -29,6 +36,15 @@ export const permissions = [
   /** Student — §6 "profile". */
   "profile:read",
   "profile:update",
+
+  /**
+   * §18 org-wide reports. Its own permission rather than reusing
+   * workspace:access, which a read-only `student` holds: attendance,
+   * membership and workflow aggregates across the whole college are
+   * operational data with no §6 basis for a student. They keep their own
+   * attendance on the dashboard, which is scoped to them by RLS.
+   */
+  "report:view",
 
   /** Teacher — §6 "review drafts". */
   "project:draft:review",
@@ -45,6 +61,20 @@ export const permissions = [
   "project:approve",
   "document:approve",
   "activity:manage",
+  /**
+   * Task 2: staff-editable public page copy (e.g. "11 ดี 11 เก่ง อวท.") —
+   * distinct from activity:manage/document:approve, which are each scoped
+   * to one content type; this is the general "edit site content" grant.
+   */
+  "content:manage",
+
+  /**
+   * §1: อวท. teacher can approve a pending signup and assign it a role
+   * (student/teacher/aft_teacher), and edit an already-approved member's
+   * department/class/club/student_id. Distinct from `member:manage`, which
+   * stays admin-only for account-level management (e.g. granting `admin`).
+   */
+  "member:approve",
 
   /** Administrator — §6 students "Cannot: delete". */
   "content:delete",
@@ -64,34 +94,72 @@ export type Permission = (typeof permissions)[number];
  */
 const guestPermissions = ["content:read:official"] as const satisfies readonly Permission[];
 
+/**
+ * Signed in, and read-only WITH ONE EXCEPTION.
+ *
+ * A student sees public content, their own profile and notifications, and — via
+ * workspace:access — which activities they have missed. They author nothing:
+ * no project drafts, no signatures, no e-books.
+ *
+ * The exception is attendance:submit (0062). Checking in to an event you are
+ * standing at is not authoring: the student supplies no content, and every
+ * field that matters — who, when, where, present-or-late — is derived
+ * server-side by record_attendance(), which additionally verifies a rotating
+ * HMAC token, the activity's time window and a GPS fence. Without this an
+ * attendance list could only ever contain อวท. members and staff, which is not
+ * what an attendance list is for.
+ *
+ * This is a MOVE from organisationPermissions, not a copy: that list spreads
+ * this one, so duplicating the entry would put it in twice.
+ */
 const studentPermissions = [
   ...guestPermissions,
   "workspace:access",
-  "project:draft:submit",
   "attendance:submit",
-  "document:sign",
   "notification:read",
   "profile:read",
   "profile:update",
 ] as const satisfies readonly Permission[];
 
-const teacherPermissions = [
+/**
+ * The people who actually run the organisation — shared by BOTH `aft`
+ * (นักศึกษา อวท.) and `teacher` (ครู).
+ *
+ * ONE list, deliberately, referenced twice below. The two roles are identical
+ * for authorization; they exist as separate roles so reporting can tell an
+ * อวท. student member from actual staff. Keeping a single list means a future
+ * edit cannot silently give one of them something the other lacks — if they
+ * ever need to diverge, that should be a deliberate split of this constant.
+ *
+ * Everything a student has, plus authoring (project drafts, e-book drafts,
+ * digital signature), the review stage of §11/§12, and management of activities
+ * and public page copy. Note attendance:submit is NOT listed here — it moved
+ * down to studentPermissions (0062) and arrives by the spread.
+ *
+ * Deliberately NOT here: project:approve / document:approve. The approver has
+ * to sit above whoever submits, and these roles submit — so approval is
+ * admin's. That is what keeps "send a project and it stays a draft" true.
+ * Also not here: member:approve — admin-only, since a ตำแหน่ง no longer
+ * grants member editing (0049).
+ */
+const organisationPermissions = [
   ...studentPermissions,
+  "project:draft:submit",
+  "document:draft:submit",
+  "document:sign",
+  "report:view",
   "project:draft:review",
   "project:draft:comment",
   "project:recommend",
-] as const satisfies readonly Permission[];
-
-/** อาจารย์ อวท. — teacher + approval authority, still below admin. */
-const aftTeacherPermissions = [
-  ...teacherPermissions,
-  "project:approve",
-  "document:approve",
   "activity:manage",
+  "content:manage",
 ] as const satisfies readonly Permission[];
 
 const adminPermissions = [
-  ...aftTeacherPermissions,
+  ...organisationPermissions,
+  "project:approve",
+  "document:approve",
+  "member:approve",
   "content:delete",
   "member:manage",
   "system:manage",
@@ -100,15 +168,27 @@ const adminPermissions = [
 export const permissionsByRole: Record<Role, readonly Permission[]> = {
   guest: guestPermissions,
   student: studentPermissions,
-  teacher: teacherPermissions,
-  aft_teacher: aftTeacherPermissions,
+  // Same list on purpose — see organisationPermissions above.
+  aft: organisationPermissions,
+  teacher: organisationPermissions,
   admin: adminPermissions,
 };
 
-/** Does `role` hold `permission`? Linear scan is fine — the matrix is tiny. */
+/**
+ * Does `role` hold `permission`? Linear scan is fine — the matrix is tiny.
+ *
+ * `role` is erased to a plain string at runtime (it comes straight off the
+ * database via getSessionProfile()), so a value this matrix doesn't know
+ * about — a schema/code skew, an enum value added by a migration this
+ * deployment hasn't caught up with yet — would otherwise throw reading
+ * `permissionsByRole[role]` as undefined. Fail closed to "no permissions"
+ * rather than crash the caller.
+ */
 export function can(role: Role, permission: Permission): boolean {
-  return permissionsByRole[role].includes(permission);
+  return (permissionsByRole[role] ?? []).includes(permission);
 }
+
+
 
 /**
  * NOT SECURITY ON ITS OWN.
@@ -117,13 +197,27 @@ export function can(role: Role, permission: Permission): boolean {
  * policies below are transcribed as real RLS: `activities`, `attendance`,
  * `projects`, `documents`, `document_drafts`, `notifications` are live
  * (`supabase/migrations/0008_dashboard_rls.sql`, extended for `aft_teacher`
- * in `0011_account_approvals.sql`), same for `profiles` (`0002_auth_rls.sql`).
- * `approved_accounts` (`0011`) is admin-only — no student/teacher/aft_teacher
- * policy exists for it at all, it is a roster of who is permitted to sign up,
- * not app data. `project_drafts`, `qr_sessions`, `signature_records`,
- * `audit_logs` are still deferred to their own §30.10 phases — the rows
- * below for those are still just the contract to transcribe when each phase
- * lands.
+ * in `0011_account_approvals.sql`), same for `profiles` (`0002_auth_rls.sql`,
+ * extended for `aft_teacher` in `0024_member_approval_authority.sql`).
+ * `approved_accounts` (`0011`) — a pre-approval roster — was dropped by
+ * `0020_pending_signup_flow.sql`; every signup now lands with a role decided
+ * by `handle_new_user()` (numeric local part -> `pending`, needs approval;
+ * named local part -> `teacher`, immediate access — `0023`), and an admin or
+ * aft_teacher assigns/reassigns a role afterward via `/approvals`, using
+ * `profiles_select_directory`/`profiles_update_admin`/
+ * `profiles_update_aft_teacher` (`0002`, `0004`, `0024`). The trigger
+ * `prevent_role_self_escalation` (`0002`, rewritten in `0024`) is the actual
+ * authority on *who may set what role* — no one may change their own role
+ * (admin included), only admin may mint/demote an `admin` or grant
+ * `aft_teacher`, and admin/aft_teacher may set any other role. A second
+ * trigger, `prevent_member_identity_change` (`0025`), separately locks
+ * `student_id`/`department_id`/`class_name`/`club_id` to admin/aft_teacher
+ * only — `profiles_update_own` would otherwise let any user rewrite their
+ * own membership fields (and, via the generated `academic_year`, their
+ * year) with no trigger stopping them.
+ * `project_drafts`, `qr_sessions`, `audit_logs` are still deferred to their
+ * own §30.10 phases — the rows below for those are still just the contract
+ * to transcribe when each phase lands.
  *
  *   content:read:official   activities, projects, documents, announcements
  *                           anon SELECT WHERE status = 'official'
@@ -142,9 +236,18 @@ export function can(role: Role, permission: Permission): boolean {
  *   project:approve         projects UPDATE status -> 'official', aft_teacher + admin
  *   document:approve        documents UPDATE status -> 'official', aft_teacher + admin
  *   activity:manage         activities INSERT/UPDATE, aft_teacher + admin
+ *   content:manage          content_blocks UPDATE, aft_teacher + admin
+ *                           (0031/0032 — public page copy, e.g. "11 ดี 11
+ *                           เก่ง อวท."; no INSERT/DELETE policy, the row set
+ *                           is fixed by migration seed)
+ *   member:approve          profiles UPDATE role/department_id/class_name/
+ *                           club_id/student_id — aft_teacher + admin, both
+ *                           subject to prevent_role_self_escalation and
+ *                           prevent_member_identity_change (0024, 0025)
  *   content:delete          DELETE on content tables, admin only
- *   member:manage           profiles/roles INSERT/UPDATE/DELETE, approved_accounts
- *                           INSERT/UPDATE/DELETE, admin only
+ *   member:manage           admin-only account-level management (granting
+ *                           'admin' itself stays out-of-band, not offered
+ *                           through any UI — see schemas/approvals.ts)
  *   system:manage           departments, clubs, audit_logs, qr_sessions
  *
  * Role is read server-side via the SECURITY DEFINER helper

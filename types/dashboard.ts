@@ -7,14 +7,6 @@ export type NotificationType =
   | "approval"
   | "announcement";
 
-export interface Notification {
-  id: string;
-  type: NotificationType;
-  title: string;
-  createdAt: string;
-  read: boolean;
-}
-
 export interface Meeting {
   id: string;
   title: string;
@@ -22,13 +14,20 @@ export interface Meeting {
   location: string;
 }
 
-export interface CalendarEvent {
-  id: string;
-  date: string;
-  title: string;
+/** §10 activity statistics categories. */
+/**
+ * Whose attendance the `attendance` series counts. "own" for a read-only
+ * student, "all" for staff — a consequence of get_activity_stats() being
+ * SECURITY INVOKER, surfaced so the chart can say so rather than presenting
+ * two different scopes as one number. See services/dashboard.ts.
+ */
+export type AttendanceScope = "own" | "all";
+
+export interface ActivityStatsResult {
+  stats: ActivityStat[];
+  attendanceScope: AttendanceScope;
 }
 
-/** §10 activity statistics categories. */
 export interface ActivityStat {
   month: string;
   attendance: number;
