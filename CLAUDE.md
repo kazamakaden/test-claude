@@ -3389,6 +3389,70 @@ applied.
 parity checked programmatically (1003 keys per locale). Route matrix across all
 five roles unchanged from before the edits.
 
+**The same 0068 draft leak, twice more, in the two places grepping TypeScript
+could not reach (`0072`).** The fix above was found by grepping `.ts`/`.tsx`,
+which was the wrong net: `get_activity_stats()` (the §8 statistics chart) and
+`search_all()` (§18 global search) are both SECURITY INVOKER and read
+`public.activities` **directly in SQL**. Measured live as a teacher before
+writing anything: stats `pending` **2 → 3** on inserting one draft, search hits
+**0 → 1**; as a student, both unchanged — so staff-only, exactly like the
+app-layer half.
+
+The stats case had already produced a **visible contradiction**:
+`getActivityCounts` excludes drafts as of the previous commit, so the
+dashboard's Pending tile and the chart directly beside it reported different
+numbers for the same thing.
+
+Hiding drafts from **search** is a product decision, not merely consistency —
+confirmed with the user. Staff manage drafts on the calendar, and a search hit
+rendered identically to a live activity.
+
+Both stay SECURITY **INVOKER**, and for `get_activity_stats()` that is
+load-bearing: its `attendance` series is deliberately per-caller (surfaced as
+`AttendanceScope` so the card can label it), so making it DEFINER to "simplify"
+would leak the whole college's attendance to every student.
+
+**A stale comment corrected rather than left to mislead:**
+`services/dashboard.ts` said `completed`/`pending` count activities *"which
+everyone can read"*. That was true when written and `0068` made it false. It
+nearly sent this pass looking in the wrong place.
+
+**A draft's detail page could not say it was a draft** — `getActivityDetail`
+never selected `publish_status`, so a draft opened from the calendar rendered
+exactly like a live activity. Now badged, reusing the calendar's existing
+ฉบับร่าง key rather than adding a fourth. **`books` was the precedent**: it also
+leans on RLS to show staff their drafts, but it *selects* `status` and
+`BookCard` renders it — which is why that shelf never had this problem.
+
+**Checked and deliberately NOT changed**, so nobody "fixes" them later:
+`announcements` and `site_banners` already filter `status` explicitly; `books`
+leans on RLS *and badges the result*; `getRecentProjects` does not filter
+`projects.status` and should not, because §11 drafts are the viewer's **own**
+and a personal card showing your own draft is the intent; and
+`record_attendance`/`create_qr_session`/`can_edit_activity` touch `activities`
+without a publish filter but are SECURITY DEFINER by design and never list
+activities — check-in must keep working on any activity.
+
+**Matrix `supabase/tests/0072_*.sql`: 10/10 live, self-rolling-back, zero
+residue.** Case 01 pins that staff RLS really does return the draft, so the new
+predicate is proven load-bearing rather than decorative; cases 07/08 re-prove a
+guest still gets a working **multi-section** search, because this function's
+failure mode is TOTAL — an earlier version selected a column outside the anon
+allow-list and 42501'd the whole function for guests instead of hiding one
+section.
+
+**Two harness traps hit while writing that matrix, both worth keeping:**
+1. `set local role authenticated` applies to the **temp results table** too, so
+   every `insert into zz_results` failed `42501` until the harness granted
+   INSERT on it. The failure looks like the code under test refusing something.
+2. **A false FAIL from a badly chosen search term.** Case 07 first probed with
+   `'a'`, which reads like a harmless match-anything string and matches
+   **nothing here** — every guest-visible title is Thai. It produced a failure
+   identical in shape to the total-failure regression the case exists to catch.
+   Confirmed it was the test by counting guest-visible rows per table (16 rows,
+   0 containing `a`), then switched to `'อาสา'`, which genuinely spans two
+   entity types. Pick a probe value against the real data, not by intuition.
+
 ### ❌ Remaining
 
 * **RLS policy performance — HALF OF THIS IS DONE, and this bullet's own

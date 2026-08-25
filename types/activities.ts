@@ -21,6 +21,12 @@ export interface ActivityEditor {
 export interface ActivityDetail extends Activity {
   createdBy: string | null;
   expectedAttendees: number | null;
+  /**
+   * Only staff can reach a draft at all -- the 0068 SELECT policies hide them
+   * from everyone else -- so the page badges this without a role check of its
+   * own, the same way calendar-day-sheet.tsx does.
+   */
+  publishStatus: "draft" | "published";
   banners: ActivityBanner[];
   /**
    * Whether the VIEWER may edit. Mirrors can_edit_activity() (0061) for the UI

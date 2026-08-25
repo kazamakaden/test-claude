@@ -45,9 +45,10 @@ export async function getUpcomingMeetings(): Promise<Meeting[]> {
 /**
  * §8 activity statistics.
  *
- * get_activity_stats() (0009) is SECURITY INVOKER, so its three series do NOT
- * share a scope: `completed` and `pending` count activities, which everyone can
- * read, while `attendance` is filtered by the caller's own RLS — a student sees
+ * get_activity_stats() (0009, narrowed in 0072) is SECURITY INVOKER, so its
+ * three series do NOT share a scope: `completed` and `pending` count published
+ * activities, which everyone can read, while `attendance` is filtered by the
+ * caller's own RLS — a student sees
  * only their own check-ins (attendance_select_own), staff see everyone's
  * (attendance_select_reviewer). One chart, two meanings, with nothing on screen
  * saying which. Harmless while attendance had no rows; wrong the moment §13
@@ -58,6 +59,14 @@ export async function getUpcomingMeetings(): Promise<Meeting[]> {
  * every student; hiding the series would remove the one figure a student
  * actually wants. So the scope is returned alongside the data and the card
  * labels it.
+ *
+ * The word "published" above is load-bearing and was added by 0072. Before it,
+ * this comment said `completed`/`pending` count activities "which everyone can
+ * read" — true when written, and made false by 0068, which let staff read
+ * drafts nobody else can. The function counted those drafts, so the chart
+ * disagreed with the Pending tile beside it on the same page. The filter lives
+ * in SQL because that is where the counting happens; there is nothing to do
+ * here.
  *
  * `project:draft:review` is the predicate deliberately: it is held by exactly
  * aft/teacher/admin, which is the same set attendance_select_reviewer (0008,

@@ -285,7 +285,7 @@ export async function getActivityDetail(id: string): Promise<ActivityDetail | nu
 
   const { data, error } = await supabase
     .from("activities")
-    .select("id, title, description, status, starts_at, ends_at, location, is_public, academic_year, department_id, club_id, created_by, expected_attendees, departments(name_th, name_en), clubs(name_th, name_en)")
+    .select("id, title, description, status, starts_at, ends_at, location, is_public, publish_status, academic_year, department_id, club_id, created_by, expected_attendees, departments(name_th, name_en), clubs(name_th, name_en)")
     .eq("id", id)
     .maybeSingle();
 
@@ -315,6 +315,7 @@ export async function getActivityDetail(id: string): Promise<ActivityDetail | nu
     title: data.title,
     description: data.description,
     status: data.status,
+    publishStatus: data.publish_status,
     startsAt: data.starts_at,
     endsAt: data.ends_at,
     location: data.location,
