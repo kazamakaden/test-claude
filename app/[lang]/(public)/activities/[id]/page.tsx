@@ -83,6 +83,17 @@ export default async function ActivityDetailPage({
             {activity.title}
           </h1>
           <Badge variant="outline">{d.status[activity.status]}</Badge>
+          {/*
+            A draft is reachable here today -- the calendar links staff
+            straight to it -- and without this badge it rendered identically to
+            a live activity, so a staff member could not tell whether what they
+            were looking at was public yet. Needs no role check: the 0068 SELECT
+            policies mean nobody else can load the page at all. Reuses the
+            calendar's key rather than adding a fourth ฉบับร่าง string.
+          */}
+          {activity.publishStatus === "draft" ? (
+            <Badge variant="secondary">{dict.dashboard.calendar.draftBadge}</Badge>
+          ) : null}
         </div>
         <dl className="flex flex-wrap gap-x-6 gap-y-1 text-sm text-muted-foreground">
           <div className="flex items-center gap-1.5">
