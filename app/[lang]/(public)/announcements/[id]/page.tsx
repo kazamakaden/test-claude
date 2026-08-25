@@ -31,7 +31,7 @@ export default async function AnnouncementDetailPage({
   const d = dict.announcements;
 
   return (
-    <main id="main" className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 py-10 sm:px-6">
+    <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 py-10 sm:px-6">
       <Link
         href={`/${lang}/announcements`}
         className="inline-flex w-fit items-center gap-1 text-sm text-muted-foreground transition-colors hover:text-foreground"
@@ -86,6 +86,6 @@ export default async function AnnouncementDetailPage({
           </Link>
         </div>
       ) : null}
-    </main>
+    </div>
   );
 }

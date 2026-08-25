@@ -809,8 +809,7 @@
       },
       "detail": {
         "backToList": "กลับไปที่รายการเอกสาร",
-        "ownerLabel": "เจ้าของเอกสาร",
-        "viewPublished": "ดูเอกสารที่เผยแพร่แล้ว"
+        "ownerLabel": "เจ้าของเอกสาร"
       },
       "rejectedReasonLabel": "เหตุผลที่ตีกลับ"
     },

@@ -57,7 +57,7 @@ export default async function AttendPage({
   const dict = await getDictionary(lang);
 
   return (
-    <main id="main" className="mx-auto flex w-full max-w-md flex-col gap-6 px-4 py-10 sm:px-6">
+    <div className="mx-auto flex w-full max-w-md flex-col gap-6 px-4 py-10 sm:px-6">
       <header className="flex flex-col items-center gap-2 text-center">
         <span className="flex size-12 items-center justify-center rounded-xl bg-primary/10 text-primary">
           <QrCode className="size-6" aria-hidden="true" />
@@ -74,6 +74,6 @@ export default async function AttendPage({
           {dict.attendance.errors.invalidToken}
         </p>
       )}
-    </main>
+    </div>
   );
 }

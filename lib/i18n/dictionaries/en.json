@@ -809,8 +809,7 @@
       },
       "detail": {
         "backToList": "Back to documents",
-        "ownerLabel": "Document owner",
-        "viewPublished": "View published document"
+        "ownerLabel": "Document owner"
       },
       "rejectedReasonLabel": "Sent back — reason"
     },

@@ -33,7 +33,7 @@ export default async function ManageAnnouncementPage({
   const published = draft.status === "published";
 
   return (
-    <main id="main" className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 py-8 sm:px-6">
+    <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 py-8 sm:px-6">
       <header className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           <h1 className="font-heading text-2xl font-semibold text-foreground">{d.manage}</h1>
@@ -58,6 +58,6 @@ export default async function ManageAnnouncementPage({
           dict={dict}
         />
       </div>
-    </main>
+    </div>
   );
 }
