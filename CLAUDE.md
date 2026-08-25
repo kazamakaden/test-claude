@@ -3453,6 +3453,46 @@ section.
    0 containing `a`), then switched to `'อาสา'`, which genuinely spans two
    entity types. Pick a probe value against the real data, not by intuition.
 
+**The §13 QR encoded a bare token instead of a URL — reported from a real
+phone scan, and the fix is the first thing here proven against the reporter's
+own evidence.** The camera showed the raw text `mxzhndcnb1.3fe1fc20` and
+opened nothing. §13 is "Scan QR → Open Website → Confirm"; a bare token gives
+a camera app nothing to resolve, so the student never reached `/attend`.
+
+Two places build the QR and they had drifted:
+
+| | encoded |
+|---|---|
+| `components/attendance/qr-session-panel.tsx` (first render) | absolute URL ✅ |
+| `app/api/qr/[sessionId]/route.ts` (every rotation after) | `token.token` ❌ |
+
+So the code was correct when the page loaded and became un-openable text on
+the **first rotation**. Because it rotates every few seconds, essentially
+every real scan hit the broken one — and **the failure hid behind a working
+first render**, which is exactly what a staff member testing the page once
+would see. That is why it survived the earlier pass that verified QR
+end-to-end: that verification exercised `record_attendance()` through SQL,
+which never looks at what the QR image contains.
+
+The panel's own comment already stated the requirement — *"a phone's camera
+app opens this from outside the browser"* — and the rotation endpoint silently
+violated it. Fixed with one shared builder, `lib/qr.ts#attendUrl`, used by
+both so they cannot diverge again. The endpoint needs the locale to build the
+path, so the poll now sends it, validated with the existing `isLocale()` guard
+before interpolation: the caller is already proven to hold `activity:manage`,
+but a permitted caller is still not a reason to trust a raw query string.
+
+**Proven by decoding the QR payload the way a camera does**, using the exact
+token from the report: before, the payload is `mxzhndcnb1.3fe1fc20` and
+`new URL()` rejects it; after, it is `https://<site>/th/attend/mxzhndcnb1.3fe1fc20`,
+parses, and the token survives intact. Reproducing the reporter's exact string
+is what confirms the diagnosis rather than merely making the code look right.
+
+**A false failure in that check, caught before it was trusted:** the first
+version stringified `QRCode.create().segments[].data`, which is a **byte
+array** in byte mode, so it reported "camera cannot open it" for BOTH cases —
+including the fixed one. Decode the bytes; do not stringify them.
+
 ### ❌ Remaining
 
 * **RLS policy performance — HALF OF THIS IS DONE, and this bullet's own
