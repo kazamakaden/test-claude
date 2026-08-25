@@ -3289,6 +3289,105 @@ left open when the banner work shipped: correct bearer → `200`, and a lowercas
 guaranteed). The three reject cases — no header, wrong secret, empty bearer —
 all return `401`.
 
+**A regression I introduced in `0068` — unpublished drafts appeared as if they
+were already scheduled — plus four small audit defects (B2–B5) and สาขา
+`31908` (`0071`).**
+
+`0068` made a new activity start as `draft` and gave staff their own SELECT
+policy so they can see it. Permissive policies OR together, so for staff RLS
+returns drafts **alongside** published rows — and four read paths filtered
+neither, because they were all written when every activity was published:
+`listActivities` (drafts listed on `/activities`, unbadged, counted in the
+pagination total), `getActivityCounts` (the Pending/Completed tiles counted
+drafts, so the tile disagreed with the table beneath it), and
+`getUpcomingMeetings` / `getRecentActivities` (a draft rendered as a scheduled
+meeting and as recent activity).
+
+**This file already recorded the exact lesson** for the banner carousel —
+*"staff hold both policies … `listPublishedBanners()` filters `status`
+explicitly for that reason"* — and the same reasoning was not applied one
+table over. RLS is right here; the four queries were asking a narrower
+question than they stated, so the fix is an explicit
+`.eq("publish_status", "published")`, not a policy change.
+`getMonthActivities` is deliberately untouched: the calendar is the one
+surface that **should** show staff their drafts, badged ฉบับร่าง with a publish
+button.
+
+**Latent, not visible — which is why nobody had hit it.** All six live rows
+were backfilled to `published` by `0068` itself, so `/activities` looked
+correct; it would have started misbehaving with the *first* activity created
+through the workflow that had just shipped. And because only the QR commit was
+unmerged, the draft workflow was already on `master` and deployed, so this was
+live in production the whole time.
+
+**Proven live, both directions**, with a real draft inserted as a teacher —
+asserting only the hidden half would also pass against a query returning
+nothing at all: staff RLS sees the draft row (**1**, so the filter is
+load-bearing rather than decorative), the four paths show **0, 0, 0, 0**, the
+calendar shows **1**, and after publishing all four show **1**. Probe function
+dropped, zero test rows left.
+
+**B2** — `setExpectedAttendeesAction` had **no caller**, so
+`expected_attendees` was unsettable through the UI and `AttendanceSummary`
+always took its `noExpected` branch: the attendance percentage had never
+rendered for any activity. The schema, service, action and all three
+dictionary keys (`expectedLabel`/`expectedHint`/`save`) were already written
+and correct — only the control was missing. `ExpectedAttendeesForm` is passed
+into `AttendanceSummary` as a child so the summary keeps owning its layout,
+and renders only for a viewer who can edit. Blank clears the value, since
+removing an expectation is as legitimate as setting one.
+
+**B3** — the "view published" button linked to `/{lang}/documents/{id}`, which
+resolves a **`books`** id, not a `documents` id. The document→book bridge was
+deliberately removed in `0053`, so it 404'd for every official document.
+Removed, along with the now-orphaned dictionary key in both locales.
+
+**B4, and the part the first fix missed.** The "New project" button was
+ungated while the page it links to guards on `project:draft:submit`, so a
+read-only `student` saw it and was bounced on arrival. Gating it left a
+`student` with **one remaining link** — found by grepping the rendered HTML
+rather than re-reading the diff. `ProjectsTable`'s empty state offers the same
+CTA through `CardEmpty`, and *a student with no projects is precisely the
+viewer who reaches that branch*, so the ungated path was the likelier one.
+`CardEmpty`'s `ctaLabel`/`ctaHref` are now optional together; `ProjectsTable`
+gained a **required** `canCreate` prop rather than one defaulting to `true`,
+which is what made the compiler name both call sites instead of one.
+
+**B5 was five times bigger than the audit said** — ten pages, not two, each
+rendering `<main id="main">` **inside** the layout's `<main id="main">`. Not
+just a nested landmark and a duplicate DOM id: it silently broke
+skip-to-content on all ten, since `href="#main"` lands on whichever comes
+first, which is the layout's. Verified in the rendered HTML afterwards —
+exactly one `id="main"` per page.
+
+**B8 (`0071`)** — programme code `31908` was unregistered, so
+`69319080004@udontech.ac.th` signed in with no สาขา. Same root cause as the
+`31901` incident `0054` fixed: `0050` deleted the `31xxx` block as invalid
+demo data, but the college issues codes in it. **The name came from the
+college, not from inference** — guessing would put a real student in the wrong
+สาขา, which is worse than the blank. The migration reuses `0051`'s backfill
+statement verbatim rather than hardcoding this code, so anything registered
+later is picked up by the same query. Verified live: departments **30 → 31**,
+students with no สาขา **1 → 0**, and all five student profiles now resolve both
+a สาขา and a ระดับ. `30903` already carries this name, making `31908` the
+**third** same-name pair, and both are ปวส. — so the ระดับ prefix does not
+separate them either. Confirmed by direct execution that
+`departmentOptionLabel()` renders all four such options distinctly; the code
+suffix is the only thing that does it.
+
+**The responsive false alarm from the `0066`/`0067` entry recurred, from the
+same cause, and is worth not re-diagnosing a third time:** an intermediate run
+failed all 78 with `innerWidth=981, emulation did not apply`. That is *not*
+the missing-viewport-meta bug it resembles — the meta tag was confirmed
+present. It was `npm run build` running concurrently with `next dev` against
+the same `.next`, clobbering the dev server's manifests; the `widest` element
+reported is the Next error overlay's `<pre>`. Kill the server, `rm -rf .next`,
+restart. Clean re-run: **78/78, 0 overflow**, all three widths genuinely
+applied.
+
+`npx tsc --noEmit`, `npm run lint` and `npm run build` all clean; dictionary
+parity checked programmatically (1003 keys per locale). Route matrix across all
+five roles unchanged from before the edits.
 
 ### ❌ Remaining
 
@@ -3380,6 +3479,10 @@ all return `401`.
   PDFs. First thing to confirm after deploy: a staff upload lands, publishing
   with a year + เทอม makes it visible to a signed-out visitor, and the arrows
   page correctly with more than one banner.
+* **B2–B5, B8 and B9 are all FIXED** — see the §0 entry above. The audit
+  bullets that used to describe them as outstanding are superseded. Two of
+  them were undercounted when first written: B5 was ten pages, not two, and
+  B4 had a second ungated call site in the empty state.
 * **Correction to this section's own prior claim**: it used to say
   "`project_drafts` (Projects workflow) ... Plus Documents digital-signature
   ... none of those phases started." That was wrong by the time it was

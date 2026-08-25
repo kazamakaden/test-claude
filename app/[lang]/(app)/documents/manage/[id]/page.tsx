@@ -71,16 +71,14 @@ export default async function DocumentWorkflowDetailPage({
         </div>
       ) : null}
 
-      {document.status === "official" ? (
-        <Button
-          variant="outline"
-          nativeButton={false}
-          render={<Link href={`/${lang}/documents/${document.id}`} />}
-        >
-          {d.detail.viewPublished}
-        </Button>
-      ) : null}
-
+      {/*
+        No "view published" link. It used to point at /{lang}/documents/{id},
+        but that route resolves a `books` id, not a `documents` id -- the
+        document-to-book bridge was deliberately removed in 0053, so the link
+        404'd for every official document. There is no public URL for a
+        document today; restoring one needs the bridge back (CLAUDE.md
+        section 12), not a link.
+      */}
       {canEdit ? (
         <>
           <DocumentForm mode="edit" document={document} lang={lang} dict={dict} />

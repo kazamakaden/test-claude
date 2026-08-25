@@ -4,6 +4,7 @@ import { getRole } from "@/lib/auth/get-role";
 import { signedInLandingTarget } from "@/lib/auth/require-role";
 import type { Locale } from "@/lib/i18n/config";
 import { LoginForm } from "./login-form";
+import { attendanceTokenSchema } from "@/schemas/attendance";
 
 export default async function LoginPage({
   params,
@@ -36,6 +37,15 @@ export default async function LoginPage({
   // Set by actions/auth.ts's updatePassword() after the set-password flow
   // completes — same defensive check-against-dictionary-keys pattern as
   // initialErrorKey above.
+  // A QR token the viewer scanned while signed out (attend/[token]/page.tsx
+  // sends them here rather than dropping it). Validated against the same schema
+  // the scan itself uses, so only a well-formed token is ever echoed back into
+  // the page — and it is a token, never a URL.
+  const rawAttend = sp.attend;
+  const attendValue = Array.isArray(rawAttend) ? rawAttend[0] : rawAttend;
+  const attendParsed = attendanceTokenSchema.safeParse(attendValue ?? "");
+  const attendToken = attendParsed.success ? attendParsed.data : undefined;
+
   const rawNotice = sp.notice;
   const noticeValue = Array.isArray(rawNotice) ? rawNotice[0] : rawNotice;
   const initialNoticeKey =
@@ -75,7 +85,7 @@ export default async function LoginPage({
         </p>
       ) : null}
 
-      <LoginForm lang={lang} dict={dict} />
+      <LoginForm lang={lang} dict={dict} attendToken={attendToken} />
     </div>
   );
 }

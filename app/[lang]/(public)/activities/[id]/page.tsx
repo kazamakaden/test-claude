@@ -16,6 +16,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { BannerCarousel } from "@/components/activities/banner-carousel";
 import { BannerManager } from "@/components/activities/banner-manager";
 import { AttendanceSummary } from "@/components/activities/attendance-summary";
+import { ExpectedAttendeesForm } from "@/components/activities/expected-attendees-form";
 import { AttendeeTable } from "@/components/activities/attendee-table";
 import { AttendeeAddForm } from "@/components/activities/attendee-add-form";
 import { InlineQrPanel } from "@/components/activities/inline-qr-panel";
@@ -64,7 +65,7 @@ export default async function ActivityDetailPage({
   const isGuest = role === "guest";
 
   return (
-    <main id="main" className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-4 py-8 sm:px-6">
+    <div className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-4 py-8 sm:px-6">
       <div>
         <Link
           href={`/${lang}/activities`}
@@ -126,6 +127,8 @@ export default async function ActivityDetailPage({
           <SummarySection
             activityId={activity.id}
             expected={activity.expectedAttendees}
+            canEdit={canEdit}
+            lang={lang}
             dict={dict}
           />
         </CardBoundary>
@@ -151,7 +154,7 @@ export default async function ActivityDetailPage({
           </CardBoundary>
         </Suspense>
       )}
-    </main>
+    </div>
   );
 }
 
@@ -183,14 +186,29 @@ async function QrSection({
 async function SummarySection({
   activityId,
   expected,
+  canEdit,
+  lang,
   dict,
 }: {
   activityId: string;
   expected: number | null;
+  canEdit: boolean;
+  lang: Locale;
   dict: Awaited<ReturnType<typeof getDictionary>>;
 }) {
   const stats = await getActivityAttendanceStats(activityId, expected);
-  return <AttendanceSummary stats={stats} dict={dict} />;
+  return (
+    <AttendanceSummary stats={stats} dict={dict}>
+      {canEdit ? (
+        <ExpectedAttendeesForm
+          activityId={activityId}
+          expected={expected}
+          lang={lang}
+          dict={dict}
+        />
+      ) : null}
+    </AttendanceSummary>
+  );
 }
 
 async function AttendeesSection({

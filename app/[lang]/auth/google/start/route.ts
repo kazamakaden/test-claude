@@ -4,6 +4,7 @@ import {
   isGoogleOAuthConfigured,
   randomUrlSafe,
   OAUTH_COOKIE_MAX_AGE_S,
+  OAUTH_ATTEND_COOKIE,
   OAUTH_LANG_COOKIE,
   OAUTH_NONCE_COOKIE,
   OAUTH_STATE_COOKIE,
@@ -11,6 +12,7 @@ import {
 } from "@/lib/google-oauth";
 import { resolveConfiguredSiteUrl } from "@/lib/site-url";
 import { isLocale, defaultLocale } from "@/lib/i18n/config";
+import { attendanceTokenSchema } from "@/schemas/attendance";
 
 /**
  * Starts this app's own Google sign-in.
@@ -62,6 +64,17 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   // Where to land at the end. The redirect_uri is fixed to the default locale,
   // so without this a Thai user starting from /en would come back into Thai.
   response.cookies.set(OAUTH_LANG_COOKIE, lang, options);
+
+  // A QR token the student scanned before signing in. Validated against
+  // attendanceTokenSchema first, so only a well-formed token is ever stored --
+  // and it is a TOKEN, not a path: the callback builds the URL itself. Anything
+  // else is dropped silently, which just means the normal landing page.
+  const attend = attendanceTokenSchema.safeParse(
+    request.nextUrl.searchParams.get("attend") ?? ""
+  );
+  if (attend.success) {
+    response.cookies.set(OAUTH_ATTEND_COOKIE, attend.data, options);
+  }
 
   return response;
 }

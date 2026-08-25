@@ -58,6 +58,11 @@ function ReviewQueue({
             lang={lang}
             dict={dict}
             paramKeys={paramKeys}
+            // Unreachable: this queue renders its own empty state above, so
+            // ProjectsTable's empty branch never runs here. False rather than
+            // true because a REVIEW queue is not a place to offer "create a
+            // project" even if it somehow did.
+            canCreate={false}
           />
           <Pagination
             page={filters.page}

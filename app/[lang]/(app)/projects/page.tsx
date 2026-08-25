@@ -1,8 +1,9 @@
 import Link from "next/link";
 import { Plus } from "lucide-react";
 import { getDictionary } from "@/lib/i18n/get-dictionary";
-import { getSessionUserId } from "@/lib/auth/get-role";
+import { getRole, getSessionUserId } from "@/lib/auth/get-role";
 import { requirePermission } from "@/lib/auth/require-role";
+import { can } from "@/lib/auth/permissions";
 import { parseProjectsSearchParams, PROJECTS_PER_PAGE_SIZE } from "@/schemas/projects";
 import { listMyProjects } from "@/services/projects";
 import { ProjectsFilters } from "@/components/projects/projects-filters";
@@ -24,6 +25,11 @@ export default async function ProjectsPage({
   // §5 lists Projects only under Authenticated — re-checked server-side, the
   // nav filter alone is UI only.
   await requirePermission("workspace:access", lang);
+  // The button below links to /projects/new, which guards on
+  // project:draft:submit -- a stricter permission than this page's. A
+  // read-only `student` holds workspace:access, so without this the button
+  // rendered for them and the destination bounced them straight back.
+  const canCreate = can(await getRole(), "project:draft:submit");
 
   const rawParams = await rawSearchParams;
   const dict = await getDictionary(lang);
@@ -50,10 +56,12 @@ export default async function ProjectsPage({
           </h1>
           <p className="text-sm text-muted-foreground">{d.description}</p>
         </div>
-        <Button nativeButton={false} render={<Link href={`/${lang}/projects/new`} />}>
-          <Plus className="size-4" aria-hidden />
-          {d.newProjectCta}
-        </Button>
+        {canCreate ? (
+          <Button nativeButton={false} render={<Link href={`/${lang}/projects/new`} />}>
+            <Plus className="size-4" aria-hidden />
+            {d.newProjectCta}
+          </Button>
+        ) : null}
       </div>
 
       <ProjectsFilters dict={dict} />
@@ -66,6 +74,7 @@ export default async function ProjectsPage({
           searchParams={searchParams}
           lang={lang}
           dict={dict}
+          canCreate={canCreate}
         />
         <Pagination
           page={filters.page}

@@ -32,7 +32,17 @@ export async function listActivities(filters: ActivityFilters): Promise<Activiti
   if (!supabase) return { rows: [], total: 0 };
   const start = (filters.page - 1) * ACTIVITIES_PER_PAGE_SIZE;
 
-  let query = supabase.from("activities").select(ACTIVITY_COLUMNS, { count: "exact" });
+  // Published only. RLS is NOT the filter here: staff hold activities_select_staff
+  // as well as the public policy, and permissive policies OR together, so leaning
+  // on RLS alone would list a staff member's own unpublished drafts on this page
+  // — mixed in with real entries, unbadged, and counted in the pagination total.
+  // Same reason listPublishedBanners() filters status explicitly (0065). The one
+  // surface that SHOULD show drafts is the calendar (getMonthActivities), which
+  // selects publish_status and badges them.
+  let query = supabase
+    .from("activities")
+    .select(ACTIVITY_COLUMNS, { count: "exact" })
+    .eq("publish_status", "published");
 
   if (filters.search) {
     const q = filters.search.replace(/[%_]/g, "\\$&");
@@ -89,13 +99,18 @@ export async function getActivityCounts(): Promise<ActivityCounts> {
 
   const [attendanceResult, completedResult, pendingResult] = await Promise.all([
     supabase.from("attendance").select("id", { count: "exact", head: true }),
+    // publish_status filter for the same reason as listActivities above: an
+    // unpublished draft is not a pending activity, and counting one here makes
+    // the stat tile disagree with the table it sits above.
     supabase
       .from("activities")
       .select("id", { count: "exact", head: true })
+      .eq("publish_status", "published")
       .eq("status", "completed"),
     supabase
       .from("activities")
       .select("id", { count: "exact", head: true })
+      .eq("publish_status", "published")
       .eq("status", "pending"),
   ]);
 

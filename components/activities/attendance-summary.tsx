@@ -18,9 +18,12 @@ import type { Dictionary } from "@/types/i18n";
 export function AttendanceSummary({
   stats,
   dict,
+  children,
 }: {
   stats: ActivityAttendanceStats;
   dict: Dictionary;
+  /** Slot for the owner-only control that sets `expected` (ExpectedAttendeesForm). */
+  children?: React.ReactNode;
 }) {
   const d = dict.activities.dashboard;
 
@@ -79,6 +82,8 @@ export function AttendanceSummary({
             </div>
           ))}
         </dl>
+
+        {children}
       </CardContent>
     </Card>
   );

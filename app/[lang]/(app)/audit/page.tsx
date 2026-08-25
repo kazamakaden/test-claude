@@ -44,7 +44,7 @@ export default async function AuditPage({
   }
 
   return (
-    <main id="main" className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-4 py-8 sm:px-6">
+    <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-4 py-8 sm:px-6">
       <header className="flex flex-col gap-1">
         <span className="flex items-center gap-2 text-sm text-muted-foreground">
           <ScrollText className="size-4" aria-hidden="true" />
@@ -70,6 +70,6 @@ export default async function AuditPage({
         }
         dict={dict}
       />
-    </main>
+    </div>
   );
 }

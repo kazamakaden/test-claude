@@ -23,6 +23,10 @@ export async function getUpcomingMeetings(): Promise<Meeting[]> {
   const { data, error } = await supabase
     .from("activities")
     .select("id, title, starts_at, location")
+    // Published only — staff also hold activities_select_staff (0068) and
+    // permissive policies OR together, so RLS alone would surface their own
+    // unpublished drafts here as though they were scheduled meetings.
+    .eq("publish_status", "published")
     .gte("starts_at", new Date().toISOString())
     .order("starts_at", { ascending: true })
     .limit(5);
@@ -135,6 +139,8 @@ export async function getRecentActivities(): Promise<RecentActivity[]> {
   const { data, error } = await supabase
     .from("activities")
     .select("id, title, starts_at, departments(name_th)")
+    // Published only — see getUpcomingMeetings above.
+    .eq("publish_status", "published")
     .order("starts_at", { ascending: false })
     .limit(5);
 
