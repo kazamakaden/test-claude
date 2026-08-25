@@ -44,3 +44,26 @@ export function qrGeometry(text: string): QrGeometry {
 
   return { size, path: parts.join("") };
 }
+
+/**
+ * The string a §13 attendance QR must encode.
+ *
+ * ALWAYS an absolute URL, never the bare token. A phone's camera app opens
+ * this from outside the browser: given a bare token it has no URL to resolve
+ * and simply displays the text, so the student never reaches /attend at all.
+ *
+ * This exists because the two places that build a QR drifted apart. The
+ * initial render (components/attendance/qr-session-panel.tsx) built the URL
+ * correctly; the rotation endpoint (app/api/qr/[sessionId]/route.ts) encoded
+ * `token.token` on its own. The code rotates every few seconds, so in practice
+ * almost every real scan got the bare-token version -- and the failure hid
+ * behind a working first render, which is what a staff member testing the page
+ * once would see. One builder now, used by both.
+ *
+ * resolveConfiguredSiteUrl() rather than the request's Origin header: this URL
+ * is displayed to a room and scanned by devices that never sent that header,
+ * so there is nothing to inherit it from. Same call the panel already made.
+ */
+export function attendUrl(origin: string, lang: string, token: string): string {
+  return `${origin}/${lang}/attend/${token}`;
+}

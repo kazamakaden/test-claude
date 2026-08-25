@@ -15,6 +15,7 @@ import type { QrGeometry } from "@/lib/qr";
  */
 export function QrLiveCode({
   sessionId,
+  lang,
   initialGeometry,
   initialExpiresIn,
   rotationSeconds,
@@ -22,6 +23,11 @@ export function QrLiveCode({
   closedLabel,
 }: {
   sessionId: string;
+  /**
+   * Forwarded to the poll so the rotated code encodes a URL in the same locale
+   * as the first one, instead of silently switching language mid-session.
+   */
+  lang: string;
   initialGeometry: QrGeometry;
   initialExpiresIn: number;
   rotationSeconds: number;
@@ -38,7 +44,10 @@ export function QrLiveCode({
 
     async function refresh() {
       try {
-        const res = await fetch(`/api/qr/${sessionId}`, { cache: "no-store" });
+        const res = await fetch(
+          `/api/qr/${sessionId}?lang=${encodeURIComponent(lang)}`,
+          { cache: "no-store" }
+        );
         if (!res.ok) {
           // 403/404 mean revoked, expired, or no longer permitted. Stop rather
           // than hammering an endpoint that will keep refusing.
@@ -73,7 +82,7 @@ export function QrLiveCode({
       cancelled = true;
       clearInterval(tick);
     };
-  }, [sessionId, rotationSeconds, closed]);
+  }, [sessionId, lang, rotationSeconds, closed]);
 
   if (closed) {
     return (
