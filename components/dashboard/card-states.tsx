@@ -13,22 +13,28 @@ export function CardEmpty({
 }: {
   icon: LucideIcon;
   message: string;
-  ctaLabel: string;
-  ctaHref: string;
+  /**
+   * Optional together: an empty state should not offer an action the viewer
+   * cannot perform. Omitting them renders the message alone.
+   */
+  ctaLabel?: string;
+  ctaHref?: string;
   lang: Locale;
 }) {
   return (
     <div className="flex flex-col items-center justify-center gap-3 py-8 text-center">
       <Icon className="size-8 text-muted-foreground" aria-hidden />
       <p className="text-sm text-muted-foreground">{message}</p>
-      <Button
-        size="sm"
-        variant="outline"
-        nativeButton={false}
-        render={<Link href={`/${lang}${ctaHref}`} />}
-      >
-        {ctaLabel}
-      </Button>
+      {ctaLabel && ctaHref ? (
+        <Button
+          size="sm"
+          variant="outline"
+          nativeButton={false}
+          render={<Link href={`/${lang}${ctaHref}`} />}
+        >
+          {ctaLabel}
+        </Button>
+      ) : null}
     </div>
   );
 }

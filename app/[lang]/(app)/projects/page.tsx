@@ -74,6 +74,7 @@ export default async function ProjectsPage({
           searchParams={searchParams}
           lang={lang}
           dict={dict}
+          canCreate={canCreate}
         />
         <Pagination
           page={filters.page}

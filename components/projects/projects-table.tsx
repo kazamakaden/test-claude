@@ -55,6 +55,7 @@ export function ProjectsTable({
   lang,
   dict,
   paramKeys = projectsParamKeys(),
+  canCreate,
 }: {
   projects: Project[];
   filters: ProjectFilters;
@@ -64,6 +65,14 @@ export function ProjectsTable({
   dict: Dictionary;
   /** Namespaced URL param names when two lists share one page. */
   paramKeys?: ProjectsParamKeys;
+  /**
+   * Whether the viewer holds project:draft:submit. The empty state's CTA
+   * links to /projects/new, which guards on that permission -- a read-only
+   * `student` holds workspace:access and so reaches this page, but would be
+   * bounced by the destination. Required, not defaulted: a default here would
+   * silently re-introduce the bug at any new call site.
+   */
+  canCreate: boolean;
 }) {
   const d = dict.projects;
   const locale = lang === "th" ? th : enUS;
@@ -73,8 +82,8 @@ export function ProjectsTable({
       <CardEmpty
         icon={FolderKanban}
         message={d.empty}
-        ctaLabel={d.newProjectCta}
-        ctaHref="/projects/new"
+        ctaLabel={canCreate ? d.newProjectCta : undefined}
+        ctaHref={canCreate ? "/projects/new" : undefined}
         lang={lang}
       />
     );
