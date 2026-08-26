@@ -1,5 +1,5 @@
 import { getCurrentQrToken } from "@/services/attendance";
-import { qrGeometry } from "@/lib/qr";
+import { attendUrl, qrGeometry } from "@/lib/qr";
 import { QrLiveCode } from "@/components/attendance/qr-live-code";
 import { RevokeQrSessionButton } from "@/components/attendance/revoke-qr-session-button";
 import { resolveConfiguredSiteUrl } from "@/lib/site-url";
@@ -37,8 +37,7 @@ export async function QrSessionPanel({
   // — a relative path has nothing to resolve against. resolveConfiguredSiteUrl()
   // is reused rather than reading NEXT_PUBLIC_SITE_URL directly, so this
   // inherits its Vercel fallback (lib/site-url.ts).
-  const origin = resolveConfiguredSiteUrl() ?? "";
-  const url = `${origin}/${lang}/attend/${token.token}`;
+  const url = attendUrl(resolveConfiguredSiteUrl() ?? "", lang, token.token);
 
   return (
     <section className="flex flex-col items-center gap-4 rounded-xl border border-border bg-card p-6 shadow-sm">
@@ -49,6 +48,7 @@ export async function QrSessionPanel({
 
       <QrLiveCode
         sessionId={session.id}
+        lang={lang}
         initialGeometry={qrGeometry(url)}
         initialExpiresIn={token.expiresInSeconds}
         rotationSeconds={session.rotationSeconds}

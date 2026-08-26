@@ -2,7 +2,9 @@ import { NextResponse } from "next/server";
 import { getRole } from "@/lib/auth/get-role";
 import { can } from "@/lib/auth/permissions";
 import { getCurrentQrToken } from "@/services/attendance";
-import { qrGeometry } from "@/lib/qr";
+import { attendUrl, qrGeometry } from "@/lib/qr";
+import { resolveConfiguredSiteUrl } from "@/lib/site-url";
+import { defaultLocale, isLocale } from "@/lib/i18n/config";
 
 /**
  * The rotating token for a live QR display, polled by the staff page.
@@ -19,7 +21,7 @@ import { qrGeometry } from "@/lib/qr";
  * to "guest".
  */
 export async function GET(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ sessionId: string }> }
 ) {
   const role = await getRole();
@@ -37,7 +39,18 @@ export async function GET(
     return NextResponse.json({ error: "unavailable" }, { status: 404 });
   }
 
-  const geometry = qrGeometry(token.token);
+  // Encode the same absolute URL the first render does, NOT the bare token.
+  // This endpoint used to encode `token.token`, so the code worked when the
+  // page loaded and degraded to un-openable text on the first rotation --
+  // which is most scans. attendUrl() is now the single builder for both.
+  //
+  // `lang` is read from the query and validated against the locale list before
+  // it goes anywhere near a URL; an unknown value falls back rather than being
+  // interpolated. The caller is already proven to hold activity:manage above,
+  // but a permitted caller is still not a reason to trust a raw query string.
+  const requested = new URL(request.url).searchParams.get("lang");
+  const lang = requested && isLocale(requested) ? requested : defaultLocale;
+  const geometry = qrGeometry(attendUrl(resolveConfiguredSiteUrl() ?? "", lang, token.token));
 
   return NextResponse.json(
     { size: geometry.size, path: geometry.path, expiresInSeconds: token.expiresInSeconds },
