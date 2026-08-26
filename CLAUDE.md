@@ -3493,6 +3493,44 @@ version stringified `QRCode.create().segments[].data`, which is a **byte
 array** in byte mode, so it reported "camera cannot open it" for BOTH cases —
 including the fixed one. Decode the bytes; do not stringify them.
 
+**Editing an activity could never be saved — a self-inflicted regression from
+the category work, reported from production.** Saving an edit on
+`/th/calendar` failed with "กรุณาเลือกประเภท", even when only the time changed.
+
+`updateActivitySchema` extends `createActivitySchema`, so it inherits
+`category` as **required**. But the day sheet rendered the category radios
+only on create:
+
+    {editing === null ? ( ...category fieldset... ) : null}
+
+So an edit submitted no category, Zod refused it, and **no existing activity
+could be saved by anyone**. The comment justifying that condition said the
+edit form "has no room for a decision the creator already made" — true as far
+as it went, and the update schema was never checked against it. A field the
+schema requires and the form does not render is unsatisfiable by construction.
+
+Fixed by rendering the control on **both** paths rather than relaxing the
+schema — that removes the special case instead of papering over it, and makes
+a mis-chosen category fixable, which it previously was not from anywhere in
+the UI. On edit the radios pre-select the activity's **own** category;
+defaulting to `org` would silently reclassify a ชมรม activity on any unrelated
+edit.
+
+**Why the earlier verification missed it:** that pass proved the *create* path
+(the migration matrix, and a CDP check that the add form posts a category) and
+never exercised edit. Create and edit share a schema but not a form, so
+proving one says nothing about the other.
+
+Verified two ways: against the real schemas — the payload the edit form used
+to send fails `categoryRequired`, the payload it sends now passes, and one
+still missing the field is **still** refused, so the schema remains the
+boundary — and in a real headless browser driving the actual sheet: edit shows
+2 radios with `club` checked (the fixture's own value) plus `id` and a
+prefilled title, create shows 2 radios with `org`. The edit case needs an
+existing activity, which this session has no Supabase for, so it used a
+temporary fixture in `getMonthActivities`, reverted immediately
+(`grep TEMP_SELF_TEST` → 0).
+
 ### ❌ Remaining
 
 * **RLS policy performance — HALF OF THIS IS DONE, and this bullet's own
