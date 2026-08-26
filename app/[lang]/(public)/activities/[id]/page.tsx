@@ -23,6 +23,7 @@ import { InlineQrPanel } from "@/components/activities/inline-qr-panel";
 import { EditorsPanel } from "@/components/activities/editors-panel";
 import { QrSessionPanel } from "@/components/attendance/qr-session-panel";
 import { CreateQrSessionForm } from "@/components/attendance/create-qr-session-form";
+import { bangkokDate } from "@/lib/datetime";
 
 /**
  * Activity detail.
@@ -99,7 +100,7 @@ export default async function ActivityDetailPage({
           <div className="flex items-center gap-1.5">
             <CalendarDays aria-hidden className="size-4" />
             <dt className="sr-only">{d.columnDate}</dt>
-            <dd>{format(new Date(activity.startsAt), "d MMMM yyyy HH:mm", { locale })}</dd>
+            <dd>{format(bangkokDate(activity.startsAt), "d MMMM yyyy HH:mm", { locale })}</dd>
           </div>
           {activity.location && (
             <div className="flex items-center gap-1.5">

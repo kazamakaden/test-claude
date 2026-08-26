@@ -4,6 +4,7 @@ import { MapPin } from "lucide-react";
 import type { MonthActivity } from "@/types/activities";
 import type { Locale } from "@/lib/i18n/config";
 import type { Dictionary } from "@/types/i18n";
+import { bangkokDate } from "@/lib/datetime";
 
 /**
  * The same month as a linear list — date, time, title, location. This is
@@ -36,9 +37,9 @@ export function MonthEventList({
             <li key={e.id} className="flex items-start gap-3 py-3 first:pt-0 last:pb-0">
               <div className="flex w-16 shrink-0 flex-col text-xs text-muted-foreground">
                 <span className="font-medium text-foreground">
-                  {format(new Date(e.startsAt), "d MMM", { locale })}
+                  {format(bangkokDate(e.startsAt), "d MMM", { locale })}
                 </span>
-                <span>{format(new Date(e.startsAt), "HH:mm")}</span>
+                <span>{format(bangkokDate(e.startsAt), "HH:mm")}</span>
               </div>
               <div className="flex flex-col gap-0.5">
                 <p className="text-sm font-medium text-foreground">{e.title}</p>

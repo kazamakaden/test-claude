@@ -20,6 +20,7 @@ import type {
 } from "@/types/documents";
 import type { Locale } from "@/lib/i18n/config";
 import type { Dictionary } from "@/types/i18n";
+import { bangkokDate } from "@/lib/datetime";
 
 const SORTABLE_COLUMNS: { key: DocumentSortColumn; labelKey: "columnTitle" | "columnStatus" | "columnUpdated" }[] = [
   { key: "title", labelKey: "columnTitle" },
@@ -115,7 +116,7 @@ export function DocumentsTable({
               <Badge variant={STATUS_VARIANT[doc.status]}>{d.status[doc.status]}</Badge>
             </TableCell>
             <TableCell className="text-muted-foreground">
-              {format(new Date(doc.updatedAt), "d MMM yyyy", { locale })}
+              {format(bangkokDate(doc.updatedAt), "d MMM yyyy", { locale })}
             </TableCell>
             <TableCell className="text-muted-foreground">{doc.ownerName ?? "—"}</TableCell>
           </TableRow>

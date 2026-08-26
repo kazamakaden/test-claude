@@ -16,6 +16,7 @@ import { PublishControls } from "@/components/books/publish-controls";
 import { DeleteBookButton } from "@/components/books/delete-book-button";
 import { Button } from "@/components/ui/button";
 import type { Locale } from "@/lib/i18n/config";
+import { bangkokDate } from "@/lib/datetime";
 
 export default async function BookDetailPage({
   params,
@@ -75,7 +76,7 @@ export default async function BookDetailPage({
           </p>
           {book.publishedAt ? (
             <p className="text-xs text-muted-foreground">
-              {d.publishedAt} {format(new Date(book.publishedAt), "d MMM yyyy", { locale })}
+              {d.publishedAt} {format(bangkokDate(book.publishedAt), "d MMM yyyy", { locale })}
             </p>
           ) : null}
           {book.ownerName ? (

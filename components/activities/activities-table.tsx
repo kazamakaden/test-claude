@@ -15,6 +15,7 @@ import { CardEmpty } from "@/components/dashboard/card-states";
 import type { Activity, ActivityFilters, ActivitySortColumn, ActivityStatus } from "@/types/activities";
 import type { Locale } from "@/lib/i18n/config";
 import type { Dictionary } from "@/types/i18n";
+import { bangkokDate } from "@/lib/datetime";
 
 const SORTABLE_COLUMNS: { key: ActivitySortColumn; labelKey: keyof Dictionary["activities"] }[] = [
   { key: "title", labelKey: "columnTitle" },
@@ -109,7 +110,7 @@ export function ActivitiesTable({
               </Link>
             </TableCell>
             <TableCell className="text-muted-foreground">
-              {format(new Date(a.startsAt), "d MMM yyyy", { locale })}
+              {format(bangkokDate(a.startsAt), "d MMM yyyy", { locale })}
             </TableCell>
             <TableCell>
               <Badge variant={STATUS_VARIANT[a.status]}>{d.status[a.status]}</Badge>

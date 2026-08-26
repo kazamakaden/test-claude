@@ -8,6 +8,7 @@ import { notificationMessage } from "@/lib/notifications";
 import type { AppNotification, NotificationFilter } from "@/types/notifications";
 import type { Locale } from "@/lib/i18n/config";
 import type { Dictionary } from "@/types/i18n";
+import { bangkokDate } from "@/lib/datetime";
 
 export function NotificationsList({
   notifications,
@@ -58,7 +59,7 @@ export function NotificationsList({
               </p>
               <div className="flex items-center gap-2 text-xs text-muted-foreground">
                 <time dateTime={n.createdAt}>
-                  {format(new Date(n.createdAt), "d MMM yyyy HH:mm", { locale })}
+                  {format(bangkokDate(n.createdAt), "d MMM yyyy HH:mm", { locale })}
                 </time>
                 {!n.read && (
                   <span className="rounded-full bg-primary/10 px-1.5 py-0.5 font-medium text-primary">
