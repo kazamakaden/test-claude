@@ -7,6 +7,7 @@ import { AttendeeRowActions } from "@/components/activities/attendee-row-actions
 import type { AttendanceRow } from "@/types/attendance";
 import type { Locale } from "@/lib/i18n/config";
 import type { Dictionary } from "@/types/i18n";
+import { bangkokDate } from "@/lib/datetime";
 
 const STATUS_VARIANT = {
   present: "default",
@@ -102,7 +103,7 @@ export function AttendeeTable({
                     {dict.activities.method[r.method]}
                   </TableCell>
                   <TableCell className="text-sm text-muted-foreground">
-                    {format(new Date(r.recordedAt), "d MMM HH:mm", { locale })}
+                    {format(bangkokDate(r.recordedAt), "d MMM HH:mm", { locale })}
                   </TableCell>
                   {canManage && (
                     <TableCell className="text-right">

@@ -8,6 +8,7 @@ import { SEASON_LABELS_TH, SEASON_LABELS_EN } from "@/lib/books";
 import type { BookSummary } from "@/types/books";
 import type { Locale } from "@/lib/i18n/config";
 import type { Dictionary } from "@/types/i18n";
+import { bangkokDate } from "@/lib/datetime";
 
 /**
  * A shelf card. Clicking it opens the book's PDF in a new tab, handed to
@@ -67,7 +68,7 @@ export function BookCard({
       </p>
       {book.publishedAt ? (
         <p className="text-xs text-muted-foreground">
-          {d.publishedAt} {format(new Date(book.publishedAt), "d MMM yyyy", { locale })}
+          {d.publishedAt} {format(bangkokDate(book.publishedAt), "d MMM yyyy", { locale })}
         </p>
       ) : null}
     </>

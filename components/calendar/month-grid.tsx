@@ -3,7 +3,6 @@ import {
   endOfMonth,
   endOfWeek,
   format,
-  isSameDay,
   isSameMonth,
   isToday,
   startOfMonth,
@@ -13,6 +12,7 @@ import { cn } from "@/lib/utils";
 import type { MonthActivity } from "@/types/activities";
 import type { Locale } from "@/lib/i18n/config";
 import type { Dictionary } from "@/types/i18n";
+import { bangkokDayKey } from "@/lib/datetime";
 
 const WEEKDAY_KEYS_TH = ["จ", "อ", "พ", "พฤ", "ศ", "ส", "อา"];
 const WEEKDAY_KEYS_EN = ["M", "T", "W", "T", "F", "S", "S"];
@@ -45,7 +45,13 @@ export function MonthGrid({
   const gridEnd = endOfWeek(monthEnd, { weekStartsOn: 1 });
   const days = eachDayOfInterval({ start: gridStart, end: gridEnd });
 
-  const eventsForDay = (day: Date) => events.filter((e) => isSameDay(new Date(e.startsAt), day));
+  // Bucket by the event's BANGKOK day, not the runtime's. isSameDay(new Date(iso))
+  // compares in whatever timezone the code happens to run in, so on Vercel (UTC)
+  // an activity at 00:30 Bangkok landed on the previous day's cell. The day cell
+  // itself is already a plain calendar date, so its own fields are the key --
+  // the same shape holidayForDay uses just below.
+  const eventsForDay = (day: Date) =>
+    events.filter((e) => bangkokDayKey(e.startsAt) === format(day, "yyyy-MM-dd"));
 
   return (
     <div className="hidden overflow-hidden rounded-xl border border-border bg-card shadow-sm md:block">

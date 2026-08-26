@@ -6,6 +6,7 @@ import { CardEmpty } from "@/components/dashboard/card-states";
 import { getUpcomingMeetings } from "@/services/dashboard";
 import type { Locale } from "@/lib/i18n/config";
 import type { Dictionary } from "@/types/i18n";
+import { bangkokDate } from "@/lib/datetime";
 
 export async function UpcomingMeetingsCard({
   lang,
@@ -40,7 +41,7 @@ export async function UpcomingMeetingsCard({
                 <p className="text-sm font-medium text-foreground">{m.title}</p>
                 <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                   <CalendarClock className="size-3.5" aria-hidden />
-                  {format(new Date(m.startsAt), "d MMM yyyy, HH:mm", { locale })}
+                  {format(bangkokDate(m.startsAt), "d MMM yyyy, HH:mm", { locale })}
                 </div>
                 <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                   <MapPin className="size-3.5" aria-hidden />

@@ -34,6 +34,7 @@ import type { MonthActivity } from "@/types/activities";
 import type { Holiday } from "@/types/holidays";
 import type { Locale } from "@/lib/i18n/config";
 import type { Dictionary } from "@/types/i18n";
+import { bangkokDate } from "@/lib/datetime";
 
 // useFormStatus only reports the correct pending state for a DOM descendant
 // of the <form> it tracks — same note as member-edit-sheet.tsx's SaveButton.
@@ -48,7 +49,7 @@ function SaveButton({ label, pendingLabel }: { label: string; pendingLabel: stri
 
 function timeOf(iso: string | null): string {
   if (!iso) return "";
-  return format(new Date(iso), "HH:mm");
+  return format(bangkokDate(iso), "HH:mm");
 }
 
 function ActivityForm({

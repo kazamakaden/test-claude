@@ -16,6 +16,7 @@ import type { Project, ProjectFilters, ProjectSortColumn, ProjectStatus } from "
 import { projectsParamKeys, type ProjectsParamKeys } from "@/schemas/projects";
 import type { Locale } from "@/lib/i18n/config";
 import type { Dictionary } from "@/types/i18n";
+import { bangkokDate } from "@/lib/datetime";
 
 const SORTABLE_COLUMNS: { key: ProjectSortColumn; labelKey: "columnTitle" | "columnStatus" | "columnUpdated" }[] = [
   { key: "title", labelKey: "columnTitle" },
@@ -128,7 +129,7 @@ export function ProjectsTable({
               <Badge variant={STATUS_VARIANT[p.status]}>{d.status[p.status]}</Badge>
             </TableCell>
             <TableCell className="text-muted-foreground">
-              {format(new Date(p.updatedAt), "d MMM yyyy", { locale })}
+              {format(bangkokDate(p.updatedAt), "d MMM yyyy", { locale })}
             </TableCell>
             <TableCell className="text-muted-foreground">{p.ownerName ?? "—"}</TableCell>
             <TableCell className="text-muted-foreground">{p.departmentName ?? "—"}</TableCell>
