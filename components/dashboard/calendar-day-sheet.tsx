@@ -101,29 +101,36 @@ function ActivityForm({
             `required` on both means the browser itself refuses an empty
             submission. 0068 makes the column NOT NULL with no default, so a
             missing category is a database refusal too — this is the friendly
-            layer, not the boundary. Only offered on CREATE: category is
-            updatable in the database, but the day sheet's edit form has no room
-            for a decision the creator already made. */}
-        {editing === null ? (
-          <fieldset className="flex flex-col gap-2">
-            <legend className="text-sm font-medium text-foreground">{d.categoryLabel}</legend>
-            <div className="flex gap-4">
-              {(["org", "club"] as const).map((value) => (
-                <label key={value} className="flex items-center gap-2 text-sm text-foreground">
-                  <input
-                    type="radio"
-                    name="category"
-                    value={value}
-                    required
-                    defaultChecked={value === "org"}
-                    className="size-4 accent-primary"
-                  />
-                  {value === "org" ? d.categoryOrg : d.categoryClub}
-                </label>
-              ))}
-            </div>
-          </fieldset>
-        ) : null}
+            layer, not the boundary.
+
+            Rendered on EDIT as well as create, and that is load-bearing rather
+            than a nicety. This block used to be wrapped in `editing === null`,
+            on the reasoning that the creator had already made the choice — but
+            updateActivitySchema extends createActivitySchema, so it inherits
+            `category` as REQUIRED. The edit form therefore submitted no
+            category and every edit failed validation with categoryRequired:
+            an existing activity could not be saved at all, not even a time
+            change. Showing the control on both paths removes the special case
+            instead of papering over it, and the column is updatable (0068
+            grants UPDATE on it), so a mis-chosen category is now fixable. */}
+        <fieldset className="flex flex-col gap-2">
+          <legend className="text-sm font-medium text-foreground">{d.categoryLabel}</legend>
+          <div className="flex gap-4">
+            {(["org", "club"] as const).map((value) => (
+              <label key={value} className="flex items-center gap-2 text-sm text-foreground">
+                <input
+                  type="radio"
+                  name="category"
+                  value={value}
+                  required
+                  defaultChecked={(editing?.category ?? "org") === value}
+                  className="size-4 accent-primary"
+                />
+                {value === "org" ? d.categoryOrg : d.categoryClub}
+              </label>
+            ))}
+          </div>
+        </fieldset>
 
         <div className="flex gap-3">
           <FormField name="startTime" className="flex-1" invalid={Boolean(errorMessage)}>
