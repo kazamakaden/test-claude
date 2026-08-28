@@ -78,6 +78,19 @@ export const permissions = [
 
   /** Administrator — §6 students "Cannot: delete". */
   "content:delete",
+  /**
+   * Administrator half of activities_delete_owner (0061): `created_by =
+   * auth.uid() OR current_role() = 'admin'`. Deliberately NARROWER than
+   * activity:manage, which aft/teacher also hold — deleting an activity
+   * cascades into `attendance` and destroys its entire check-in record, so it
+   * is not something a co-editor gets.
+   *
+   * A caller pairs this with an owner check rather than using it alone:
+   * `can(role, "activity:delete") || activity.createdBy === viewerId`. A raw
+   * `role === "admin"` comparison is what the aft/teacher split already broke
+   * once in this codebase.
+   */
+  "activity:delete",
   /** Administrator — §6 students "Cannot: manage users". */
   "member:manage",
   /** Administrator — §6 teachers "Cannot manage system". */
@@ -161,6 +174,7 @@ const adminPermissions = [
   "document:approve",
   "member:approve",
   "content:delete",
+  "activity:delete",
   "member:manage",
   "system:manage",
 ] as const satisfies readonly Permission[];

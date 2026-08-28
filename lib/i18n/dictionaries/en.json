@@ -7,9 +7,9 @@
     "home": "Home",
     "calendar": "Calendar",
     "projects": "Projects",
-    "activities": "Activities",
+    "activities": "Member Project Plans",
     "documents": "Documents",
-    "aft11": "11 Good 11 Skilled — AFT",
+    "aft11": "11 Good, 11 Skilled",
     "members": "Members",
     "reports": "Reports",
     "announcements": "Announcements",
@@ -18,7 +18,8 @@
     "profile": "Profile",
     "notifications": "Notifications",
     "approvals": "Account Approvals",
-    "audit": "Audit log"
+    "audit": "Audit log",
+    "adminInfo": "General Information & Administration"
   },
   "home": {
     "banners": {
@@ -199,7 +200,6 @@
       "noEventsOnDay": "No events on this day",
       "addEvent": "Add event",
       "edit": "Edit",
-      "delete": "Delete",
       "titleLabel": "Event title",
       "categoryLabel": "Category",
       "categoryOrg": "AFT",
@@ -225,10 +225,6 @@
       "saving": "Saving...",
       "created": "Event added",
       "updated": "Changes saved",
-      "deleted": "Event deleted",
-      "deleteConfirmTitle": "Delete this event?",
-      "deleteConfirmDescription": "\"{title}\" will be permanently deleted and cannot be recovered.",
-      "confirmDelete": "Delete event",
       "errors": {
         "invalidDate": "Invalid date",
         "invalidTime": "Invalid time",
@@ -626,7 +622,17 @@
       "qr_verified_not_removable": "QR check-ins cannot be removed",
       "not_found": "No such entry",
       "unknown": "Something went wrong. Please try again."
-    }
+    },
+    "delete": {
+      "button": "Delete",
+      "deleted": "Activity deleted",
+      "confirmTitle": "Delete this activity?",
+      "confirmDescription": "\"{title}\" will be permanently deleted and cannot be recovered, including its entire attendance record.",
+      "confirmDelete": "Delete activity",
+      "cancel": "Cancel",
+      "failed": "Could not delete the activity. Please try again."
+    },
+    "columnActions": "Actions"
   },
   "projects": {
     "description": "Manage your projects, from draft through to public release.",
@@ -697,7 +703,13 @@
     "moreEvents": "+{count} more"
   },
   "documents": {
-    "description": "Official AFT e-books and documents",
+    "description": "Books and documents under the อวท. \"11 Good, 11 Skilled\" principles.",
+    "collections": {
+      "aft11_good": "11 Good",
+      "aft11_skilled": "11 Skilled",
+      "admin_info": "General Information & Administration"
+    },
+    "listLabel": "List",
     "empty": "No published documents yet",
     "readBook": "Read book",
     "notAttached": "No book attached yet",
@@ -766,8 +778,10 @@
           "descriptionTooLong": "Description is too long (2000 characters max)",
           "unknown": "Something went wrong — please try again",
           "notFoundOrForbidden": "This book doesn't exist, or you don't have permission to edit it",
-          "needsContent": "Attach a PDF before publishing"
-        }
+          "needsContent": "Attach a PDF before publishing",
+          "collectionRequired": "Please choose a list"
+        },
+        "collectionLabel": "List"
       },
       "actions": {
         "submitForApproval": "Submit for approval",
@@ -1101,5 +1115,8 @@
       "notFound": "Announcement not found",
       "unknown": "Something went wrong. Please try again."
     }
+  },
+  "adminInfo": {
+    "description": "Documents on the organisation’s general information and administration."
   }
 }

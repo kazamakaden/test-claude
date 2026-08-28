@@ -2,6 +2,8 @@ import { Suspense } from "react";
 import { getDictionary } from "@/lib/i18n/get-dictionary";
 import type { Locale } from "@/lib/i18n/config";
 import type { Dictionary } from "@/types/i18n";
+import { getRole, getSessionUserId } from "@/lib/auth/get-role";
+import { can } from "@/lib/auth/permissions";
 import { parseActivitiesSearchParams, ACTIVITIES_PER_PAGE_SIZE } from "@/schemas/activities";
 import { listActivities, getActivityCounts } from "@/services/activities";
 import { getDepartments, getClubs, getFilterOptions } from "@/services/members";
@@ -25,9 +27,20 @@ async function ActivitiesResults({
   lang: Locale;
   dict: Dictionary;
 }) {
-  const [{ rows, total }, counts] = await Promise.all([
+  // Who the viewer is and what they hold, for the per-row delete affordance.
+  // Mirrors activities_delete_owner (0061) — owner OR admin — and nothing
+  // more: deleteActivityAction re-checks and RLS refuses regardless, so this
+  // only decides whether the button is offered.
+  //
+  // getSessionUserId(), not a Supabase client opened here: it is what
+  // getRole() already reads and it is cache()d, so the pair costs one round
+  // trip rather than two. Every other page that needs "who is looking at
+  // this" (documents/manage, projects/[id]) uses it for the same reason.
+  const [{ rows, total }, counts, role, viewerId] = await Promise.all([
     listActivities(filters),
     getActivityCounts(),
+    getRole(),
+    getSessionUserId(),
   ]);
 
   return (
@@ -44,6 +57,9 @@ async function ActivitiesResults({
         filters={filters}
         pathname={pathname}
         searchParams={searchParams}
+        viewerId={viewerId}
+        isAdmin={can(role, "activity:delete")}
+        canManage={can(role, "activity:manage")}
         lang={lang}
         dict={dict}
       />

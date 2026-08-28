@@ -14,8 +14,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { createBookAction, type BookActionResult } from "@/actions/books";
+import { CollectionSelect } from "@/components/books/collection-select";
 import { SEASON_LABELS_TH, SEASON_LABELS_EN } from "@/lib/books";
 import type { Locale } from "@/lib/i18n/config";
+import type { BookCollection } from "@/types/books";
 import type { Dictionary } from "@/types/i18n";
 
 function SubmitButton({ label, pendingLabel }: { label: string; pendingLabel: string }) {
@@ -28,7 +30,15 @@ function SubmitButton({ label, pendingLabel }: { label: string; pendingLabel: st
 }
 
 /** Task 2's minimal create step: name, year, season -> draft. Everything else is edited on the resulting book's own page. */
-export function BookCreateForm({ lang, dict }: { lang: Locale; dict: Dictionary }) {
+export function BookCreateForm({
+  lang,
+  dict,
+  defaultCollection,
+}: {
+  lang: Locale;
+  dict: Dictionary;
+  defaultCollection: BookCollection;
+}) {
   const [state, formAction] = useActionState<BookActionResult | null, FormData>(createBookAction, null);
   const d = dict.documents.manage;
   const seasonLabels = lang === "th" ? SEASON_LABELS_TH : SEASON_LABELS_EN;
@@ -38,10 +48,14 @@ export function BookCreateForm({ lang, dict }: { lang: Locale; dict: Dictionary 
   const titleError = state && !state.ok && state.messageKey === "titleRequired" ? errorMessage : undefined;
   const yearError = state && !state.ok && state.messageKey === "yearInvalid" ? errorMessage : undefined;
   const seasonError = state && !state.ok && state.messageKey === "seasonInvalid" ? errorMessage : undefined;
+  const collectionError =
+    state && !state.ok && state.messageKey === "collectionRequired" ? errorMessage : undefined;
 
   useEffect(() => {
-    if (errorMessage && !titleError && !yearError && !seasonError) toast.error(errorMessage);
-  }, [errorMessage, titleError, yearError, seasonError]);
+    if (errorMessage && !titleError && !yearError && !seasonError && !collectionError) {
+      toast.error(errorMessage);
+    }
+  }, [errorMessage, titleError, yearError, seasonError, collectionError]);
 
   return (
     <form
@@ -55,6 +69,8 @@ export function BookCreateForm({ lang, dict }: { lang: Locale; dict: Dictionary 
         <Input name="title" required maxLength={200} />
         <FormError>{titleError}</FormError>
       </FormField>
+
+      <CollectionSelect dict={dict} defaultValue={defaultCollection} error={collectionError} />
 
       <FormField name="academicYear" invalid={Boolean(yearError)}>
         <FormLabel>{dict.documents.filterYear}</FormLabel>

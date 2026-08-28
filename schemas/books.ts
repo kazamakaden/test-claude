@@ -1,4 +1,6 @@
 import { z } from "zod";
+import { BOOK_COLLECTIONS } from "@/lib/book-collections";
+import type { BookCollection } from "@/types/books";
 
 const bookIdSchema = z.uuid();
 
@@ -15,6 +17,7 @@ const sortColumns = ["publishedAt", "title", "academicYear"] as const;
 
 /** §3 shelf list filters — same construction as schemas/members.ts/documents.ts. */
 export const booksFiltersSchema = z.object({
+  collection: z.enum(BOOK_COLLECTIONS),
   search: z.string().trim().max(100).catch(""),
   academicYear: z.coerce.number().int().nullable().catch(null),
   season: z.coerce.number().int().min(1).max(3).nullable().catch(null),
@@ -23,10 +26,20 @@ export const booksFiltersSchema = z.object({
   page: z.coerce.number().int().positive().catch(1),
 });
 
-export function parseBooksSearchParams(searchParams: Record<string, string | string[] | undefined>) {
+/**
+ * `collection` is a parameter, not a search param, on purpose. /documents picks
+ * it from `?list=` and /admin-info pins it; either way the PAGE has already
+ * decided which shelf it is rendering, so letting a query string override that
+ * would only create a way for one page to quietly show another page's books.
+ */
+export function parseBooksSearchParams(
+  searchParams: Record<string, string | string[] | undefined>,
+  collection: BookCollection
+) {
   const single = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v);
 
   return booksFiltersSchema.parse({
+    collection,
     search: single(searchParams.search) ?? "",
     academicYear: single(searchParams.year) ?? null,
     season: single(searchParams.season) ?? null,
@@ -51,6 +64,13 @@ const seasonField = z.coerce
 /** Task 2's minimal create step: name, year, season -> draft. Everything else is edited afterward. */
 export const createBookSchema = z.object({
   title: z.string().trim().min(1, { message: "titleRequired" }).max(200),
+  /**
+   * No .catch() and no default: 0074 makes the column NOT NULL with no default
+   * precisely so a missing collection is a refusal (23502) rather than a silent
+   * bucket somebody has to notice later. The same call createActivitySchema
+   * makes for `category`.
+   */
+  collection: z.enum(BOOK_COLLECTIONS, { message: "collectionRequired" }),
   academicYear: yearField,
   season: seasonField,
 });
@@ -59,6 +79,10 @@ export type CreateBookInput = z.infer<typeof createBookSchema>;
 export const updateBookSchema = z.object({
   id: z.uuid(),
   title: z.string().trim().min(1, { message: "titleRequired" }).max(200),
+  // Editable, so a book filed on the wrong shelf is fixable in place. An
+  // ordinary owner edit — books_update_own_draft already covers it, no new
+  // policy and no privilege attached (0074).
+  collection: z.enum(BOOK_COLLECTIONS, { message: "collectionRequired" }),
   // No .catch() — an over-length description must surface
   // descriptionTooLong to the caller, not be silently discarded on save
   // (the same class of bug already fixed once for schemas/members.ts's

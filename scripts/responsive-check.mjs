@@ -91,6 +91,13 @@ const PUBLIC_PAGES = [
   // shelf. /th/documents/<id> moved to AUTH_PAGES below, since only a
   // signed-in staff session can actually see any of the seeded rows.
   "/th/documents",
+  // The second of the two 11 ดี / 11 เก่ง lists (0074). The tab bar and the
+  // shelf below it are the widest row on this page, so both lists are worth
+  // measuring, not just whichever one happens to be the default.
+  "/th/documents?list=skilled",
+  // สภาพทั่วไปและการบริหารองค์การ — the same shelf with `admin_info` pinned
+  // and no tab bar.
+  "/th/admin-info",
   "/th/calendar",
   // Moved from AUTH_PAGES: /members is now public (§5) — guests read
   // name/student id/class/year/department/club, email stays hidden. The

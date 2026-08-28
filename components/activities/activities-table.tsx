@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { CardEmpty } from "@/components/dashboard/card-states";
+import { ActivityDeleteDialog } from "@/components/activities/activity-delete-dialog";
 import type { Activity, ActivityFilters, ActivitySortColumn, ActivityStatus } from "@/types/activities";
 import type { Locale } from "@/lib/i18n/config";
 import type { Dictionary } from "@/types/i18n";
@@ -47,6 +48,9 @@ export function ActivitiesTable({
   filters,
   pathname,
   searchParams,
+  viewerId,
+  isAdmin,
+  canManage,
   lang,
   dict,
 }: {
@@ -54,11 +58,33 @@ export function ActivitiesTable({
   filters: ActivityFilters;
   pathname: string;
   searchParams: URLSearchParams;
+  /** The signed-in viewer, or null. Half of activities_delete_owner (0061). */
+  viewerId: string | null;
+  /** can(role, "activity:delete") — the admin half of that policy. Never a `role === "admin"` string compare. */
+  isAdmin: boolean;
+  /** can(role, "activity:manage") — what deleteActivityAction itself requires. */
+  canManage: boolean;
   lang: Locale;
   dict: Dictionary;
 }) {
   const d = dict.activities;
   const locale = lang === "th" ? th : enUS;
+
+  /**
+   * Offer delete only where BOTH gates the click would meet will pass.
+   *
+   * `canManage` is deleteActivityAction's own requirePermission("activity:manage");
+   * the owner-OR-admin half mirrors activities_delete_owner (0061). Checking
+   * only the second would hand a button to an owner since demoted to `student`
+   * — RLS would still let them delete, but the Server Action would refuse, so
+   * the button could never do anything. Not can_edit_activity(), either: that
+   * admits co-editors, and deleting cascades into the whole attendance record.
+   *
+   * Both are re-checked server-side; this only decides what to render.
+   */
+  const canDelete = (a: Activity) =>
+    canManage && (isAdmin || (viewerId !== null && a.createdBy === viewerId));
+  const showManage = activities.some(canDelete);
 
   if (activities.length === 0) {
     return (
@@ -94,6 +120,9 @@ export function ActivitiesTable({
           })}
           <TableHead>{d.columnLocation}</TableHead>
           <TableHead>{d.columnDepartment}</TableHead>
+          {/* The manage column exists only when this viewer can act on at
+              least one row, so nobody gets an empty column of dashes. */}
+          {showManage ? <TableHead>{d.columnActions}</TableHead> : null}
         </TableRow>
       </TableHeader>
       <TableBody>
@@ -117,6 +146,18 @@ export function ActivitiesTable({
             </TableCell>
             <TableCell className="text-muted-foreground">{a.location ?? "—"}</TableCell>
             <TableCell className="text-muted-foreground">{a.departmentName ?? "—"}</TableCell>
+            {showManage ? (
+              <TableCell>
+                {canDelete(a) ? (
+                  <ActivityDeleteDialog
+                    activityId={a.id}
+                    title={a.title}
+                    lang={lang}
+                    dict={dict}
+                  />
+                ) : null}
+              </TableCell>
+            ) : null}
           </TableRow>
         ))}
       </TableBody>

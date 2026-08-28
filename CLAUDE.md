@@ -3598,6 +3598,132 @@ nothing in the app ever stores it, so the column and its
 `documents.cover_url` remains schema-ready and unrendered (already recorded
 below).
 
+**The shelf split into three named collections, seven nav tabs, and three
+/activities fixes (`0074`).** Five requests from the live site, and tasks 1 and
+2 turned out to be one feature seen twice.
+
+`/documents` becomes **11 ดี 11 เก่ง อวท.** with two lists (`?list=good|skilled`)
+and the new `/admin-info` ("สภาพทั่วไปและการบริหารองค์การ") is a third, flat
+one. `books.collection` (`0074`) is what separates them — **NOT NULL with no
+default**, the `activities.category` precedent (0068): an insert that omits it
+raises `23502`, so "filed at upload" is a database fact rather than a
+convention a service file is trusted to follow.
+
+**No GRANT work, and that was checked rather than assumed.** Unlike `attendance`
+(0055), `activities` (0061) and `site_banners` (0065), **`books` has no column
+allow-list at all** — `anon`/`authenticated` hold table-wide INSERT/UPDATE, so
+the new column was granted automatically. That is safe only because 0028's
+policies carry the weight: `books_update_own_draft` pins `status = 'draft'` AND
+`owner_id = auth.uid()` in **both** `using` and `with check`, so an owner can
+neither self-publish nor transfer a book despite holding the column grants.
+Cases 07/08 of the matrix re-prove exactly that rather than taking it on trust.
+
+**A harness assumption that was backwards, worth keeping.** This file records
+"RLS FILTERS UPDATE/DELETE rather than raising, so assert ROW_COUNT". Cases
+07/08 were written that way and **failed on the first run** — they raise
+`42501`. RLS refuses an UPDATE two different ways: a failing **USING** clause
+filters (zero rows, no exception), a failing **WITH CHECK** raises. Here USING
+matches (right owner, still a draft, right role) so the failure lands on WITH
+CHECK. Case 06 is the same statement shape that legitimately affects a row,
+which is what keeps 07/08 from being vacuously true. **15/15 live,
+self-rolling-back, zero residue confirmed after.**
+
+**Nav is exactly seven tabs**, closing the long-outstanding §2.1/§2.2:
+หน้าแรก · ปฏิทิน · แผนงานโครงการสมาชิก · สภาพทั่วไปและการบริหารองค์การ ·
+11 ดี 11 เก่ง อวท. · สมาชิก · ประกาศ. `/projects`, `/reports` and `/audit` moved
+into an `(unused)` **route group** — parentheses mean no URL segment, so all
+three keep working, keep the `(app)` guard, and every internal link still
+resolves; a README in the folder says why. Verified by status code across all
+five roles: they return their **pre-move** codes (guest 307, reports 307 for
+student, audit 200 only for admin), not 404. `/aft-11` is a `redirect()` to
+`/documents` — the `/dashboard → /` call again, because the URL is in
+bookmarks. Their `nav.*` dictionary keys stay: each parked page reads its own
+key as its `<h1>`.
+
+**Task 3 was in the shared primitive, not the members page.**
+`components/ui/select.tsx` pinned the popup to `w-(--anchor-width)` — the
+*trigger's* width — with `overflow-x-hidden` and `whitespace-nowrap` on the
+item text, so any label longer than the control was cut with no way to reach
+the rest. **Two fixes, because one was not enough and the checker said so.**
+`min-w-[max(9rem,var(--anchor-width))]` + a `max-w` cap fixed 1280px (popup
+144px → 373px, 0 clipped); at 375px the longest สาขา label still clipped, since
+a capped popup on a phone is narrower than the text. So the item text now
+**wraps** instead of `whitespace-nowrap`, with `items-start` so the checkmark
+does not drift on a two-line option. Two competing `min-w-*` utilities would
+have resolved by CSS order rather than class order, which is why the 9rem floor
+is folded into the same declaration.
+
+Proven in a real browser over CDP, with the project's inject-then-revert
+discipline used to show the checker actually detects the reported defect: with
+the pre-fix classes restored it reports popup 144px and **2 clipped labels at
+both widths**; with the fix, **0 clipped at 375 and 1280**, popup on screen,
+no document overflow.
+
+**Task 4** — `/activities` now defaults to newest-**created** first
+(`createdAt desc`). `createdAt` is sortable but deliberately has **no clickable
+header**: it is the default order, not a column anyone asked to see. Proven
+observable rather than assumed: ordering the 7 live published rows by
+`created_at desc` vs the old `starts_at asc` differs in **6 of 7 positions**.
+
+**Task 5** — a delete button on `/activities`, mirroring
+`activities_delete_owner` (0061) rather than a looser predicate.
+`can_edit_activity()` would have been wrong: it admits co-editors, and deleting
+cascades into the activity's entire `attendance` record. New admin-only
+`activity:delete` permission, paired with an owner check — never a
+`role === "admin"` string compare, which the aft/teacher split already broke
+once here.
+
+**Two real defects found by running the matrix rather than reading it:**
+
+1. **A demoted owner would have got a button that could never work.** The first
+   version offered delete on `isAdmin || owner`, mirroring RLS alone — but
+   `deleteActivityAction` additionally requires `activity:manage`, which someone
+   demoted to `student` no longer holds. RLS would permit the delete and the
+   Server Action would refuse it. Now gated on **both** gates the click will
+   actually meet. Live matrix: guest/student **0 buttons and no column at all**,
+   aft/teacher **1 of 3** (their own row), admin **3 of 3**.
+2. **`deleteActivityAction` revalidated only `/{lang}/calendar`**, so a delete
+   from the new list would have left the row on screen. Added `/activities`.
+
+**A third, smaller one:** the page opened its own Supabase client purely to
+learn the viewer's id, while `getSessionUserId()` — which `getRole()` already
+reads, and which is `cache()`d — exists for exactly that and is what every
+other page uses. Switched, so the pair costs one round trip rather than two.
+
+**The trap that cost the most time was in this file already.** The dev-cookie
+stub was temporarily given a `userId` to exercise the owner half, and every
+role immediately started behaving as `guest`. That is not a bug: §0 records
+that `profile.userId !== null` is load-bearing for the set-password gate, so a
+non-null id with `passwordSet: false` is a half-onboarded account and
+`getRole()` correctly reports `guest`. The stub needed `passwordSet: true` too.
+
+Also fixed while in the code: `BooksFilters`' "clear filters" did
+`router.replace(pathname)`, which would have dropped `?list=` and bounced
+someone clearing filters on 11 เก่ง back to 11 ดี. And every book write action
+now revalidates **both** shelves, since an edit can move a book between them.
+
+`npx tsc --noEmit`, `npm run lint` and a fully observed `npm run build` (64
+routes, `BUILD_ID` present) all pass. `npm run check:responsive` is **90/90 with
+0 overflow** — the suite gained `/th/admin-info` and `/th/documents?list=skilled`
+so both new surfaces stay covered. Dictionary parity checked programmatically
+(913 keys per locale). `types/database.ts` updated by hand for the new enum and
+column.
+
+**The delete dialog was extracted, not copied.** `calendar-day-sheet.tsx`
+already had one; it now shares `components/activities/activity-delete-dialog.tsx`
+with the table, and its five dictionary keys moved `dashboard.calendar.*` →
+`activities.delete.*` — the same lift `common.pagination.*` and `common.levels`
+already got when a second consumer appeared.
+
+**Not verified, stated plainly:** no book has ever been filed into
+`aft11_skilled` or `admin_info` on the live project — all 6 existing rows were
+backfilled to `aft11_good`, so both of those pages render their empty state
+until someone uploads. The rendered shelf with real rows per collection, and a
+real delete of a real activity from `/activities`, are the two things to
+confirm after deploy. The `/activities` delete matrix above was proven against
+injected fixtures (reverted; `grep TEMP_SELF_TEST` → 0), not live rows.
+
+
 ### ❌ Remaining
 
 * **RLS policy performance — HALF OF THIS IS DONE, and this bullet's own

@@ -493,6 +493,7 @@ export type Database = {
       books: {
         Row: {
           academic_year: number
+          collection: Database["public"]["Enums"]["book_collection"]
           cover_path: string | null
           created_at: string
           description: string | null
@@ -509,6 +510,7 @@ export type Database = {
         }
         Insert: {
           academic_year: number
+          collection: Database["public"]["Enums"]["book_collection"]
           cover_path?: string | null
           created_at?: string
           description?: string | null
@@ -525,6 +527,7 @@ export type Database = {
         }
         Update: {
           academic_year?: number
+          collection?: Database["public"]["Enums"]["book_collection"]
           cover_path?: string | null
           created_at?: string
           description?: string | null
@@ -1359,6 +1362,7 @@ export type Database = {
       announcement_status: "draft" | "published"
       attendance_method: "qr" | "manual"
       attendance_status: "present" | "late" | "absent"
+      book_collection: "aft11_good" | "aft11_skilled" | "admin_info"
       book_status: "draft" | "published"
       document_status: "draft" | "signed" | "pending_approval" | "official"
       member_position:
@@ -1518,6 +1522,7 @@ export const Constants = {
       announcement_status: ["draft", "published"],
       attendance_method: ["qr", "manual"],
       attendance_status: ["present", "late", "absent"],
+      book_collection: ["aft11_good", "aft11_skilled", "admin_info"],
       book_status: ["draft", "published"],
       document_status: ["draft", "signed", "pending_approval", "official"],
       notification_type: [

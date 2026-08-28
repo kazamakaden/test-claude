@@ -24,13 +24,19 @@ import type { CreateActivityInput, UpdateActivityInput, PublishActivityInput } f
  * services/members.ts's SORT_COLUMNS.
  */
 const SORT_COLUMNS = {
+  createdAt: "created_at",
   startsAt: "starts_at",
   title: "title",
   status: "status",
 } as const;
 
+// created_by is here for the list's delete affordance, not for display:
+// activities_delete_owner (0061) is owner-OR-admin, so the row itself has to
+// say who owns it. created_at is deliberately NOT selected — it is only an
+// ORDER BY key, and Postgres does not require a column to be selected to sort
+// on it.
 const ACTIVITY_COLUMNS =
-  "id, title, description, status, starts_at, ends_at, location, is_public, academic_year, department_id, club_id, departments(name_th, name_en), clubs(name_th, name_en)";
+  "id, title, description, status, starts_at, ends_at, location, is_public, academic_year, created_by, department_id, club_id, departments(name_th, name_en), clubs(name_th, name_en)";
 
 export async function listActivities(filters: ActivityFilters): Promise<ActivitiesResult> {
   const supabase = await tryCreateClient();
@@ -87,6 +93,7 @@ export async function listActivities(filters: ActivityFilters): Promise<Activiti
 
   const rows: Activity[] = data.map((a) => ({
     id: a.id,
+    createdBy: a.created_by,
     title: a.title,
     description: a.description,
     status: effectiveActivityStatus(a.status, a.starts_at, a.ends_at, now),

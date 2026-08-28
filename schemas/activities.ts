@@ -2,7 +2,12 @@ import { z } from "zod";
 
 const PER_PAGE = 10;
 
-const sortColumns = ["startsAt", "title", "status"] as const;
+/**
+ * `createdAt` is sortable but has no clickable column header — it is the
+ * DEFAULT order (newest first), not something the table offers to toggle. A
+ * header for it would need a column nobody asked to see.
+ */
+const sortColumns = ["createdAt", "startsAt", "title", "status"] as const;
 const statuses = ["pending", "completed", "cancelled"] as const;
 
 /**
@@ -16,8 +21,8 @@ export const activitiesFiltersSchema = z.object({
   clubId: z.uuid().nullable().catch(null),
   academicYear: z.coerce.number().int().positive().nullable().catch(null),
   status: z.enum(statuses).nullable().catch(null),
-  sort: z.enum(sortColumns).catch("startsAt"),
-  direction: z.enum(["asc", "desc"]).catch("asc"),
+  sort: z.enum(sortColumns).catch("createdAt"),
+  direction: z.enum(["asc", "desc"]).catch("desc"),
   page: z.coerce.number().int().positive().catch(1),
 });
 
@@ -34,8 +39,8 @@ export function parseActivitiesSearchParams(
     clubId: single(searchParams.club) ?? null,
     academicYear: single(searchParams.year) ?? null,
     status: single(searchParams.status) ?? null,
-    sort: single(searchParams.sort) ?? "startsAt",
-    direction: single(searchParams.dir) ?? "asc",
+    sort: single(searchParams.sort) ?? "createdAt",
+    direction: single(searchParams.dir) ?? "desc",
     page: single(searchParams.page) ?? "1",
   });
 }
