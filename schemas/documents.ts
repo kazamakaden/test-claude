@@ -64,7 +64,6 @@ export const signDocumentSchema = z.object({
 });
 export type SignDocumentInput = z.infer<typeof signDocumentSchema>;
 
-export const submitDocumentSchema = z.object({ documentId: z.uuid() });
 
 export const rejectDocumentSchema = z.object({
   documentId: z.uuid(),

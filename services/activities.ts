@@ -1,5 +1,10 @@
 import "server-only";
 import { createClient, tryCreateClient } from "@/lib/supabase/server";
+import {
+  effectiveActivityStatus,
+  finishedOrFilter,
+  upcomingOrFilter,
+} from "@/lib/activity-status";
 import type {
   Activity,
   ActivityBanner,
@@ -31,6 +36,10 @@ export async function listActivities(filters: ActivityFilters): Promise<Activiti
   const supabase = await tryCreateClient();
   if (!supabase) return { rows: [], total: 0 };
   const start = (filters.page - 1) * ACTIVITIES_PER_PAGE_SIZE;
+  // One instant for the filter and the mapping below, so a row cannot be
+  // selected as pending and then rendered as completed.
+  const now = new Date();
+  const nowIso = now.toISOString();
 
   // Published only. RLS is NOT the filter here: staff hold activities_select_staff
   // as well as the public policy, and permissive policies OR together, so leaning
@@ -57,8 +66,15 @@ export async function listActivities(filters: ActivityFilters): Promise<Activiti
   if (filters.academicYear !== null) {
     query = query.eq("academic_year", filters.academicYear);
   }
-  if (filters.status) {
-    query = query.eq("status", filters.status);
+  // Status is DERIVED from the clock (lib/activity-status.ts), so the filter has
+  // to ask the same question the rendered badge answers -- filtering on the
+  // stored column would return rows that then render as something else.
+  if (filters.status === "cancelled") {
+    query = query.eq("status", "cancelled");
+  } else if (filters.status === "completed") {
+    query = query.neq("status", "cancelled").or(finishedOrFilter(nowIso));
+  } else if (filters.status === "pending") {
+    query = query.neq("status", "cancelled").or(upcomingOrFilter(nowIso));
   }
 
   query = query
@@ -73,7 +89,7 @@ export async function listActivities(filters: ActivityFilters): Promise<Activiti
     id: a.id,
     title: a.title,
     description: a.description,
-    status: a.status,
+    status: effectiveActivityStatus(a.status, a.starts_at, a.ends_at, now),
     startsAt: a.starts_at,
     endsAt: a.ends_at,
     location: a.location,
@@ -96,6 +112,7 @@ export async function listActivities(filters: ActivityFilters): Promise<Activiti
 export async function getActivityCounts(): Promise<ActivityCounts> {
   const supabase = await tryCreateClient();
   if (!supabase) return { attendance: 0, completed: 0, pending: 0 };
+  const nowIso = new Date().toISOString();
 
   const [attendanceResult, completedResult, pendingResult] = await Promise.all([
     supabase.from("attendance").select("id", { count: "exact", head: true }),
@@ -106,12 +123,14 @@ export async function getActivityCounts(): Promise<ActivityCounts> {
       .from("activities")
       .select("id", { count: "exact", head: true })
       .eq("publish_status", "published")
-      .eq("status", "completed"),
+      .neq("status", "cancelled")
+      .or(finishedOrFilter(nowIso)),
     supabase
       .from("activities")
       .select("id", { count: "exact", head: true })
       .eq("publish_status", "published")
-      .eq("status", "pending"),
+      .neq("status", "cancelled")
+      .or(upcomingOrFilter(nowIso)),
   ]);
 
   return {
@@ -314,7 +333,7 @@ export async function getActivityDetail(id: string): Promise<ActivityDetail | nu
     id: data.id,
     title: data.title,
     description: data.description,
-    status: data.status,
+    status: effectiveActivityStatus(data.status, data.starts_at, data.ends_at),
     publishStatus: data.publish_status,
     startsAt: data.starts_at,
     endsAt: data.ends_at,

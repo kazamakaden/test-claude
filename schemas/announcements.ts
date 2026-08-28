@@ -29,7 +29,9 @@ export type AnnouncementInput = z.infer<typeof announcementInputSchema>;
  * raw constraint violation — the same fragility CLAUDE.md records for
  * publishBookAction, which identifies its constraint by name.
  */
-export const publishAnnouncementSchema = z.object({
-  id: z.uuid(),
-  bodyTh: z.string().trim().min(1, { message: "bodyRequiredToPublish" }),
-});
+// No publishAnnouncementSchema: the empty-body guard is the
+// announcements_published_needs_body CHECK (0060), which
+// services/announcements.ts#setAnnouncementStatus maps from SQLSTATE 23514 to
+// the same bodyRequiredToPublish message. A Zod copy of that rule was exported
+// but never parsed, so it was a second source of truth that could drift from
+// the constraint actually enforcing it.
