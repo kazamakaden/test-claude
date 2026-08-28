@@ -3531,6 +3531,73 @@ existing activity, which this session has no Supabase for, so it used a
 temporary fixture in `getMonthActivities`, reverted immediately
 (`grep TEMP_SELF_TEST` → 0).
 
+**Activity status never advanced — every "pending" activity had already
+finished (`0073`).** Found by a sweep, not reported: `activities.status` is
+stored but **nothing in the app has ever written it** — no form field, no
+schema field, no service. `createActivity` leaves it at the column default
+`pending` forever. Measured live before changing anything:
+
+| status | total | already over |
+|---|---|---|
+| pending | 3 | **3** |
+| completed | 3 | 3 |
+| cancelled | 1 | 1 |
+
+So §10's Pending figure only grew, Completed never moved, the `?status=` filter
+on `/activities` was meaningless, and the detail badge always read รอดำเนินการ.
+
+**Derived rather than given a "mark completed" button**, confirmed with the
+user — the same call already made for ระดับ and the class label: a stored value
+that depends on today's date is wrong the day after it is written, on every
+row, silently. `cancelled` stays **stored** and always wins, because it cannot
+be derived: a cancelled event still has a start time in the past like any
+other. `coalesce(ends_at, starts_at)` because an activity with no end time is
+over once it has started, or an open-ended entry would stay pending forever.
+
+Applied in the four places that must agree or the page contradicts itself: the
+list badge, the list's `?status=` filter, the Completed/Pending tiles, and the
+detail page. `listActivities` takes **one** `now` for both its filter and its
+mapping, so a row cannot be selected as pending and then rendered completed.
+
+The filter is **two positive predicates rather than one negated**: postgrest's
+`.not()` takes `(column, operator, value)` and cannot wrap an `or` group, and
+`lt` against `gte` partitions the timeline with no gap and no overlap —
+verified live that all 7 published rows land in exactly one bucket.
+
+**It cannot be a generated column: `now()` is not IMMUTABLE.** So the rule is
+expressed twice, in SQL and TypeScript, and `0073`'s header says so plainly —
+if one changes, the chart and the tiles beside it start disagreeing, which is
+exactly the symptom `0072` was written to fix. Live after: chart 6/0, tiles
+6/0, agreeing; before, the chart said 3/3.
+
+**Also from the same sweep, checked and found CLEAN** — recorded so it is not
+re-investigated: every Server Action has a caller (the B2 class is gone);
+`updateProjectDraftSchema` uses the same `.extend()` inheritance that broke
+activity editing but is safe, because its inherited fields are all
+`.nullable().catch(null)` so only `title` is required and the form renders it;
+the announcement empty-body guard works end to end (CHECK → `23514` →
+translated message), and its `setAnnouncementStatus` only updates `status`, so
+the SQLSTATE-only match cannot be confused by the table's other four CHECKs;
+and both `createActivity` and `updateActivity` anchor to Bangkok.
+
+Two dead schema exports were removed: `publishAnnouncementSchema` (a Zod copy
+of a CHECK that nothing parsed — a second source of truth that could drift from
+the constraint actually enforcing it) and `submitDocumentSchema`.
+
+**Residue of my own, cleaned:** `zz_probe2` was left in the live schema by an
+earlier investigation this session and was caught by `get_advisors`, not by me.
+Dropped, along with `zz_b9_probe`; confirmed zero `zz*`/`*probe*` functions and
+zero test rows remain. An ad-hoc probe run through `execute_sql` outside an
+explicit transaction persists — the test suites wrap everything in
+`begin … rollback`, a one-off `create function` does not.
+
+**Two feature gaps with no write path, stated rather than left to be
+rediscovered:** `profiles.citizen_id` is 0 of 6 — §14 says "store once" but
+nothing in the app ever stores it, so the column and its
+`prevent_citizen_id_change` guard are currently protecting an empty field. And
+`documents.cover_url` remains schema-ready and unrendered (already recorded
+below).
+
 ### ❌ Remaining
 
 * **RLS policy performance — HALF OF THIS IS DONE, and this bullet's own
