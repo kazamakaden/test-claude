@@ -5,7 +5,7 @@ import { useFormStatus } from "react-dom";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { th, enUS } from "date-fns/locale";
-import { Plus, Pencil, Trash2, Send } from "lucide-react";
+import { Plus, Pencil, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { TimeInput } from "@/components/ui/time-input";
@@ -26,12 +26,12 @@ import {
 import {
   createActivityAction,
   updateActivityAction,
-  deleteActivityAction,
   publishActivityAction,
   type ActivityFormResult,
 } from "@/actions/activities";
 import type { MonthActivity } from "@/types/activities";
 import type { Holiday } from "@/types/holidays";
+import { ActivityDeleteDialog } from "@/components/activities/activity-delete-dialog";
 import type { Locale } from "@/lib/i18n/config";
 import type { Dictionary } from "@/types/i18n";
 import { bangkokDate } from "@/lib/datetime";
@@ -174,56 +174,6 @@ function ActivityForm({
         <SaveButton label={editing ? d.save : d.add} pendingLabel={editing ? d.saving : d.adding} />
       </SheetFooter>
     </form>
-  );
-}
-
-function DeleteActivityTrigger({
-  activity,
-  lang,
-  dict,
-}: {
-  activity: MonthActivity;
-  lang: Locale;
-  dict: Dictionary;
-}) {
-  const d = dict.dashboard.calendar;
-  // AlertDialogAction closes the dialog immediately on click (a Base UI
-  // Close primitive) — same reasoning as member-delete-dialog.tsx for
-  // discarding isPending rather than trying to show it.
-  const [, startTransition] = useTransition();
-
-  const handleDelete = () => {
-    startTransition(async () => {
-      const result = await deleteActivityAction(lang, activity.id);
-      if (!result.ok) {
-        toast.error(d.errors.unknown);
-        return;
-      }
-      toast.success(d.deleted);
-    });
-  };
-
-  return (
-    <AlertDialog>
-      <AlertDialogTrigger
-        render={<Button variant="ghost" size="xs" aria-label={`${d.delete} ${activity.title}`} />}
-      >
-        <Trash2 className="size-3.5" aria-hidden />
-        {d.delete}
-      </AlertDialogTrigger>
-      <AlertDialogContent>
-        <AlertDialogHeader>
-          <AlertDialogTitle>{d.deleteConfirmTitle}</AlertDialogTitle>
-          <AlertDialogDescription>
-            {d.deleteConfirmDescription.replace("{title}", activity.title)}
-          </AlertDialogDescription>
-        </AlertDialogHeader>
-        <AlertDialogFooter>
-          <AlertDialogCancel>{d.cancel}</AlertDialogCancel>
-          <AlertDialogAction onClick={handleDelete}>{d.confirmDelete}</AlertDialogAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
   );
 }
 
@@ -376,7 +326,13 @@ export function CalendarDaySheet({
                             <Pencil className="size-3.5" aria-hidden />
                             {d.edit}
                           </Button>
-                          <DeleteActivityTrigger activity={e} lang={lang} dict={dict} />
+                          <ActivityDeleteDialog
+                            activityId={e.id}
+                            title={e.title}
+                            size="xs"
+                            lang={lang}
+                            dict={dict}
+                          />
                         </div>
                       ) : null}
                     </div>

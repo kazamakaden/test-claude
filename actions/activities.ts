@@ -141,5 +141,8 @@ export async function deleteActivityAction(lang: Locale, id: string): Promise<De
   if (!result.ok) return { ok: false, messageKey: "unknown" };
 
   revalidatePath(`/${lang}/calendar`);
+  // /activities too: the list now offers delete of its own, and revalidating
+  // only the calendar left the deleted row on screen there.
+  revalidatePath(`/${lang}/activities`);
   return { ok: true };
 }

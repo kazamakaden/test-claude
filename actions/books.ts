@@ -24,6 +24,7 @@ type BookErrorKey =
   | "titleRequired"
   | "yearInvalid"
   | "seasonInvalid"
+  | "collectionRequired"
   | "descriptionTooLong"
   | "notFoundOrForbidden"
   | "needsContent"
@@ -36,8 +37,21 @@ function isBookErrorKey(value: string | undefined): value is BookErrorKey {
     value === "titleRequired" ||
     value === "yearInvalid" ||
     value === "seasonInvalid" ||
+    value === "collectionRequired" ||
     value === "descriptionTooLong"
   );
+}
+
+/**
+ * A book can now sit on either shelf (0074), and an edit can MOVE it between
+ * them, so both pages are stale after any write — revalidating only the one the
+ * caller happened to be on would leave the other showing a book that is no
+ * longer there, or missing one that now is.
+ */
+function revalidateShelves(lang: Locale, id?: string) {
+  revalidatePath(`/${lang}/documents`);
+  revalidatePath(`/${lang}/admin-info`);
+  if (id) revalidatePath(`/${lang}/documents/${id}`);
 }
 
 function getLang(formData: FormData): Locale {
@@ -65,6 +79,11 @@ export async function createBookAction(
 
   const parsed = createBookSchema.safeParse({
     title: formData.get("title"),
+    // Re-validated here, not trusted: the field arrives as a hidden input
+    // carrying whichever shelf the viewer came from, and the enum is what
+    // stops anything else reaching the insert. 0074's NOT NULL is the
+    // backstop under it.
+    collection: formData.get("collection"),
     academicYear: formData.get("academicYear"),
     season: formData.get("season"),
   });
@@ -83,7 +102,7 @@ export async function createBookAction(
   const result = await createBook(parsed.data, user.id);
   if (!result.ok) return { ok: false, messageKey: "unknown" };
 
-  revalidatePath(`/${lang}/documents`);
+  revalidateShelves(lang);
   redirect(`/${lang}/documents/${result.id}`);
 }
 
@@ -97,6 +116,7 @@ export async function updateBookAction(
   const parsed = updateBookSchema.safeParse({
     id: formData.get("id"),
     title: formData.get("title"),
+    collection: formData.get("collection"),
     description: formData.get("description") || null,
     academicYear: formData.get("academicYear"),
     season: formData.get("season"),
@@ -116,8 +136,7 @@ export async function updateBookAction(
   const result = await updateBook(parsed.data);
   if (!result.ok) return { ok: false, messageKey: "notFoundOrForbidden" };
 
-  revalidatePath(`/${lang}/documents`);
-  revalidatePath(`/${lang}/documents/${parsed.data.id}`);
+  revalidateShelves(lang, parsed.data.id);
   return { ok: true, id: parsed.data.id };
 }
 
@@ -132,8 +151,7 @@ export async function deleteBookAction(lang: Locale, id: string): Promise<Delete
   const result = await deleteBook(parsed.data.id);
   if (!result.ok) return { ok: false, messageKey: "notFoundOrForbidden" };
 
-  revalidatePath(`/${lang}/documents`);
-  revalidatePath(`/${lang}/documents/${parsed.data.id}`);
+  revalidateShelves(lang, parsed.data.id);
   return { ok: true };
 }
 
@@ -163,8 +181,7 @@ export async function publishBookAction(lang: Locale, id: string): Promise<Publi
     return { ok: false, messageKey: key };
   }
 
-  revalidatePath(`/${lang}/documents`);
-  revalidatePath(`/${lang}/documents/${parsed.data.id}`);
+  revalidateShelves(lang, parsed.data.id);
   return { ok: true };
 }
 
@@ -180,7 +197,6 @@ export async function unpublishBookAction(
   const result = await unpublishBookService(parsed.data.id);
   if (!result.ok) return { ok: false, messageKey: "notFoundOrForbidden" };
 
-  revalidatePath(`/${lang}/documents`);
-  revalidatePath(`/${lang}/documents/${parsed.data.id}`);
+  revalidateShelves(lang, parsed.data.id);
   return { ok: true };
 }

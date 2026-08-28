@@ -20,6 +20,7 @@ import { BOOK_PDF_MAX_BYTES, BOOK_COVER_MAX_BYTES, SEASON_LABELS_TH, SEASON_LABE
 import type { Locale } from "@/lib/i18n/config";
 import type { Dictionary } from "@/types/i18n";
 import type { BookDetail } from "@/types/books";
+import { CollectionSelect } from "@/components/books/collection-select";
 
 function SubmitButton({ label, pendingLabel }: { label: string; pendingLabel: string }) {
   const { pending } = useFormStatus();
@@ -50,8 +51,12 @@ export function BookEditForm({
   const titleError = state && !state.ok && state.messageKey === "titleRequired" ? errorMessage : undefined;
   const yearError = state && !state.ok && state.messageKey === "yearInvalid" ? errorMessage : undefined;
   const seasonError = state && !state.ok && state.messageKey === "seasonInvalid" ? errorMessage : undefined;
+  const collectionError =
+    state && !state.ok && state.messageKey === "collectionRequired" ? errorMessage : undefined;
   const otherError =
-    state && !state.ok && !titleError && !yearError && !seasonError ? errorMessage : undefined;
+    state && !state.ok && !titleError && !yearError && !seasonError && !collectionError
+      ? errorMessage
+      : undefined;
 
   useEffect(() => {
     if (otherError) toast.error(otherError);
@@ -74,6 +79,11 @@ export function BookEditForm({
         <Input name="title" required maxLength={200} defaultValue={book.title} />
         <FormError>{titleError}</FormError>
       </FormField>
+
+      {/* Rendered on the edit path too, not just create: updateBookSchema
+          requires it, and a required field the form omits can never be
+          satisfied. It also doubles as the way to move a book between shelves. */}
+      <CollectionSelect dict={dict} defaultValue={book.collection} error={collectionError} />
 
       <FormField name="description">
         <FormLabel>{d.form.descriptionLabel}</FormLabel>

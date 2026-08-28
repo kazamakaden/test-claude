@@ -107,10 +107,12 @@ insert into public.documents (title, description, status, flipbook_url, publishe
 -- owner_id/published_by are left null — the demo accounts these would
 -- otherwise reference are created out-of-band via the Admin API, not
 -- guaranteed to exist when this script runs.
-insert into public.books (title, description, academic_year, season, status) values
-  ('วารสาร อวท. ภาคเรียนที่ 1 (ตัวอย่าง)', 'ตัวอย่างหนังสือประจำภาคเรียนที่ 1 ยังไม่แนบไฟล์', 2569, 1, 'draft'),
-  ('รายงานประจำปีการศึกษา 2568 (ตัวอย่าง)', 'ตัวอย่างหนังสือปีการศึกษาก่อนหน้า ยังไม่แนบไฟล์', 2568, 2, 'draft'),
-  ('ร่างวารสาร อวท. ภาคเรียนที่ 2 (ตัวอย่าง)', 'ร่างหนังสือที่ยังไม่เผยแพร่', 2569, 2, 'draft');
+-- `collection` is NOT NULL with no default (0074), so every row must name its
+-- shelf. One per collection so all three pages have something to render.
+insert into public.books (title, description, academic_year, season, status, collection) values
+  ('วารสาร อวท. ภาคเรียนที่ 1 (ตัวอย่าง)', 'ตัวอย่างหนังสือประจำภาคเรียนที่ 1 ยังไม่แนบไฟล์', 2569, 1, 'draft', 'aft11_good'),
+  ('รายงานประจำปีการศึกษา 2568 (ตัวอย่าง)', 'ตัวอย่างหนังสือปีการศึกษาก่อนหน้า ยังไม่แนบไฟล์', 2568, 2, 'draft', 'aft11_skilled'),
+  ('ร่างวารสาร อวท. ภาคเรียนที่ 2 (ตัวอย่าง)', 'ร่างหนังสือที่ยังไม่เผยแพร่', 2569, 2, 'draft', 'admin_info');
 
 -- Broadcast rows (recipient_id null) are visible to every signed-in user.
 -- No `read` column: 0037 moved read state into notification_reads, since a

@@ -1,141 +1,42 @@
-import Link from "next/link";
-import { Suspense } from "react";
-import { Plus } from "lucide-react";
 import { getDictionary } from "@/lib/i18n/get-dictionary";
-import { getRole } from "@/lib/auth/get-role";
-import { can } from "@/lib/auth/permissions";
-import { tryCreateClient } from "@/lib/supabase/server";
-import { parseBooksSearchParams, BOOKS_PER_PAGE_SIZE } from "@/schemas/books";
-import { listBooks, getBookYears, getSignedUrlMap } from "@/services/books";
-import { BooksFilters } from "@/components/books/books-filters";
-import { BooksFiltersSkeleton } from "@/components/books/books-filters-skeleton";
-import { BooksShelf } from "@/components/books/books-shelf";
-import { BooksShelfSkeleton } from "@/components/books/books-shelf-skeleton";
-import { CardBoundary } from "@/components/dashboard/card-boundary";
-import { Pagination } from "@/components/table/pagination";
-import { Button } from "@/components/ui/button";
+import { BookShelfPage } from "@/components/books/book-shelf-page";
+import { BooksListTabs } from "@/components/books/books-list-tabs";
+import { AFT11_LISTS, parseAft11List } from "@/lib/book-collections";
 import type { Locale } from "@/lib/i18n/config";
-import type { Dictionary } from "@/types/i18n";
 
 /**
- * Isolated behind its own Suspense + CardBoundary so a failing
- * getBookYears() (unconfigured Supabase, a network blip, RLS) degrades to
- * an error card in place of the filter bar rather than taking the whole
- * route down — the exact fatal-Promise.all shape this page used to have
- * (see CLAUDE.md's §0 "documents" fix entry).
+ * "11 ดี 11 เก่ง อวท." — two lists over the same shelf, selected with `?list=`.
+ *
+ * This route used to be the general เอกสาร shelf and keeps its URL: it is in
+ * bookmarks and every book detail page links back to it. What changed is which
+ * books it shows (0074's collection) and what it is called.
  */
-async function BooksFiltersSection({ lang, dict }: { lang: Locale; dict: Dictionary }) {
-  const years = await getBookYears();
-  return <BooksFilters years={years} lang={lang} dict={dict} />;
-}
-
-async function BooksResults({
-  filters,
-  pathname,
-  searchParams,
-  lang,
-  dict,
-}: {
-  filters: ReturnType<typeof parseBooksSearchParams>;
-  pathname: string;
-  searchParams: URLSearchParams;
-  lang: Locale;
-  dict: Dictionary;
-}) {
-  const [role, { rows, total }] = await Promise.all([getRole(), listBooks(filters)]);
-  const supabase = await tryCreateClient();
-  const {
-    data: { user },
-  } = supabase ? await supabase.auth.getUser() : { data: { user: null } };
-
-  const isStaff = can(role, "document:approve");
-
-  // Two batched Storage calls for the whole page rather than two per card.
-  const [coverUrls, pdfUrls] = await Promise.all([
-    getSignedUrlMap("book-covers", rows.flatMap((b) => (b.coverPath ? [b.coverPath] : []))),
-    getSignedUrlMap("books", rows.flatMap((b) => (b.pdfPath ? [b.pdfPath] : []))),
-  ]);
-
-  return (
-    <div className="flex flex-col gap-4">
-      <BooksShelf
-        books={rows}
-        coverUrls={coverUrls}
-        pdfUrls={pdfUrls}
-        viewerId={user?.id ?? null}
-        isStaff={isStaff}
-        lang={lang}
-        dict={dict}
-      />
-      <Pagination
-        page={filters.page}
-        perPage={BOOKS_PER_PAGE_SIZE}
-        total={total}
-        pathname={pathname}
-        searchParams={searchParams}
-        dict={dict}
-      />
-    </div>
-  );
-}
-
-export default async function DocumentsPage({
+export default async function Aft11DocumentsPage({
   params,
-  searchParams: rawSearchParams,
+  searchParams,
 }: {
   params: Promise<{ lang: string }>;
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const { lang: rawLang } = await params;
   const lang = rawLang as Locale;
-  const rawParams = await rawSearchParams;
-  // getDictionary() reads a local JSON import and getRole() already fails
-  // closed to "guest" on any error — neither can throw. getBookYears() can
-  // (a Supabase call), so it's deliberately NOT in this Promise.all — see
-  // BooksFiltersSection below, which isolates it behind its own boundary.
-  const [dict, role] = await Promise.all([getDictionary(lang), getRole()]);
+  const rawParams = await searchParams;
 
-  const filters = parseBooksSearchParams(rawParams);
+  const dict = await getDictionary(lang);
+  const rawList = rawParams.list;
+  const list = parseAft11List(Array.isArray(rawList) ? rawList[0] : rawList);
   const pathname = `/${lang}/documents`;
-  const searchParams = new URLSearchParams(
-    Object.entries(rawParams).flatMap(([k, v]) =>
-      v === undefined ? [] : [[k, Array.isArray(v) ? v[0] : v]]
-    ) as [string, string][]
-  );
-  const suspenseKey = JSON.stringify(filters);
-  // document:draft:submit, NOT workspace:access — a read-only student holds
-  // the latter, but books_insert_own (0028/0049) only admits aft/teacher/admin,
-  // so the button would have opened a form whose save could never succeed.
-  const canAdd = can(role, "document:draft:submit");
 
   return (
-    <div className="mx-auto flex max-w-7xl flex-col gap-6 px-4 py-8 sm:px-6 lg:px-8">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div className="flex flex-col gap-1">
-          <h1 className="text-gradient-brand font-heading text-2xl font-semibold tracking-tight">
-            {dict.nav.documents}
-          </h1>
-          <p className="text-sm text-muted-foreground">{dict.documents.description}</p>
-        </div>
-        {canAdd ? (
-          <Button nativeButton={false} render={<Link href={`/${lang}/books/new`} />}>
-            <Plus className="size-4" aria-hidden />
-            {dict.documents.addBookCta}
-          </Button>
-        ) : null}
-      </div>
-
-      <CardBoundary errorTitle={dict.common.errorTitle} retryLabel={dict.common.errorRetry}>
-        <Suspense fallback={<BooksFiltersSkeleton />}>
-          <BooksFiltersSection lang={lang} dict={dict} />
-        </Suspense>
-      </CardBoundary>
-
-      <CardBoundary errorTitle={dict.common.errorTitle} retryLabel={dict.common.errorRetry}>
-        <Suspense key={suspenseKey} fallback={<BooksShelfSkeleton />}>
-          <BooksResults filters={filters} pathname={pathname} searchParams={searchParams} lang={lang} dict={dict} />
-        </Suspense>
-      </CardBoundary>
-    </div>
+    <BookShelfPage
+      collection={AFT11_LISTS[list]}
+      title={dict.nav.aft11}
+      description={dict.documents.description}
+      pathname={pathname}
+      rawParams={rawParams}
+      tabs={<BooksListTabs pathname={pathname} active={list} dict={dict} />}
+      lang={lang}
+      dict={dict}
+    />
   );
 }

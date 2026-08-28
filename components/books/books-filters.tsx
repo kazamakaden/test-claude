@@ -60,7 +60,14 @@ export function BooksFilters({
 
   const clearAll = () => {
     setSearch("");
-    startTransition(() => router.replace(pathname));
+    // `list` is not a filter — it is which shelf the page is showing (0074).
+    // Dropping it here would silently bounce someone clearing filters on
+    // "11 เก่ง" back to "11 ดี".
+    const kept = new URLSearchParams();
+    const list = searchParams.get("list");
+    if (list) kept.set("list", list);
+    const query = kept.toString();
+    startTransition(() => router.replace(query ? `${pathname}?${query}` : pathname));
   };
 
   return (

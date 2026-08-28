@@ -2,7 +2,7 @@ import "server-only";
 import { createClient, tryCreateClient } from "@/lib/supabase/server";
 import { BOOKS_PER_PAGE_SIZE } from "@/schemas/books";
 import type { CreateBookInput, UpdateBookInput } from "@/schemas/books";
-import type { BookDetail, BookFilters, BookSummary, BooksResult } from "@/types/books";
+import type { BookCollection, BookDetail, BookFilters, BookSummary, BooksResult } from "@/types/books";
 
 /** §3 → snake_case column mapping, whitelisted so it's never interpolated raw into order(). */
 const SORT_COLUMNS = {
@@ -12,7 +12,7 @@ const SORT_COLUMNS = {
 } as const;
 
 const BOOK_SUMMARY_COLUMNS =
-  "id, title, academic_year, season, status, cover_path, pdf_path, published_at, owner_id";
+  "id, title, academic_year, season, status, collection, cover_path, pdf_path, published_at, owner_id";
 
 /**
  * RLS (books_select_published/own/staff, 0028) scopes visibility — same as
@@ -25,7 +25,14 @@ export async function listBooks(filters: BookFilters): Promise<BooksResult> {
   if (!supabase) return { rows: [], total: 0 };
   const start = (filters.page - 1) * BOOKS_PER_PAGE_SIZE;
 
-  let query = supabase.from("books").select(BOOK_SUMMARY_COLUMNS, { count: "exact" });
+  // One shelf at a time. RLS decides what a viewer MAY see; this decides what
+  // this page IS — the same distinction listPublishedBanners() and
+  // listActivities() already draw, where leaning on RLS alone made a query ask
+  // a broader question than the page claimed to answer.
+  let query = supabase
+    .from("books")
+    .select(BOOK_SUMMARY_COLUMNS, { count: "exact" })
+    .eq("collection", filters.collection);
 
   if (filters.search) {
     const q = filters.search.replace(/[%_]/g, "\\$&");
@@ -46,6 +53,7 @@ export async function listBooks(filters: BookFilters): Promise<BooksResult> {
     academicYear: b.academic_year,
     season: b.season,
     status: b.status,
+    collection: b.collection,
     coverPath: b.cover_path,
     pdfPath: b.pdf_path,
     publishedAt: b.published_at,
@@ -74,7 +82,7 @@ export async function getBook(id: string): Promise<BookDetail | null> {
   const { data, error } = await supabase
     .from("books")
     .select(
-      "id, title, description, academic_year, season, status, pdf_path, cover_path, owner_id, published_at, owner:profiles!books_owner_id_fkey(full_name)"
+      "id, title, description, academic_year, season, status, collection, pdf_path, cover_path, owner_id, published_at, owner:profiles!books_owner_id_fkey(full_name)"
     )
     .eq("id", id)
     .maybeSingle();
@@ -88,6 +96,7 @@ export async function getBook(id: string): Promise<BookDetail | null> {
     academicYear: data.academic_year,
     season: data.season,
     status: data.status,
+    collection: data.collection,
     pdfPath: data.pdf_path,
     coverPath: data.cover_path,
     ownerId: data.owner_id,
@@ -104,7 +113,13 @@ export async function createBook(
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("books")
-    .insert({ title: input.title, academic_year: input.academicYear, season: input.season, owner_id: ownerId })
+    .insert({
+      title: input.title,
+      academic_year: input.academicYear,
+      season: input.season,
+      collection: input.collection,
+      owner_id: ownerId,
+    })
     .select("id")
     .single();
 
@@ -157,6 +172,7 @@ export async function updateBook(input: UpdateBookInput): Promise<{ ok: true } |
       description: input.description,
       academic_year: input.academicYear,
       season: input.season,
+      collection: input.collection,
       pdf_path: input.pdfPath,
       cover_path: input.coverPath,
     })
@@ -218,11 +234,19 @@ export async function unpublishBook(id: string): Promise<{ ok: true } | { ok: fa
   return { ok: true };
 }
 
-/** Distinct academic years for the shelf filter dropdown — only among books this viewer can actually see (RLS-scoped, same as the query it mirrors). */
-export async function getBookYears(): Promise<number[]> {
+/**
+ * Distinct academic years for the shelf filter dropdown — only among books this
+ * viewer can actually see (RLS-scoped, same as the query it mirrors) and only
+ * within the shelf being rendered, or one list would offer a year filter that
+ * matches nothing on it.
+ */
+export async function getBookYears(collection: BookCollection): Promise<number[]> {
   const supabase = await tryCreateClient();
   if (!supabase) return [];
-  const { data, error } = await supabase.from("books").select("academic_year");
+  const { data, error } = await supabase
+    .from("books")
+    .select("academic_year")
+    .eq("collection", collection);
 
   if (error || !data) return [];
 

@@ -19,31 +19,31 @@ export type NavItem = {
 export const navItems: readonly NavItem[] = [
   { key: "home", href: "/" },
   { key: "calendar", href: "/calendar" },
-  { key: "projects", href: "/projects", permission: "workspace:access" },
   { key: "activities", href: "/activities" },
-  // §5: public. Published announcements are readable by guests
-  // (announcements_select_published, 0060). This entry closes B-1 — the route
-  // was linked from the footer but absent here, so it was a dead link.
-  { key: "announcements", href: "/announcements" },
-  { key: "documents", href: "/documents" },
-  // §5: public — "11 ดี 11 เก่ง อวท." is public page copy, editable in-app
-  // only by staff (content:manage, lib/auth/permissions.ts).
-  { key: "aft11", href: "/aft-11" },
+  // §5: public. The shelf of documents about the organisation itself — the
+  // same books table and the same page component as /documents, with 0074's
+  // `admin_info` collection pinned and no list switcher.
+  { key: "adminInfo", href: "/admin-info" },
+  // §5: public. "11 ดี 11 เก่ง อวท." lives on /documents, which shows its two
+  // lists (11 ดี / 11 เก่ง). The route kept its URL when it stopped being the
+  // general เอกสาร shelf, because it is in bookmarks and every book detail
+  // page links back to it; /aft-11 redirects here.
+  { key: "aft11", href: "/documents" },
   // §5: public — guests can browse the directory to check whether they're
   // registered; services/members.ts hides email from them and the "add
   // filters"/edit affordances stay role-gated inside the page itself.
   { key: "members", href: "/members" },
-  // report:view, not workspace:access: the latter is held by a read-only
-  // `student`, who has no §6 basis for org-wide attendance and membership
-  // figures. The report RPCs (0058) enforce the same boundary themselves.
-  { key: "reports", href: "/reports", permission: "report:view" },
-  // §19 audit trail. `system:manage` = admin only, matching
-  // audit_logs_select_admin (0057) — every other role would see an empty
-  // table, so the link is hidden rather than rendered-then-refused.
-  { key: "audit", href: "/audit", permission: "system:manage" },
-  // No "approvals" entry: approving a pending signup moved onto /members,
-  // which is already in this list and public. The old route still exists as a
-  // redirect (app/[lang]/(app)/approvals/page.tsx) for stale links.
+  // §5: public. Published announcements are readable by guests
+  // (announcements_select_published, 0060). This entry closes B-1 — the route
+  // was linked from the footer but absent here, so it was a dead link.
+  { key: "announcements", href: "/announcements" },
+  // Exactly seven tabs, in this order, per the confirmed spec.
+  //
+  // Deliberately NOT here, and still reachable by URL: /projects, /reports and
+  // /audit, which moved into the (unused) route group — see its README. Their
+  // nav.* dictionary keys stay, because those pages still read them as their
+  // own <h1>. No "approvals" entry either: approving a signup moved onto
+  // /members, and the old route is a redirect for stale links.
 ];
 
 /**

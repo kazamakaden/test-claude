@@ -19,7 +19,6 @@ export interface ActivityEditor {
 
 /** An activity plus everything the detail page needs. */
 export interface ActivityDetail extends Activity {
-  createdBy: string | null;
   expectedAttendees: number | null;
   /**
    * Only staff can reach a draft at all -- the 0068 SELECT policies hide them
@@ -37,6 +36,12 @@ export interface ActivityDetail extends Activity {
 
 export interface Activity {
   id: string;
+  /**
+   * Carried on the SUMMARY so the list can decide, per row, whether to offer
+   * delete — activities_delete_owner (0061) is owner-OR-admin, narrower than
+   * the edit predicate, so can_edit_activity() is the wrong thing to ask.
+   */
+  createdBy: string | null;
   title: string;
   description: string | null;
   status: ActivityStatus;
@@ -51,7 +56,7 @@ export interface Activity {
   clubName: string | null;
 }
 
-export type ActivitySortColumn = "startsAt" | "title" | "status";
+export type ActivitySortColumn = "createdAt" | "startsAt" | "title" | "status";
 export type SortDirection = "asc" | "desc";
 
 export interface ActivityFilters {
