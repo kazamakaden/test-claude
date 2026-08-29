@@ -35,3 +35,17 @@ export const AFT11_LIST_SLUGS = Object.keys(AFT11_LISTS) as Aft11List[];
 export function parseAft11List(value: string | undefined): Aft11List {
   return value !== undefined && value in AFT11_LISTS ? (value as Aft11List) : "good";
 }
+
+/**
+ * Where a book of this collection lives.
+ *
+ * The detail page is one route (`/documents/{id}`) serving all three shelves,
+ * so "back to the shelf" and "where to go after deleting" cannot be a constant
+ * — an admin_info book sent the viewer to the 11 ดี list, and a skilled book to
+ * the wrong tab of the right page.
+ */
+export function shelfHref(collection: BookCollection, lang: string): string {
+  if (collection === "admin_info") return `/${lang}/admin-info`;
+  const slug = collection === "aft11_skilled" ? "skilled" : "good";
+  return `/${lang}/documents?list=${slug}`;
+}
