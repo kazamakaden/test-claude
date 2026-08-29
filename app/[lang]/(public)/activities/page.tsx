@@ -11,6 +11,7 @@ import { ActivitiesFilters } from "@/components/activities/activities-filters";
 import { ActivitiesTable } from "@/components/activities/activities-table";
 import { ActivitiesStats } from "@/components/activities/activities-stats";
 import { Pagination } from "@/components/table/pagination";
+import { redirectIfPageOutOfRange } from "@/lib/pagination";
 import { ActivitiesTableSkeleton } from "@/components/activities/activities-table-skeleton";
 import type { ActivityFilters } from "@/types/activities";
 
@@ -42,6 +43,8 @@ async function ActivitiesResults({
     getRole(),
     getSessionUserId(),
   ]);
+
+  redirectIfPageOutOfRange({ rows, page: filters.page, pathname, searchParams });
 
   return (
     <div className="flex flex-col gap-4">

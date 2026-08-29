@@ -3787,6 +3787,85 @@ routes, `BUILD_ID` present) all pass, and the five-role route matrix is
 unchanged from before the edits.
 
 
+**A second sweep: an out-of-range `?page=` left three pages in a broken state,
+and the pagination bar could not rescue it.** Found by asking why the
+`/notifications` page-guard (recorded above) existed nowhere else.
+
+`components/table/pagination.tsx` computed its summary and its prev/next links
+straight from the requested `page`, unclamped. Proven against the **rendered**
+page with a page-aware fixture (25 rows, 12 per page, so 3 real pages), not
+read off the source:
+
+| `?page=` | summary rendered | "previous" points at |
+|---|---|---|
+| 3 | `แสดง 25–25 จาก 25 รายการ` ✅ | page 2 ✅ |
+| 99 | **`แสดง 1177–25 จาก 25 รายการ`** — a start past the end | **page 98**, also empty |
+
+So "previous" walked back one dead page at a time: 96 clicks from `?page=99`.
+`/notifications` was immune only because it already had its own redirect;
+`/documents`, `/members` and `/activities` all had this.
+
+**Reachable without typing a URL, and the new delete button makes it easier:**
+delete rows until the list shrinks below the page you are on and the
+`revalidatePath` re-renders at the same `?page=`. Filters were already safe —
+all three filter components `params.delete("page")` — and re-sorting is fine
+too, since sorting cannot change the row count.
+
+**Fixed in two layers**, the same shape as this project's grant-plus-policy
+habit:
+1. `lib/pagination.ts#redirectIfPageOutOfRange()` — the behaviour. Lifted from
+   the `/notifications` guard now that three more pages need it, the
+   `common.pagination` / `common.levels` precedent. It keeps every other search
+   param: dropping the filters would answer "this page is empty" by silently
+   showing a different query's results.
+2. `Pagination` clamps `page` to `totalPages` for display. Redundant while
+   layer 1 holds, which is the point — it is what still works for a future
+   caller that forgets to redirect.
+
+**A Next.js detail worth knowing, checked rather than assumed.** The redirect
+fires inside the page's `<Suspense>` child (that is where `rows` is known), so
+streaming has already begun and Next **cannot** send an HTTP 3xx. It emits
+`<meta id="__next-page-redirect" http-equiv="refresh" content="1;url=...">`
+instead — status 200. That still satisfies §30.9 item 3, because a meta refresh
+is honoured with JavaScript disabled; it is not a client-side navigation. The
+cost is a ~1s flash of the empty page, which is Next's own behaviour.
+
+Verified per case: `?page=99` → `/th/documents`; `?list=skilled&page=99` →
+`/th/documents?list=skilled` (the shelf survives); `?search=x&year=2569&page=50`
+→ `/th/documents?search=x&year=2569` (filters survive); `?page=3` → **no
+redirect**, so a valid page is untouched. `/members` and `/activities` behave
+the same, including with a filter attached.
+
+**Two whole-codebase checks that came back clean, recorded so they are not
+re-run from scratch:**
+
+* **Every PostgREST `.select()` / `.eq()` / `.order()` / `.insert()` /
+  `.update()` column, diffed against the live catalog: zero drift.** This is
+  the failure class TypeScript cannot see — a renamed or dropped column is a
+  runtime 42703, and `if (error) return []` swallows it silently (exactly how
+  `0037` broke the notifications card). The one hit was a false positive: the
+  regex matched the word `null:` inside a comment in
+  `services/facebook-banner.ts`.
+* **Every notification `link` target resolves.** The triggers write
+  `/projects/{id}`, `/documents/manage/{id}`, `/announcements/{id}` and
+  `/dashboard`; all four still exist (`/projects` only because a route group
+  adds no URL segment, `/dashboard` as a redirect). `/pending` appears in
+  `0036`'s source but `0039` removed that insert — confirmed against `pg_proc`,
+  not just the migration file, since `/pending` was deleted with the `pending`
+  role and would 404.
+
+Also clean: no Server Action without a caller; no `select("*")`; no event
+handler constructed in a Server Component and passed across the client boundary
+(the digest-`2646013012` class); every `<Link>` and every `CardEmpty` CTA
+locale-prefixed. Both Supabase advisor sets show **nothing new** from `0074` —
+only the already-documented `unused_index` (expected at these row counts) and
+`multiple_permissive_policies` (deliberately left, see 0066/0067).
+
+`npx tsc --noEmit`, `npm run lint`, a fully observed `npm run build` (64 routes,
+`BUILD_ID` present) and `npm run check:responsive` (**90/90, 0 overflow, 0
+viewport mismatches**) all pass.
+
+
 ### ❌ Remaining
 
 * **RLS policy performance — HALF OF THIS IS DONE, and this bullet's own

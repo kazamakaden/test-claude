@@ -11,6 +11,7 @@ import { BooksFiltersSkeleton } from "@/components/books/books-filters-skeleton"
 import { BooksShelf } from "@/components/books/books-shelf";
 import { BooksShelfSkeleton } from "@/components/books/books-shelf-skeleton";
 import { CardBoundary } from "@/components/dashboard/card-boundary";
+import { redirectIfPageOutOfRange } from "@/lib/pagination";
 import { Pagination } from "@/components/table/pagination";
 import { Button } from "@/components/ui/button";
 import type { Locale } from "@/lib/i18n/config";
@@ -58,6 +59,8 @@ async function BooksResults({
   dict: Dictionary;
 }) {
   const [role, { rows, total }] = await Promise.all([getRole(), listBooks(filters)]);
+  redirectIfPageOutOfRange({ rows, page: filters.page, pathname, searchParams });
+
   const supabase = await tryCreateClient();
   const {
     data: { user },

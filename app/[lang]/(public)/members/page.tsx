@@ -14,6 +14,7 @@ import { MembersFilters } from "@/components/members/members-filters";
 import { MembersTable } from "@/components/members/members-table";
 import { MemberCreateSheet } from "@/components/members/member-create-sheet";
 import { Pagination } from "@/components/table/pagination";
+import { redirectIfPageOutOfRange } from "@/lib/pagination";
 import { MembersTableSkeleton } from "@/components/members/members-table-skeleton";
 import { CardBoundary } from "@/components/dashboard/card-boundary";
 
@@ -44,6 +45,7 @@ async function MembersResults({
   const canEdit = can(role, "member:approve");
   const canManage = can(role, "member:manage");
   const { rows, total } = await getMembers(filters, { includeEmail });
+  redirectIfPageOutOfRange({ rows, page: filters.page, pathname, searchParams });
 
   return (
     <div className="flex flex-col gap-4">
