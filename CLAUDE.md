@@ -3724,6 +3724,69 @@ confirm after deploy. The `/activities` delete matrix above was proven against
 injected fixtures (reverted; `grep TEMP_SELF_TEST` → 0), not live rows.
 
 
+**Post-merge bug sweep: a dead link in global search, and a wrong-shelf back
+button.** Two fixes, one of which has nothing to do with the collection split.
+
+**Every `document` hit in §18 global search 404'd, and had since `0053`.**
+`services/search.ts#hrefFor` sent a `document` result to
+`/{lang}/documents/{id}` — but that route is the **books** detail page (it
+calls `getBook`), so a `documents.id` can never resolve there. Same stale
+assumption as B3, the "view published" link removed in an earlier pass: the
+document → book bridge was dropped deliberately in `0053` and this href map
+was the last place still assuming it. Reachable by **guests**, since
+`documents_select_official` admits them and `search_all` is SECURITY INVOKER.
+
+Confirmed live rather than inferred: `search_all('อวท', 50)` returns **3
+`document`** hits; `documents` has 5 rows (3 official) and joining it to
+`books` on `id` returns **0**; and `find app -path '*documents*' -name
+page.tsx` confirms there is **no public document page at all** — the only one
+is `(app)/documents/manage/[id]`, gated on `document:sign`.
+
+Fixed by pointing `document` at `/{lang}/documents/manage/{id}`, where the
+document actually lives. For a viewer without `document:sign` that redirects
+to login — a coherent "sign in to see this" rather than a 404 claiming the row
+does not exist — matching the "closest honest destination" reasoning already
+written above the `member` case in the same function. Deliberately NOT filtered
+out of results app-side: that would restate a scope RLS already expresses, the
+second-source-of-truth mistake `0038`'s header warns about.
+
+**Proven both directions with a stubbed document** (inject-then-revert; `grep
+TEMP_SELF_TEST` → 0), because with no Supabase configured BOTH routes 404 and
+the check would not have discriminated: the new destination is **307 → /login
+for guest and student, 200 for aft/teacher/admin** with the document actually
+rendering; the old destination still **404s for admin** on the same resolvable
+id, which is what proves the route was wrong rather than the data missing.
+
+**A book's "back to shelf" always went to `/{lang}/documents`.** One detail
+route serves all three collections now, so an `admin_info` book sent the reader
+to the 11 ดี shelf and deleting one dropped them on a page the book was never
+on. New `shelfHref(collection, lang)` in `lib/book-collections.ts`, used for
+both the back link and `DeleteBookButton`'s `redirectTo`. Verified with a
+fixture per collection: `aft11_good → /th/documents?list=good`,
+`aft11_skilled → ?list=skilled`, `admin_info → /th/admin-info`.
+
+**A false result inside that check, worth keeping.** The first extraction
+grepped the page for the first `/th/documents|/th/admin-info` href and reported
+`/th/admin-info` for all three books — which looked like the fix not working.
+It was the **nav bar's** own admin-info tab, which appears earlier in the HTML
+than the back link. Scoping the match to the anchor carrying the
+`backToShelf` label gave the correct three. Match the element, not the first
+URL that looks right.
+
+**Checked and found clean, so it is not re-swept:** Supabase's security
+advisors show nothing new from `0074` (every finding is an already-documented
+by-design one); `createBook` is the only INSERT into `books`, so nothing else
+can trip the new `23502`; `case "book"` is correct because `/documents/{id}`
+IS the book route and serves all three collections; `case "project"` still
+resolves, since a route group adds no URL segment; no dangling `/aft-11` links
+outside its own redirect; and the footer links only to `/announcements`, still
+a nav tab.
+
+`npx tsc --noEmit`, `npm run lint` and a fully observed `npm run build` (64
+routes, `BUILD_ID` present) all pass, and the five-role route matrix is
+unchanged from before the edits.
+
+
 ### ❌ Remaining
 
 * **RLS policy performance — HALF OF THIS IS DONE, and this bullet's own

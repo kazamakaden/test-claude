@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { shelfHref } from "@/lib/book-collections";
 import { notFound } from "next/navigation";
 import { format } from "date-fns";
 import { th, enUS } from "date-fns/locale";
@@ -46,6 +47,9 @@ export default async function BookDetailPage({
   const canDelete = isStaff || isOwner;
 
   const d = dict.documents;
+  // One detail route serves all three shelves (0074), so "back" is the book's
+  // own collection, not a constant /documents.
+  const backHref = shelfHref(book.collection, lang);
   const locale = lang === "th" ? th : enUS;
   const seasonLabels = lang === "th" ? SEASON_LABELS_TH : SEASON_LABELS_EN;
   const showEditor = canEdit && viewerId !== null;
@@ -57,7 +61,7 @@ export default async function BookDetailPage({
   return (
     <div className="mx-auto flex max-w-4xl flex-col gap-6 px-4 py-8 sm:px-6 lg:px-8">
       <Link
-        href={`/${lang}/documents`}
+        href={backHref}
         className="flex w-fit items-center gap-1 text-sm text-muted-foreground outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
       >
         <ArrowLeft className="size-4" aria-hidden />
@@ -95,7 +99,7 @@ export default async function BookDetailPage({
                 title={book.title}
                 lang={lang}
                 dict={dict}
-                redirectTo={`/${lang}/documents`}
+                redirectTo={backHref}
                 trigger={
                   <Button variant="destructive">
                     <Trash2 className="size-4" aria-hidden />

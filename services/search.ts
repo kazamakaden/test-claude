@@ -29,8 +29,17 @@ function hrefFor(entity: SearchEntity, id: string, lang: Locale): string {
     case "project":
       return `/${lang}/projects/${id}`;
     case "document":
-      return `/${lang}/documents/${id}`;
+      // The §12 workflow page, NOT /documents/{id} — that route is the BOOK
+      // detail page (it calls getBook), so a documents.id never resolves there
+      // and every document hit 404'd. The document -> book bridge was dropped
+      // deliberately in 0053; this map was the last place still assuming it.
+      // There is no public document page at all, so for a viewer without
+      // document:sign this redirects to login — a coherent "sign in to see
+      // this" rather than a 404 claiming the row does not exist.
+      return `/${lang}/documents/manage/${id}`;
     case "book":
+      // Correct as-is: /documents/{id} IS the book detail route, and it serves
+      // all three collections (0074).
       return `/${lang}/documents/${id}`;
   }
 }
