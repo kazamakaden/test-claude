@@ -1,12 +1,13 @@
 import { User } from "lucide-react";
 import { requirePermission } from "@/lib/auth/require-role";
 import { tryCreateClient } from "@/lib/supabase/server";
-import { getOwnProfile } from "@/services/profiles";
+import { getOwnCitizenId, getOwnProfile } from "@/services/profiles";
 import { getDictionary } from "@/lib/i18n/get-dictionary";
 import { PageShell } from "@/components/layout/page-shell";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { ProfileNameForm } from "@/components/profile/profile-name-form";
+import { CitizenIdForm } from "@/components/profile/citizen-id-form";
 import { SignOutButton } from "@/components/layout/sign-out-button";
 import { getInitials } from "@/lib/utils";
 import type { Locale } from "@/lib/i18n/config";
@@ -31,7 +32,14 @@ export default async function ProfilePage({ params }: { params: Promise<{ lang: 
   const supabase = await tryCreateClient();
   const user = supabase ? (await supabase.auth.getUser()).data.user : null;
 
-  const [dict, profile] = await Promise.all([getDictionary(lang), user ? getOwnProfile(user.id) : null]);
+  // citizenId comes from the get_citizen_id() RPC, not from getOwnProfile's
+  // select list: 0005's column allow-list excludes citizen_id, and widening it
+  // would expose the column to every profiles read in the app.
+  const [dict, profile, citizenId] = await Promise.all([
+    getDictionary(lang),
+    user ? getOwnProfile(user.id) : null,
+    user ? getOwnCitizenId(user.id) : null,
+  ]);
   const d = dict.profile;
 
   if (!profile) {
@@ -79,6 +87,10 @@ export default async function ProfilePage({ params }: { params: Promise<{ lang: 
         </div>
 
         <ProfileNameForm lang={lang} fullName={profile.fullName} dict={dict} />
+
+        <div className="border-t border-border pt-6">
+          <CitizenIdForm lang={lang} citizenId={citizenId} dict={dict} />
+        </div>
       </div>
 
       <div className="flex flex-col gap-3 rounded-xl border border-border bg-card p-6 shadow-sm">

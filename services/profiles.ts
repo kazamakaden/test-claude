@@ -60,3 +60,51 @@ export async function updateOwnProfile(
   if (error || !data) return { ok: false, error: error?.message ?? "not found or not allowed" };
   return { ok: true };
 }
+
+/**
+ * §14 read-back. The column is outside 0005's SELECT allow-list, so this goes
+ * through get_citizen_id() — the SECURITY DEFINER accessor, which 0075 extended
+ * to admit the subject alongside an admin. It enforces its own authorization
+ * and raises for anyone else, so there is no role check to duplicate here.
+ *
+ * A raise reads as "nothing on file" rather than propagating: the caller only
+ * needs to know whether to render the input or the stored value.
+ */
+export async function getOwnCitizenId(userId: string): Promise<string | null> {
+  const supabase = await tryCreateClient();
+  if (!supabase) return null;
+
+  const { data, error } = await supabase.rpc("get_citizen_id", { member_id: userId });
+  if (error) return null;
+  return data ?? null;
+}
+
+/**
+ * §14 write. Set-once is enforced by prevent_citizen_id_change (0003), not
+ * here: a second attempt raises at the database, which is what makes the rule
+ * true for every client rather than only for this form.
+ *
+ * `.select("id").maybeSingle()` so an RLS-filtered update reads as a refusal
+ * rather than a false success — the discipline updateMember/updateBook use.
+ */
+export async function setOwnCitizenId(
+  userId: string,
+  citizenId: string
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("profiles")
+    .update({ citizen_id: citizenId })
+    .eq("id", userId)
+    .select("id")
+    .maybeSingle();
+
+  if (error) {
+    // P0001 is prevent_citizen_id_change; 23514 is profiles_citizen_id_format.
+    if (error.code === "P0001") return { ok: false, error: "alreadySet" };
+    if (error.code === "23514") return { ok: false, error: "citizenIdInvalid" };
+    return { ok: false, error: "unknown" };
+  }
+  if (!data) return { ok: false, error: "unknown" };
+  return { ok: true };
+}

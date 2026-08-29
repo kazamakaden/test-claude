@@ -875,8 +875,14 @@
     "errors": {
       "fullNameRequired": "Please enter your full name",
       "fullNameTooLong": "Name is too long",
-      "unknown": "Something went wrong. Please try again."
-    }
+      "unknown": "Something went wrong. Please try again.",
+      "citizenIdInvalid": "That national ID number is not valid. Please check it.",
+      "alreadySet": "A national ID is already on file. An administrator must change it."
+    },
+    "citizenIdLabel": "National ID number",
+    "citizenIdHint": "13 digits. You can save this once — an administrator must correct any mistake.",
+    "citizenIdLocked": "On file. Contact an administrator if it is wrong.",
+    "citizenIdSaved": "National ID saved"
   },
   "settings": {
     "title": "Settings",

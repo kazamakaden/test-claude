@@ -3949,6 +3949,84 @@ programmatically (914 keys per locale); the 29×5 route matrix is unchanged from
 before the edits.
 
 
+**§14 เลขบัตรประชาชน given a write path — and a fail-OPEN guard I introduced,
+caught by its own matrix (`0075`, `0076`).** `profiles.citizen_id` was 0 of 6
+with no writer anywhere in the app, so `prevent_citizen_id_change` had been
+guarding an empty field since `0003`.
+
+**Reading the migrations first shrank the job.** The rule §14 asks for was
+already implemented: `prevent_citizen_id_change` raises only when
+`old.citizen_id is not null` and the actor is not admin, so "set once, admin may
+correct" already worked. And **no migration had ever revoked table-level UPDATE
+on `profiles`** — only SELECT, in `0005` — so a member could already write their
+own via raw PostgREST. The write path existed; only the UI was missing.
+
+`0075` therefore adds just the two things the database lacked: a
+`profiles_citizen_id_format` CHECK (`^[0-9]{13}$`, since the column had been
+free text and a set-once admin-locked value makes a typo expensive), and
+self-read on `get_citizen_id()`, which was admin-only while `0005` had removed
+the column from every select list — so a member who stored their number could
+never see it again.
+
+**The mod-11 check digit is deliberately NOT in the constraint.** Shape is the
+database's backstop; the checksum lives in `lib/citizen-id.ts`, shared by the
+form and the Server Action, because a digit-by-digit mod-11 expression in SQL is
+unreadable and hard to correct later.
+
+**THE FINDING, and the most reusable thing here.** `0075` rewrote the guard as
+`if member_id <> (select auth.uid()) and public.current_role() <> 'admin'`. For
+`anon`, `auth.uid()` is **NULL**, so `member_id <> NULL` is NULL, `NULL and
+true` is NULL, and `if NULL then` does not fire — the function **skipped the
+raise and returned the value**. `0004`'s original tested only
+`current_role() <> 'admin'`, plainly true for anon, and refused correctly; the
+change is what broke it. The migration's own comment claimed "still fail-closed
+for anon" — reasoned, never tested. **Case 12 of its own matrix is the only
+reason it surfaced.**
+
+> **Rule: in a SECURITY DEFINER guard, never compare against `auth.uid()` with
+> `=` or `<>`.** It is NULL for anon, every such comparison yields NULL, and
+> `if` treats NULL as false — so the guard fails **OPEN**. Require a session
+> explicitly (`if uid is null then raise`), then use `is distinct from`, which
+> is NULL-safe in both directions.
+
+`0076` is that fix. Nothing was exposed in practice — `citizen_id` was NULL for
+every profile while the flaw existed — but that is luck about timing, not a
+mitigation, and shipping the UI is what would have ended it.
+
+**Matrix `supabase/tests/0075_citizen_id_test.sql`, 16 cases.** What it proved
+besides the bug: set-once holds (`P0001` on a second write) while an **admin can
+still change it** — the half §14 actually names; the CHECK refuses 12-digit,
+14-digit and non-numeric input while a valid 13-digit value is still accepted;
+a member cannot read another member's; and **`0005`'s column boundary is
+unchanged** (`42501` on a direct `select citizen_id`). Case **12b** was added
+with `0076` because `is distinct from` changes the NULL-argument path too.
+
+**App layer, proven with a temporary stub** (reverted; `grep TEMP_SELF_TEST` ->
+0) because `/profile` needs a real session user and this session has no
+Supabase — without the stub that page renders its error card for every role,
+which is **pre-existing** and not caused by this work. Nothing on file renders
+the input; a value on file renders read-only and **formatted**
+(`1-1017-00234-56-8`), with the raw digits appearing nowhere; and the number
+appears **0 times** on `/members` for guest, student and admin. `/th/profile` is
+307 for a guest and 200 for every member role. `lib/citizen-id.ts` is **17/17**,
+including a deliberately corrupted check digit per fixture — one case caught a
+wrong assertion of mine, since for an all-zero prefix the check digit is
+`(11-0)%10 = 1`, so `0000000000000` is correctly invalid. It was kept: it is
+what separates the real formula from a naive `sum % 11`.
+
+`npx tsc --noEmit`, `npm run lint` and a fully observed `npm run build` (64
+routes) all pass; dictionary parity checked programmatically (920 keys).
+
+**NOT DONE, stated plainly:** `0076` is written and committed but **was not
+applied** — the migration tool returned "requires approval" on five attempts
+across two tools and never completed. **Until it is applied, the live
+`get_citizen_id()` still fails open for anon.** Apply
+`supabase/migrations/0076_get_citizen_id_null_safe.sql` and re-run the matrix
+demanding 16/16 before merging the UI. Also not observed: the real
+click-through, since no member has a citizen_id and the app cannot reach
+Supabase from here.
+
+
 ### ❌ Remaining
 
 * **RLS policy performance — HALF OF THIS IS DONE, and this bullet's own
