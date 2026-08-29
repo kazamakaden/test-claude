@@ -1,6 +1,6 @@
 # CLAUDE.md — AFT UDONTECH Dashboard
 
-## 0. Phase 1 Status (as of 2026-08-13)
+## 0. Phase 1 Status (as of 2026-08-29)
 
 Tracked against the §30 build plan. Grouped by done vs. remaining so status is
 scannable at a glance — each item still tags its §30.x subsection for detail.
@@ -3875,7 +3875,11 @@ viewport mismatches**) all pass.
   returns **zero** `auth_rls_initplan` findings. The `rls_initplan` migration
   (applied 2026-08-12) already fixed them. Corrected here rather than left to
   mislead the next reader into re-doing finished work.
-  What remains is **`multiple_permissive_policies` — ~23 findings** across
+  What remains is **`multiple_permissive_policies` — 26 findings**, counted
+  from the live advisor run rather than estimated (activities 4, books 4,
+  documents 3, document_drafts 3, projects 3, attendance 2, profiles 2, and one
+  each on activity_banners, announcements, notifications, signature_records,
+  site_banners), across
   `activities`/`books`/`documents`/`projects`/`profiles`/`attendance`/
   `notifications`/`document_drafts`/`announcements`/`signature_records`/
   `activity_banners`/`site_banners`: an inherent side effect of the additive
@@ -3890,22 +3894,16 @@ viewport mismatches**) all pass.
   grant**. If this is ever attempted again it needs the full
   guest/student/aft/teacher/admin × table matrix AND a case per merged pair
   holding a mismatched role/claim, which is what `0065`'s new case 19b does.
-* **No Content-Security-Policy headers** — §19 asks for XSS protection,
-  achieved today via React's default escaping and the absence of any
-  `dangerouslySetInnerHTML` (verified this pass, see Done above), but a CSP
-  would add defense-in-depth against any future regression. Not added this
-  pass because a naive CSP would likely break the app: `book-cover.tsx`'s
-  gradient uses an inline `style` attribute (React's `style` prop always
-  renders as `style="..."`, which a strict `style-src` without
-  `'unsafe-inline'` blocks), Turnstile needs `challenges.cloudflare.com` in
-  both `script-src` and `frame-src`, and the flipbook viewer needs
-  `fliphtml5.com` (and its `online.` reader subdomain) in `frame-src` — was
-  `anyflip.com` before the §12 e-book host switch. A correct policy needs to
-  be built with all
-  three allowances and then verified live on every page/theme (login
-  especially, since a misconfigured CSP silently breaking Turnstile would be
-  worse than having no CSP at all) — not assembled from a generic template
-  and shipped unverified.
+* **CSP headers — DONE. This bullet used to say "No Content-Security-Policy
+  headers" and was stale in two ways at once.** `next.config.ts` has a
+  `headers()` block setting both `Content-Security-Policy` and
+  `Content-Security-Policy-Report-Only`, built by `lib/csp.ts`. Its *rationale*
+  had also gone stale independently: it argued the policy must allow
+  `fliphtml5.com` in `frame-src` for the flipbook viewer, but `0053` removed
+  FlipHTML5 entirely — §0 records both hosts being dropped from `frame-src` and
+  `object-src` tightening to `'none'` as a side effect of that removal.
+  Corrected here rather than left to send the next reader building a policy
+  that already exists.
 * **Leaked password protection is off, Pro-plan-gated** — Supabase
   Authentication → Attack Protection confirms it, greyed out under "Only
   available on Pro plan and above." **This entry's earlier claim that
@@ -3975,27 +3973,33 @@ viewport mismatches**) all pass.
     "genuinely not started" were accurate when written and are superseded;
     see the §0 Done entry "Five 0% features built" for what shipped and what
     is still unproven about it.
-  * **Notifications (§16) — in-app half now done** (see the Done entry above:
-    trigger write path, per-user read state, real `/notifications` page, wired
-    bell). **Web push is still not sent**: `push_subscriptions` (0033/0034)
-    stores browser subscriptions and `public/sw.js` exists, but nothing ever
-    calls `web-push` — `VAPID_PRIVATE_KEY` remains documented in
-    `.env.example` and unused by any code. Sending is the remaining piece,
-    and the natural trigger for it is the same 0036 notification insert that
-    now drives the in-app UI. **Also still pending: the three VAPID vars
-    (`NEXT_PUBLIC_VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`)
-    must be set in Vercel** — a keypair was generated this pass and works
-    locally via `.env.local`, but until those land in the Vercel project the
-    Settings web-push toggle renders nothing in production.
-  * **`/profile` — a fifth placeholder page, not previously listed here at
-    all.** Also a bare `PageShell` "coming soon", despite being linked from
-    every signed-in role's top nav and avatar-menu dropdown. Found while
-    auditing routes for this correction — worth calling out on its own since
-    it wasn't a documented phase like the four above, just an overlooked
-    gap. The only profile-*adjacent* work that exists is the self-editable
-    `full_name`/`avatar_url` sync described earlier in this file (a
-    background sync on Google sign-in, not a page a user can visit to see
-    or edit their own data).
+  * **Notifications (§16) — in-app half done; web push is BUILT BUT NOT WIRED.**
+    This bullet used to say "nothing ever calls `web-push`" and
+    "`VAPID_PRIVATE_KEY` ... unused by any code". Both are false:
+    `lib/push-server.ts` imports `web-push` and calls `setVapidDetails`, and
+    `app/api/push/dispatch/route.ts` calls `webpush.sendNotification`.
+    `docs/web-push.md` documents the whole chain.
+
+    What is actually missing is the two ends, neither of which is code:
+    1. **No Supabase Database Webhook on `public.notifications`.** Verified
+       against `pg_trigger`: the only trigger in that area is
+       `push_subscriptions_set_updated_at`, so nothing ever calls the dispatch
+       route. This is the reason nothing has ever been delivered.
+    2. **FOUR env vars in Vercel, not three** — this bullet omitted
+       `PUSH_DISPATCH_SECRET`, which the route requires as the `x-push-secret`
+       header and without which every call is rejected. Alongside
+       `NEXT_PUBLIC_VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`.
+
+    `push_subscriptions` is **0** rows, which follows from the first missing
+    var rather than from any defect: `lib/push.ts#isPushConfigured` hides the
+    Settings toggle when the public key is absent, so nobody has ever been able
+    to subscribe.
+  * **`/profile` — DONE.** This bullet used to describe it as "a bare
+    `PageShell` 'coming soon'". It renders `ProfileNameForm` and
+    `SignOutButton` (the app's only sign-out that works with JavaScript
+    disabled) and was built in the six-task pass; `PageShell` survives there
+    only as the error fallback. The line "real /profile page, replacing the
+    PageShell 'coming soon' stub" sits in that very file.
   * **Projects workflow (§11) and Documents digital-signature (§12/§17) —
     already done**, see the Done-section entry above. Not a remaining item;
     listed here only to make the correction to this bullet's history
@@ -4010,15 +4014,47 @@ viewport mismatches**) all pass.
     `getActivityCounts`) deliberately was not touched by that pass and still
     has no `supabase.channel` usage; its own table/stats strip still requires
     a manual refresh to see a new row.
-* **`attendance` has zero rows** — by design (see Done above), but it means
+* **`attendance` has 1 row** (was "zero" when this was written — one real QR
+  check-in has happened since, during §13 testing) — still effectively empty by
+  design (see Done above), and it means
   the §10 activity-statistics chart's "attendance" series will show 0 for
   every month until either real QR check-ins land or a future pass seeds it
   against real test-user accounts created and torn down for that purpose.
   This now also applies to `/activities`' own Attendance stat tile, for the
   same reason.
-* **`documents.cover_url` is schema-ready but not rendered** — every book on
-  the `/documents` shelf shows a designed placeholder cover instead of a real
-  thumbnail; wiring a real cover image is a follow-up, not started.
+* **`documents.cover_url` is unread** — no service, type or component touches
+  it. **This bullet used to add "every book on the `/documents` shelf shows a
+  designed placeholder cover instead of a real thumbnail", which conflated two
+  different columns and is false on both counts.** Book covers DO render:
+  `components/books/book-card.tsx` renders `<BookCover coverUrl={...}>`, fed by
+  `getSignedUrlMap("book-covers", ...)` in `book-shelf-page.tsx`. And
+  `documents.cover_url` belongs to the §12 `documents` table, which has had
+  nothing to do with the shelf since `0053` removed the document -> book
+  bridge.
+* **`profiles.citizen_id` is 0 of 6 and nothing writes it.** §14 says "store
+  once, cannot be changed without Administrator permission" — the column exists
+  and `prevent_citizen_id_change` (0002) guards it, but grepping the whole app
+  for a writer finds only a comment. The guard is currently protecting an empty
+  field. Recorded in a §0 entry but never surfaced here, which is where someone
+  looking for unfinished work would actually look.
+* **Two of the three book shelves are empty.** `0074` backfilled all 6 existing
+  rows to `aft11_good`, so `aft11_skilled` (11 เก่ง) and `admin_info`
+  (สภาพทั่วไปและการบริหารองค์การ) have **0** rows each and render their empty
+  state; only **1** book is published at all, and 2 have a PDF. Not a defect —
+  it is the gap between the feature shipping and anyone using it.
+* **`announcements` is 0 rows**, so the ประกาศ tab shows its empty state to
+  every visitor. Same shape as the shelves above.
+* **Two stale pull requests are still open** — #2 (2 Aug) and #12 (5 Aug), both
+  long superseded by later work. Worth closing so the PR list reflects reality.
+* **A working-tree trap worth knowing before trusting anything read from
+  disk.** Every merge in this project is a **squash** on GitHub, so local
+  `master` is never an ancestor of the branches that produced it and `git pull`
+  is never run on it. Checking it out during this pass produced a tree **85
+  commits behind** `origin/master` — a 3217-line CLAUDE.md from early August
+  instead of the current 5000+ line one — which is exactly how a reader ends up
+  "confirming" a stale claim. Read via `git show origin/master:<file>`, or
+  rebuild the branch with
+  `git checkout -B <branch> origin/master`, before drawing conclusions.
 
 ## 1. Mission
 
