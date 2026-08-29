@@ -131,33 +131,6 @@ export function parseStudentId(input: string): ParsedStudentId | null {
 }
 
 /**
- * The inverse. `studentNumber` is padded to 2 digits so number 5 becomes "05"
- * and the ID stays 11 digits — an unpadded "5" would be 10 and fail both the
- * regex above and the database's own CHECK. Numbers of 100+ keep their natural
- * length.
- */
-export function buildStudentId(
-  year: string,
-  departmentCode: string,
-  groupCode: string,
-  studentNumber: string | number
-): string | null {
-  const paddedNumber = String(studentNumber).padStart(2, "0");
-  const candidate = `${year}${departmentCode}${groupCode}${paddedNumber}`;
-  return STUDENT_ID_RE.test(candidate) &&
-    year.length === YEAR_LENGTH &&
-    departmentCode.length === DEPARTMENT_CODE_LENGTH &&
-    groupCode.length === GROUP_CODE_LENGTH
-    ? candidate
-    : null;
-}
-
-/** Shape a code must have to be a real `departments.code` (0043). */
-export function isDepartmentCode(value: string): boolean {
-  return /^[0-9]{5}$/.test(value.trim());
-}
-
-/**
  * Labels for the three qualification levels, as the dictionary carries them.
  * Structural rather than importing `Dictionary` — this module is deliberately
  * dependency-free so both the client form and the server can use it.

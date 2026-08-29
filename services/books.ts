@@ -323,11 +323,3 @@ export async function getSignedUrlMap(
     )
   );
 }
-
-export async function getSignedCoverUrl(path: string): Promise<string | null> {
-  const supabase = await tryCreateClient();
-  if (!supabase) return null;
-  const { data, error } = await supabase.storage.from("book-covers").createSignedUrl(path, 3600);
-  if (error || !data) return null;
-  return data.signedUrl;
-}

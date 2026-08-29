@@ -3866,6 +3866,89 @@ only the already-documented `unused_index` (expected at these row counts) and
 viewport mismatches**) all pass.
 
 
+**Full bug sweep: the `/audit` filter had no control, six dead exports, and a
+date parsed as UTC.** Most of the sweep came back clean; those results are
+listed below because their value is in not being re-run.
+
+**The `/audit` action filter was built and never given a UI.** `schemas/audit.ts`
+parses `?action=`, `listAuditLogs` applies it with `%`/`_` escaped, the
+out-of-range guard preserves it, `getAuditActions()` existed to populate the
+dropdown, and BOTH dictionaries already carried `filterAction`, `allActions`,
+`clearFilters` and **nine translated action labels** that `AuditTable` was
+already using. Only the `<Select>` was missing, so the filter worked solely for
+an admin who hand-typed a query string. Same shape as B2, and larger.
+
+New `components/audit/audit-filters.tsx`, modelled on `books-filters.tsx`.
+**Options come from `dict.audit.actions`, NOT from a distinct-scan of the
+table**, which is what `getAuditActions()` did: `audit_logs` is append-only and
+is the one table here with no natural ceiling, so populating a dropdown by
+selecting every row would have loaded the whole trail on each page view. The
+dictionary already enumerates every action any 0057 trigger writes, and
+offering one nobody has performed yet simply returns no rows. `getAuditActions()`
+was deleted rather than called.
+
+Deliberately no search box: an audit trail is filtered by category, and
+free-text over actor/entity is a step toward a view where a damaging entry is
+easy to bury — the same reasoning behind `schemas/audit.ts`'s deliberate lack of
+a sort parameter.
+
+Proven in a real browser over CDP: the guard is unchanged (307 for
+guest/student/aft/teacher, 200 for admin), the dropdown holds **10** options
+(ทุกการกระทำ + the nine labels), picking ลบบัญชีสมาชิก yields
+`?action=member.deleted` — the enum value stored, the translated label shown —
+and starting from `?page=1&action=projects.status_changed` and switching the
+filter **drops `page`**, the call all three existing filter components make.
+"ล้างตัวกรอง" appears only when filtered and clears back to no query. Both
+locales render translated labels, not raw `member.deleted`.
+
+**Six dead exports removed**, found by a scan that had to be run three times to
+be trusted (see below): `getAuditActions` (replaced above), `getSignedCoverUrl`
+(superseded by the batched `getSignedUrlMap`), `getPushSubscription`,
+`buildStudentId` and `isDepartmentCode` (never wired). `getContentBlock` was
+left: its whole subsystem is deliberately parked now that `/aft-11` is a
+redirect, and deleting one of its three functions is worse than leaving all
+three. Removing `getPushSubscription` orphaned a `tryCreateClient` import, which
+lint caught. Checked afterwards that no constant was newly orphaned —
+`GROUP_CODE_LENGTH` and `STUDENT_ID_RE` are still used by `parseStudentId`.
+
+**`holiday-list.tsx` parsed a date-only string as UTC.** `h.date` is a bare
+`YYYY-MM-DD` from the ICS feed, and `new Date("2026-08-12")` is **UTC
+midnight** — so any runtime behind UTC renders the day before. Now
+`bangkokDate()`, the helper that exists for exactly this. Proven under four
+faked timezones: the old code shifts every date in `America/New_York` and
+`Pacific/Honolulu` (rendering New Year's Day as 31 December), the new code holds
+in all four. **Stated as robustness, not a live bug** — Vercel's runtime is UTC,
+so it renders correctly in production today.
+
+**Came back clean, so the next sweep can start elsewhere:** all 56 Server
+Actions are permission-gated (the only ungated ones are `actions/auth.ts`'s
+sign-in/reset/sign-out, correctly); the role/permission matrix matches the RLS
+it fronts; zero `{placeholder}` mismatches between th and en and every action's
+`messageKey` union is covered by the dictionary section its component reads, so
+no toast can render `undefined`; accessibility across 12 routes × 2 roles shows
+no duplicate DOM ids, no nested `<main>`, no WCAG 2.5.3 label-in-name violations
+and no `<img>` without `alt`; every PostgREST column diffed against the live
+catalog with zero drift; 29 routes × 5 roles with **zero 5xx**; both Supabase
+advisor sets unchanged; and all four storage buckets correctly public/private
+with MIME and size limits.
+
+**Two scan failures worth recording, because both gave confident wrong
+answers.** A dead-export scan that **excluded the defining file** reported 18
+dead exports, including `navItems` and `permissionsByRole`, which are used
+inside their own module. The "corrected" scan counted occurrences repo-wide but
+**did not exclude `.next`**, whose build output mentions every reachable symbol
+— it found exactly one dead export and missed five, because only unreachable
+code is absent from the bundle. The authoritative check is a direct `grep -rn`
+over source directories with both `node_modules` and `.next` excluded, counting
+the definition itself.
+
+`npx tsc --noEmit`, `npm run lint` and a fully observed `npm run build` (64
+routes, `BUILD_ID` present) all pass; `npm run check:responsive` is **90/90 with
+0 overflow and 0 viewport mismatches**; dictionary parity checked
+programmatically (914 keys per locale); the 29×5 route matrix is unchanged from
+before the edits.
+
+
 ### ❌ Remaining
 
 * **RLS policy performance — HALF OF THIS IS DONE, and this bullet's own

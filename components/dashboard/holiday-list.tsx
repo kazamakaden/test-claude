@@ -1,5 +1,6 @@
 import { CalendarHeart } from "lucide-react";
 import { format } from "date-fns";
+import { bangkokDate } from "@/lib/datetime";
 import { th, enUS } from "date-fns/locale";
 import { CardEmpty } from "@/components/dashboard/card-states";
 import { HolidayNotice } from "@/components/dashboard/holiday-notice";
@@ -45,7 +46,13 @@ export function HolidayList({ feed, lang, dict }: { feed: HolidayFeed; lang: Loc
               <li key={h.date} className="flex flex-col gap-0.5">
                 <span className="text-sm text-foreground">{h.name}</span>
                 <span className="text-xs text-muted-foreground">
-                  {format(new Date(h.date), "d MMM yyyy", { locale })}
+                  {/* bangkokDate, not new Date(h.date): `date` is a bare
+                      YYYY-MM-DD from the ICS feed, and the date-only form parses
+                      as UTC MIDNIGHT — so any runtime behind UTC renders the day
+                      before. Correct on Vercel today (UTC) and wrong anywhere
+                      else, which is the same trap already fixed for activity
+                      times. */}
+                  {format(bangkokDate(h.date), "d MMM yyyy", { locale })}
                 </span>
               </li>
             ))}

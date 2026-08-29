@@ -4,6 +4,7 @@ import { requirePermission } from "@/lib/auth/require-role";
 import { getDictionary } from "@/lib/i18n/get-dictionary";
 import { listAuditLogs } from "@/services/audit";
 import { parseAuditSearchParams, AUDIT_PER_PAGE_SIZE } from "@/schemas/audit";
+import { AuditFilters } from "@/components/audit/audit-filters";
 import { AuditTable } from "@/components/audit/audit-table";
 import { Pagination } from "@/components/table/pagination";
 import type { Locale } from "@/lib/i18n/config";
@@ -53,6 +54,8 @@ export default async function AuditPage({
         <h1 className="font-heading text-2xl font-semibold text-foreground">{dict.audit.title}</h1>
         <p className="text-sm text-muted-foreground">{dict.audit.description}</p>
       </header>
+
+      <AuditFilters dict={dict} />
 
       <AuditTable rows={rows} dict={dict} lang={lang} />
 
