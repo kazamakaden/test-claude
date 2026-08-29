@@ -56,6 +56,20 @@ function SelectTrigger({
   )
 }
 
+/**
+ * Popup sizing, and why it is not `w-(--anchor-width)`.
+ *
+ * Pinning the popup to the TRIGGER's width clipped every option longer than the
+ * trigger — with `overflow-x-hidden` and `whitespace-nowrap` on the item text
+ * there was no way to reach the rest of the label. Reported against the
+ * department filter, whose options carry a level, a name and a code
+ * ("ปวช. — ช่างยนต์ (20101)") and are routinely wider than the control.
+ *
+ * So: a MINIMUM of the anchor width (never narrower than the trigger) with the
+ * old 9rem floor folded into the same declaration — two competing `min-w-*`
+ * utilities would resolve by CSS order, not class order — and a max so a long
+ * label cannot push the popup off a 375px screen.
+ */
 function SelectContent({
   className,
   children,
@@ -83,7 +97,7 @@ function SelectContent({
         <SelectPrimitive.Popup
           data-slot="select-content"
           data-align-trigger={alignItemWithTrigger}
-          className={cn("relative isolate z-50 max-h-(--available-height) w-(--anchor-width) min-w-36 origin-(--transform-origin) overflow-x-hidden overflow-y-auto rounded-lg bg-popover text-popover-foreground shadow-md ring-1 ring-foreground/10 duration-100 data-[align-trigger=true]:animate-none data-[side=bottom]:slide-in-from-top-2 data-[side=inline-end]:slide-in-from-left-2 data-[side=inline-start]:slide-in-from-right-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95", className )}
+          className={cn("relative isolate z-50 max-h-(--available-height) min-w-[max(9rem,var(--anchor-width))] max-w-[min(90vw,32rem)] origin-(--transform-origin) overflow-x-hidden overflow-y-auto rounded-lg bg-popover text-popover-foreground shadow-md ring-1 ring-foreground/10 duration-100 data-[align-trigger=true]:animate-none data-[side=bottom]:slide-in-from-top-2 data-[side=inline-end]:slide-in-from-left-2 data-[side=inline-start]:slide-in-from-right-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95", className )}
           {...props}
         >
           <SelectScrollUpButton />
@@ -117,12 +131,17 @@ function SelectItem({
     <SelectPrimitive.Item
       data-slot="select-item"
       className={cn(
-        "relative flex w-full cursor-default items-center gap-1.5 rounded-md py-1 pr-8 pl-1.5 text-sm outline-hidden select-none focus:bg-accent focus:text-accent-foreground not-data-[variant=destructive]:focus:**:text-accent-foreground data-disabled:pointer-events-none data-disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 *:[span]:last:flex *:[span]:last:items-center *:[span]:last:gap-2",
+        "relative flex w-full cursor-default items-start gap-1.5 rounded-md py-1.5 pr-8 pl-1.5 text-sm outline-hidden select-none focus:bg-accent focus:text-accent-foreground not-data-[variant=destructive]:focus:**:text-accent-foreground data-disabled:pointer-events-none data-disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 *:[span]:last:flex *:[span]:last:items-center *:[span]:last:gap-2",
         className
       )}
       {...props}
     >
-      <SelectPrimitive.ItemText className="flex flex-1 shrink-0 gap-2 whitespace-nowrap">
+      {/* Wraps rather than `whitespace-nowrap`: at 375px even a widened popup
+          is narrower than a full สาขา label ("ปวส. — เครือข่ายคอมพิวเตอร์และ
+          ความปลอดภัย (31908)"), and with overflow-x hidden on the popup a
+          no-wrap label is clipped with no way to read the rest. Two lines is
+          the only outcome that shows the whole option on a phone. */}
+      <SelectPrimitive.ItemText className="flex min-w-0 flex-1 gap-2 text-left break-words whitespace-normal">
         {children}
       </SelectPrimitive.ItemText>
       <SelectPrimitive.ItemIndicator

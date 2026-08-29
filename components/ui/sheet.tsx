@@ -2,10 +2,11 @@
 
 import * as React from "react"
 import { Dialog as SheetPrimitive } from "@base-ui/react/dialog"
+import { XIcon, type XIconHandle } from "@animateicons/react/lucide"
 
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
-import { XIcon } from "lucide-react"
+import { useReducedMotion } from "@/hooks/use-reduced-motion"
 
 function Sheet({ ...props }: SheetPrimitive.Root.Props) {
   return <SheetPrimitive.Root data-slot="sheet" {...props} />
@@ -46,6 +47,16 @@ function SheetContent({
   side?: "top" | "right" | "bottom" | "left"
   showCloseButton?: boolean
 }) {
+  const closeIconRef = React.useRef<XIconHandle>(null)
+  const prefersReducedMotion = useReducedMotion()
+
+  // Driven from the button, not the icon's own built-in hover: Button sets
+  // [&_svg]:pointer-events-none, so the icon never receives mouse events.
+  // This also removes the dead zone between the size-7 button and size-4
+  // glyph, and lets keyboard focus animate too (§24).
+  const startAnimation = () => closeIconRef.current?.startAnimation()
+  const stopAnimation = () => closeIconRef.current?.stopAnimation()
+
   return (
     <SheetPortal>
       <SheetOverlay />
@@ -62,6 +73,10 @@ function SheetContent({
         {showCloseButton && (
           <SheetPrimitive.Close
             data-slot="sheet-close"
+            onMouseEnter={startAnimation}
+            onMouseLeave={stopAnimation}
+            onFocus={startAnimation}
+            onBlur={stopAnimation}
             render={
               <Button
                 variant="ghost"
@@ -70,7 +85,15 @@ function SheetContent({
               />
             }
           >
+            {/* size={16} matches the size-4 the Button applies to plain
+                lucide icons. Note the library drops `className` on the svg
+                (verified in-browser: the rendered svg has no class attr),
+                so sizing must come from this prop, not a utility class. */}
             <XIcon
+              ref={closeIconRef}
+              size={16}
+              duration={0.3}
+              isAnimated={!prefersReducedMotion}
             />
             <span className="sr-only">Close</span>
           </SheetPrimitive.Close>

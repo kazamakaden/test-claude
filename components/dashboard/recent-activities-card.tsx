@@ -6,6 +6,7 @@ import { CardEmpty } from "@/components/dashboard/card-states";
 import { getRecentActivities } from "@/services/dashboard";
 import type { Locale } from "@/lib/i18n/config";
 import type { Dictionary } from "@/types/i18n";
+import { bangkokDate } from "@/lib/datetime";
 
 export async function RecentActivitiesCard({ lang, dict }: { lang: Locale; dict: Dictionary }) {
   const activities = await getRecentActivities();
@@ -33,7 +34,7 @@ export async function RecentActivitiesCard({ lang, dict }: { lang: Locale; dict:
               <li key={a.id} className="flex flex-col gap-0.5">
                 <p className="text-sm font-medium text-foreground">{a.title}</p>
                 <p className="text-xs text-muted-foreground">
-                  {a.department} · {format(new Date(a.occurredAt), "d MMM", { locale })}
+                  {a.department} · {format(bangkokDate(a.occurredAt), "d MMM", { locale })}
                 </p>
               </li>
             ))}
