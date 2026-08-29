@@ -4027,6 +4027,52 @@ click-through, since no member has a citizen_id and the app cannot reach
 Supabase from here.
 
 
+**§10 "realtime updates" now cover `/activities`, not just the dashboard
+calendar card.** `components/dashboard/calendar-grid.tsx` was the only
+`supabase.channel` subscription in the codebase, so the standalone list and its
+statistics strip needed a manual refresh to show a new row. No migration:
+`0035` already put `activities` in the `supabase_realtime` publication.
+
+**Deliberately `router.refresh()`, NOT merge-into-state like the calendar card
+does** — and the difference is the whole design. That card owns its entire
+month and can safely splice a row in or out. This page cannot: its rows are the
+result of a filtered, sorted, **paginated server query**, so an inserted row may
+belong on a different page, may not match the active filters, and changes both
+the pagination total and the stats tiles above the table. Reproducing that
+logic client-side would be a second source of truth for §10's filters, and the
+first one to drift would silently show a row the filters exclude. `refresh()`
+re-runs the server components against the URL exactly as it stands, so
+`listActivities` remains the only place the query lives.
+
+The payload is deliberately not inspected for the same reason: RLS already
+decides what reaches the subscriber, and whether a row belongs on *this* page is
+a question only the server query can answer. Changes are debounced 400ms so a
+burst of writes costs one refetch.
+
+Mounted **outside** the page's `<Suspense>`: that boundary re-suspends on every
+filter change, which would tear the subscription down and rebuild it each time.
+
+Guarded on `isSupabaseConfigured`, the same fail-soft treatment
+`calendar-grid.tsx` already carries — `lib/supabase/client.ts` asserts its env
+vars and throws immediately when absent, and this runs in an effect with no
+boundary of its own. **Proven load-bearing rather than assumed**, with the
+project's inject-then-revert discipline: removing the guard produces **3**
+console errors ("Your project's URL and API key are required") on a real page
+load in headless Chrome; restoring it produces **0**. Reverted after
+(`grep TEMP_SELF_TEST` -> 0).
+
+`npx tsc --noEmit`, `npm run lint` and a fully observed `npm run build` (64
+routes, `BUILD_ID` present) all pass; the 13-route x 5-role matrix is unchanged
+with **zero 5xx**; `npm run check:responsive` is **90/90, 0 overflow, 0 viewport
+mismatches**.
+
+**Not verified:** an actual `postgres_changes` event arriving in a real browser
+and triggering the refetch — this session cannot reach `*.supabase.co` from the
+app, the same limitation the `0035` entry above already records for the calendar
+card. The subscribe path, the guard and the render are proven; the round trip is
+not.
+
+
 ### ❌ Remaining
 
 * **RLS policy performance — HALF OF THIS IS DONE, and this bullet's own

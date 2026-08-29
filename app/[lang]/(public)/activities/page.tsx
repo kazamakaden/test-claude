@@ -8,6 +8,7 @@ import { parseActivitiesSearchParams, ACTIVITIES_PER_PAGE_SIZE } from "@/schemas
 import { listActivities, getActivityCounts } from "@/services/activities";
 import { getDepartments, getClubs, getFilterOptions } from "@/services/members";
 import { ActivitiesFilters } from "@/components/activities/activities-filters";
+import { ActivitiesRealtime } from "@/components/activities/activities-realtime";
 import { ActivitiesTable } from "@/components/activities/activities-table";
 import { ActivitiesStats } from "@/components/activities/activities-stats";
 import { Pagination } from "@/components/table/pagination";
@@ -119,6 +120,13 @@ export default async function ActivitiesPage({
         years={filterOptions.years}
         dict={dict}
       />
+
+      {/* Renders nothing — subscribes to `activities` and refreshes the server
+          query in place, so the table, the stats tiles and the pagination all
+          stay consistent. Outside <Suspense> on purpose: it must survive the
+          boundary re-suspending on every filter change, or the subscription
+          would be torn down and rebuilt each time. */}
+      <ActivitiesRealtime />
 
       <Suspense key={suspenseKey} fallback={<ActivitiesTableSkeleton />}>
         <ActivitiesResults
