@@ -61,13 +61,3 @@ export async function listAuditLogs(filters: AuditFilters): Promise<AuditLogsRes
   return { rows, total: count ?? 0 };
 }
 
-/** The distinct action names present, for the filter dropdown. */
-export async function getAuditActions(): Promise<string[]> {
-  const supabase = await tryCreateClient();
-  if (!supabase) return [];
-
-  const { data, error } = await supabase.from("audit_logs").select("action");
-  if (error || !data) return [];
-
-  return [...new Set(data.map((r) => r.action))].sort();
-}

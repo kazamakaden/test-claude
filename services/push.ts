@@ -1,5 +1,5 @@
 import "server-only";
-import { createClient, tryCreateClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/supabase/server";
 import { createAdminClient, isSupabaseAdminConfigured } from "@/lib/supabase/admin";
 import { can } from "@/lib/auth/permissions";
 import type { Role } from "@/types/auth";
@@ -60,25 +60,6 @@ export async function deletePushSubscription(
 
   if (error) return { ok: false, error: error.message };
   return { ok: true };
-}
-
-/**
- * Read path — tryCreateClient() fail-soft to null, same contract as every
- * other read function in this codebase.
- */
-export async function getPushSubscription(userId: string, endpoint: string) {
-  const supabase = await tryCreateClient();
-  if (!supabase) return null;
-
-  const { data, error } = await supabase
-    .from("push_subscriptions")
-    .select("id")
-    .eq("user_id", userId)
-    .eq("endpoint", endpoint)
-    .maybeSingle();
-
-  if (error || !data) return null;
-  return data;
 }
 
 /** One row per device to deliver to, with the language it asked for. */
