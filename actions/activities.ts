@@ -71,6 +71,10 @@ export async function createActivityAction(
   const result = await createActivity(parsed.data, user.id);
   if (!result.ok) return { ok: false, messageKey: "unknown" };
 
+  // Calendar only, deliberately: a new activity starts as a DRAFT (0068), and
+  // /activities lists published rows only, so there is nothing new for it to
+  // show until publishActivityAction runs. The calendar IS the surface that
+  // shows staff their drafts, which is why it alone needs refreshing here.
   revalidatePath(`/${lang}/calendar`);
   return { ok: true };
 }
@@ -101,6 +105,12 @@ export async function updateActivityAction(
   if (!result.ok) return { ok: false, messageKey: "unknown" };
 
   revalidatePath(`/${lang}/calendar`);
+  // Editing a PUBLISHED activity changes what /activities and the activity's
+  // own detail page show, and this action refreshed neither — the same
+  // asymmetry already fixed once for delete. The detail path is added to the
+  // publish and delete actions too, since nothing anywhere refreshed it.
+  revalidatePath(`/${lang}/activities`);
+  revalidatePath(`/${lang}/activities/${parsed.data.id}`);
   return { ok: true };
 }
 
@@ -128,6 +138,7 @@ export async function publishActivityAction(
 
   revalidatePath(`/${lang}/calendar`);
   revalidatePath(`/${lang}/activities`);
+  revalidatePath(`/${lang}/activities/${parsed.data.id}`);
   return { ok: true };
 }
 
@@ -144,5 +155,8 @@ export async function deleteActivityAction(lang: Locale, id: string): Promise<De
   // /activities too: the list now offers delete of its own, and revalidating
   // only the calendar left the deleted row on screen there.
   revalidatePath(`/${lang}/activities`);
+  // And the detail page, so a cached copy of a deleted activity is not served
+  // back; the next request re-fetches, gets null, and notFound()s as it should.
+  revalidatePath(`/${lang}/activities/${parsed.data.id}`);
   return { ok: true };
 }

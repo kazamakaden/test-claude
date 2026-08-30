@@ -9,6 +9,7 @@ import { listMyProjects } from "@/services/projects";
 import { ProjectsFilters } from "@/components/projects/projects-filters";
 import { ProjectsTable } from "@/components/projects/projects-table";
 import { Pagination } from "@/components/table/pagination";
+import { redirectIfPageOutOfRange } from "@/lib/pagination";
 import { Button } from "@/components/ui/button";
 import type { Locale } from "@/lib/i18n/config";
 
@@ -44,6 +45,12 @@ export default async function ProjectsPage({
       v === undefined ? [] : [[k, Array.isArray(v) ? v[0] : v]]
     ) as [string, string][]
   );
+
+  // A stale bookmark, or a project leaving this list after a status change, can
+  // strand the viewer past the last page: the table renders empty and the pager
+  // clamps to a page number the URL disagrees with. Same guard the other list
+  // pages carry.
+  redirectIfPageOutOfRange({ rows, page: filters.page, pathname, searchParams });
 
   const d = dict.projects;
 

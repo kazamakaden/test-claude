@@ -9,11 +9,6 @@ import { z } from "zod";
  */
 
 /**
- * `<10-char slug>.<8 hex>` — the exact shape qr_token_for_bucket() emits.
- * Checked here so a mistyped or truncated URL fails locally instead of
- * consuming one of the caller's ten throttled attempts.
- */
-/**
  * Rows per page on an activity's attendee list. 20 rather than the members
  * table's 10: this list sits inside one card on a detail page, so a shorter
  * page would mean more paging for the same amount of reading.
@@ -32,6 +27,15 @@ export function parseAttendeeSearchParams(
   return { page: z.coerce.number().int().positive().catch(1).parse(single ?? "1") };
 }
 
+/**
+ * `<10-char slug>.<8 hex>` — the exact shape qr_token_for_bucket() emits.
+ * Checked here so a mistyped or truncated URL fails locally instead of
+ * consuming one of the caller's ten throttled attempts.
+ *
+ * The dot is not cosmetic: middleware.ts's matcher has to keep matching this
+ * path, which is why its exclusion is anchored to a real file extension rather
+ * than "contains a dot".
+ */
 export const attendanceTokenSchema = z
   .string()
   .trim()

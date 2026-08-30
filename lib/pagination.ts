@@ -24,18 +24,26 @@ export function redirectIfPageOutOfRange({
   page,
   pathname,
   searchParams,
+  /**
+   * Which URL param carries the page number, matching Pagination's prop of the
+   * same name. A page rendering two independent queues (/projects/review)
+   * namespaces them, and dropping the un-prefixed "page" there would leave the
+   * viewer on the very page this is meant to rescue them from.
+   */
+  pageParam = "page",
 }: {
   rows: readonly unknown[];
   page: number;
   pathname: string;
   searchParams: URLSearchParams;
+  pageParam?: string;
 }): void {
   if (rows.length > 0 || page <= 1) return;
 
   // Keep every other param — dropping the filters would answer "this page is
   // empty" by silently showing the viewer a different query's results.
   const params = new URLSearchParams(searchParams.toString());
-  params.delete("page");
+  params.delete(pageParam);
   const query = params.toString();
   redirect(query ? `${pathname}?${query}` : pathname);
 }

@@ -129,6 +129,13 @@ export async function submitDocument(documentId: string, lang: Locale) {
   await requirePermission("document:sign", lang);
   await submitDocumentForApproval(documentId);
   revalidatePath(`/${lang}/documents/manage/${documentId}`);
+  // Submitting is what PUTS the document in front of a reviewer, so it has to
+  // refresh the same two lists approveDocument/rejectDocument already do: the
+  // owner's own list (whose status column just changed) and the review queue
+  // (which just gained a row). Revalidating only the detail page left the
+  // submitter looking at a stale status the moment they navigated back.
+  revalidatePath(`/${lang}/documents/manage`);
+  revalidatePath(`/${lang}/documents/review`);
 }
 
 export async function approveDocument(documentId: string, lang: Locale) {

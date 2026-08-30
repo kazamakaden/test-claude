@@ -4,6 +4,7 @@ import { parseDocumentsSearchParams, DOCUMENTS_PER_PAGE_SIZE } from "@/schemas/d
 import { listReviewDocuments } from "@/services/documents";
 import { DocumentsTable } from "@/components/documents/documents-table";
 import { Pagination } from "@/components/table/pagination";
+import { redirectIfPageOutOfRange } from "@/lib/pagination";
 import type { Locale } from "@/lib/i18n/config";
 
 export default async function DocumentsReviewPage({
@@ -31,6 +32,12 @@ export default async function DocumentsReviewPage({
   );
 
   const { rows, total } = await listReviewDocuments(filters);
+
+  // A stale bookmark, or a row leaving this list after a status change, can
+  // strand the viewer past the last page: the table renders empty and the
+  // pager clamps to a page number the URL disagrees with. Same guard the
+  // other list pages carry.
+  redirectIfPageOutOfRange({ rows, page: filters.page, pathname, searchParams });
 
   return (
     <div className="mx-auto flex max-w-7xl flex-col gap-6 px-4 py-8 sm:px-6 lg:px-8">

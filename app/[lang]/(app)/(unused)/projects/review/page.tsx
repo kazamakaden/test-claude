@@ -10,6 +10,7 @@ import {
 import { listReviewProjects } from "@/services/projects";
 import { ProjectsTable } from "@/components/projects/projects-table";
 import { Pagination } from "@/components/table/pagination";
+import { redirectIfPageOutOfRange } from "@/lib/pagination";
 import type { Locale } from "@/lib/i18n/config";
 import type { Dictionary } from "@/types/i18n";
 import type { ProjectsResult } from "@/types/projects";
@@ -42,6 +43,18 @@ function ReviewQueue({
 }) {
   const filters = parseProjectsSearchParams(rawParams, prefix);
   const paramKeys = projectsParamKeys(prefix);
+
+  // Out of range this queue renders its "nothing to review" state, which is
+  // actively wrong — there IS something, on another page. Send the viewer back
+  // to page 1 of THIS queue, keeping the other queue's params (hence
+  // pageParam: the un-prefixed "page" is not the key here).
+  redirectIfPageOutOfRange({
+    rows: queue.rows,
+    page: filters.page,
+    pathname,
+    searchParams,
+    pageParam: paramKeys.page,
+  });
 
   return (
     <section className="flex flex-col gap-4">

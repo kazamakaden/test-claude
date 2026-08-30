@@ -91,6 +91,11 @@ export async function submitProject(id: string, lang: Locale) {
   await requirePermission("project:draft:submit", lang);
   await submitProjectDraft(id);
   revalidatePath(`/${lang}/projects/${id}`);
+  // Same gap as submitDocument: the submit step is the one that fills the
+  // teacher-review queue, and it was the only transition in this file not
+  // refreshing the queue and the owner's list alongside the detail page.
+  revalidatePath(`/${lang}/projects`);
+  revalidatePath(`/${lang}/projects/review`);
 }
 
 export async function recommendProject(id: string, lang: Locale) {
