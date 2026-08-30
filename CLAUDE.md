@@ -4127,6 +4127,116 @@ re-diagnosed.
 13-route × 6-role matrix has zero 5xx.
 
 
+**Bug sweep: middleware skipped every QR check-in URL, and `aft` could never
+upload a book (`0077`).** Six findings, none in an area the previous sweeps had
+covered. Two matter.
+
+**`middleware.ts` ran on no `/attend/{token}` request, ever.** Its matcher
+excluded any path containing a dot — the standard "skip static files" idiom. A
+§13 check-in URL is `/{lang}/attend/<10-char slug>.<8 hex>`
+(`attendanceTokenSchema`), so **every QR scan matched the exclusion**. That
+matters because `lib/supabase/server.ts` cannot write cookies from a Server
+Component and says so itself — *"middleware.ts owns session refresh"* — so on
+this one route nothing owned it: a student whose access token had expired
+rotated a refresh token that was never persisted, and the next request replayed
+a consumed one and read as signed out, on the exact page a scan lands on. The
+12-hour session cap was skipped there too. The token-carry through `/login`
+turned that into a detour rather than a dead end, which is why it was never
+reported.
+
+Fixed by anchoring the exclusion to a real extension at the **end** of the path.
+`$` is the whole fix: it stops a dot *inside* a segment from counting.
+
+**Proven by A/B against a live server**, not by the regex alone — the regex test
+passed first and was not enough, since the question is what Next actually
+routes:
+
+| URL | old matcher | new matcher |
+|---|---|---|
+| `/attend/<token>` | **404** (skipped) | **307 → `/th/attend/…`** |
+| `/activities` | 307 → `/th/activities` | unchanged |
+| `/logo-with-text.png` | 404 (skipped) | 404 (still skipped) |
+
+A locale-less URL is the observable: middleware is what redirects it, so a 404
+means middleware never ran. `/th/attend/<token>` then 307s to
+`/th/login?attend=…`, the token-carry working as designed.
+
+**A false pass was caught in the middle of that A/B and is worth keeping:** the
+first attempt injected the old matcher with a Python edit whose anchor did not
+match, so the "before" run silently used the *fixed* file and both rows came
+back identical. Two identical rows in an A/B is a signal to check the injection
+landed, not evidence the change does nothing.
+
+**`0077` — an `aft` could create a book row but never upload its PDF.**
+`0029_books_storage.sql` is the only storage migration never revisited, and it
+predates the 0046–0049 role rework. `0049` rewrote every `public.books` policy
+to `('aft','teacher','admin')`; the `storage.objects` policies kept the old
+`('student','teacher','aft_teacher','admin')` verbatim, and `aft_teacher` has
+been **unstorable since `0046`**, so it matches nobody. Three live
+consequences: an `aft` — the role book authoring was deliberately narrowed to —
+could not upload, and with `books_published_needs_pdf` (0053) could therefore
+never produce a publishable book at all; a `student`, who cannot author one,
+still held INSERT on both buckets; and the staff clause on SELECT/DELETE was
+effectively admin-only, so a `teacher` could see a draft book row
+(`books_select_staff`) but not mint a signed URL for its file — the reader
+failed for the reviewer it was built for. This also makes the §0 claim that
+"storage RLS already allowed it … staff mint a signed URL for any draft" stale;
+it was true only for admin.
+
+`0063` was immune to all of it because it delegates to `can_edit_activity()`
+instead of naming roles. **A policy that names roles has to be found by hand
+every time the role model moves; one that calls a predicate does not.**
+
+The matrix (11 cases) asserts both directions on purpose: a file that only
+proved `student` is refused would pass equally against a policy that refuses
+**everyone**, which is this very bug in the opposite direction. Cases 01/04 are
+the "allowed" guards, 03 re-proves folder ownership was not loosened, 08/09 name
+which version is deployed when behaviour alone does not.
+
+**Four smaller ones, all the same shape — a sibling action or page that already
+did the right thing:**
+
+* `submitDocument`/`submitProject` were the only transitions in their files
+  revalidating a single path — and they are the ones that FILL a reviewer queue.
+  Both now refresh the queue and the owner's list, matching approve/reject/
+  recommend.
+* `updateActivityAction` revalidated only `/calendar`, so editing a published
+  activity left `/activities` stale, and **nothing anywhere** revalidated the
+  activity detail page. Added to update/publish/delete.
+  `createActivityAction` stays calendar-only and now says why: a new activity is
+  a draft, and `/activities` lists published rows only.
+* Four paginated pages had no out-of-range guard (`documents/manage`,
+  `documents/review`, `projects`, `projects/review`). `lib/pagination.ts` gained
+  an optional `pageParam` so the two-queue review page drops the right key.
+  Verified with page-aware fixtures: 10/10/5 across three pages, real 307s
+  preserving `?status=`/`?search=`, and `?tPage=2&aPage=99` dropping only
+  `aPage` while keeping the valid `tPage=2`; both queues out of range resolves
+  in 2 hops to 200, so no loop.
+* An orphaned doc comment in `schemas/attendance.ts`, from this session's own
+  earlier commit.
+
+**Checked and NOT a bug, so the next sweep can start elsewhere:**
+`pdfPath`/`coverPath` tampering — `updateBook` already validates a *changed*
+path against the caller's uid, and explains why an unchanged one must pass;
+every `createClient()` in `services/` is on a write path, with all read paths on
+`tryCreateClient()`; `set-password/page.tsx`'s direct client is guarded by
+`isSupabaseConfigured`; `deleteBook` already cleans up its storage objects;
+`FileUploader` taking its extension from the file name is a real inconsistency
+with the banner uploader but has no impact here, since the bucket's
+`allowed_mime_types` is the actual gate and no path schema rejects the odd name.
+About seven comments in `lib/auth/*` still say `aft_teacher` — stale prose, no
+live code path.
+
+`npx tsc --noEmit`, `npm run lint` and a fully observed `npm run build`
+(`BUILD_ID` present) all pass; the 17-route × 6-role matrix has **zero 5xx**;
+`npm run check:responsive` is **90/90, 0 overflow, 0 viewport mismatches**.
+
+**Not verified:** `0077` is committed but **NOT applied** — `apply_migration`
+still returns "requires approval", so it goes in by hand like `0076`. Until it
+is, an `aft` still cannot upload. Its matrix has not been run, and neither has
+`0076`'s.
+
+
 ### ❌ Remaining
 
 * **RLS policy performance — HALF OF THIS IS DONE, and this bullet's own
