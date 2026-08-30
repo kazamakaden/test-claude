@@ -4073,6 +4073,60 @@ card. The subscribe path, the guard and the render are proven; the round trip is
 not.
 
 
+**`0076` applied; two unpaginated lists paginated; a draft announcement was
+unreachable.** The `0076` SQL was run by the user directly in the Supabase SQL
+editor ("Success. No rows returned") after `apply_migration`/`execute_sql`
+returned "requires approval" on every attempt across two sessions — and they
+still do, so **this session could not re-run the matrix itself**. Written
+instead: `supabase/tests/0076_get_citizen_id_null_safe_test.sql`, a **read-only**
+matrix, which is possible only because a refusal RAISES while an allowance
+RETURNS — with `citizen_id` NULL on every profile the two outcomes are still
+distinguishable, so it needs no writes and no rollback and is safe to paste
+against production. Case 12 is the regression (anon must be refused); 12d/12e
+are load-bearing guards, because without them every refusal would pass just as
+well against a function that refuses **everyone**, which is a different bug
+rather than a fix. **Confirm the result: it is not proven here.**
+
+**Two `.range()`-less queries paginated, and the attendee one needed more than
+a `.range()`.** Neither truncated — Supabase sets no `db-max-rows` — so this was
+unbounded growth, not a live defect. `listAnnouncements` was straightforward.
+`listActivityAttendance` was not: its search filtered on an embedded
+`profiles(...)`, and PostgREST returns the parent row with a **NULL embed** when
+an embed filter misses, so non-matching rows were dropped in TypeScript *after*
+the fetch. Fine unpaginated; wrong with a range — `count` would report the
+unfiltered total and a page would render short. The searched variant now uses an
+`!inner` embed so the exclusion happens in the query. **Two whole select
+literals, chosen by a ternary, not one string built by concatenation** —
+postgrest-js parses the select at the type level. The QR display deliberately
+takes page 1 and no pager: it is a live feed, not a browsable record.
+
+**A draft announcement was unreachable once its author navigated away.** Nothing
+in the app listed drafts: `listAnnouncements` defaults to `published`, the feed
+took the default, and `createAnnouncementAction`'s redirect was the only route
+to one. `includeDrafts` was built for exactly this and had **zero callers
+passing true** — the same built-but-unwired class as `setExpectedAttendeesAction`
+(B2). Now passed `canManage`, with draft rows carrying the `announcements.draft`
+badge the detail page already renders (no new dictionary keys). This is the
+**books** shape, not the **site_banners** trap: a reader never sees a draft, and
+the badge is what stops a draft reading as live.
+
+Verified against a running server with page-aware fixtures (reverted; `grep
+TEMP_SELF_TEST` → 0): announcements 10/10/5 across three pages with correct
+prev/next and a disabled edge at each end, `?page=abc` degrading to page 1,
+`?page=99` redirecting while keeping every other param; attendees 20/5, and a
+search narrowing to 11 with the summary reading **11 of 11** — which is what
+proves the count follows the filter rather than the table. Draft visibility per
+role: none/guest/student see 0 drafts, aft/teacher/admin see the draft badged.
+Out-of-range on the attendee list emits Next's `<meta http-equiv="refresh">`
+rather than a 3xx, because the redirect fires inside a Suspense child after
+streaming has begun — already recorded here, re-confirmed rather than
+re-diagnosed.
+
+`npx tsc --noEmit`, `npm run lint` and a fully observed `npm run build` all pass;
+`npm run check:responsive` is **90/90, 0 overflow, 0 viewport mismatches**; the
+13-route × 6-role matrix has zero 5xx.
+
+
 ### ❌ Remaining
 
 * **RLS policy performance — HALF OF THIS IS DONE, and this bullet's own
