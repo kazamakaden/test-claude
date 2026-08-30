@@ -4237,6 +4237,96 @@ is, an `aft` still cannot upload. Its matrix has not been run, and neither has
 `0076`'s.
 
 
+**Second sweep: a staff QR display died mid-event, and `aft` reviewers were
+never notified (`0078`).** Five findings in areas the earlier sweeps had not
+covered — SQL *functions* rather than policies, client-side polling, and what
+happens in front of a route handler.
+
+**The QR display latched permanently to a false statement.**
+`qr-live-code.tsx` polled `/api/qr/{sessionId}` each rotation and, on **any**
+non-OK response, set a `closed` state with no retry, no recovery and no reload
+affordance — rendering `attendance.qr.noSession`, *"ยังไม่มีการเปิดเช็คชื่อสำหรับ
+กิจกรรมนี้"*, which is the opposite of what happened.
+
+The trigger is routine, and the route handler's **own comment already named
+it**: `/api` is outside `middleware.ts`'s matcher, so nothing refreshes the
+session cookie in front of it. When the staff member's access token expired
+(Supabase default: one hour) the poll 403'd and the projector died. Nothing
+else on that page navigates, so the cookie never got refreshed on its own — an
+event running over an hour hit this every time.
+
+The route already distinguishes **404** (revoked/expired/unknown) from **403**
+(authorization) and the client threw that away. Now 404 stops permanently,
+while 403 triggers one `router.refresh()` — an ordinary navigation, which
+*does* pass through middleware — then retries, giving up only after
+`MAX_FAILURES`, and then saying the display lost its connection.
+
+**A second defect in the same file:** `void refresh()` was called from inside a
+`setSecondsLeft` updater. Updaters must be pure and StrictMode double-invokes
+them; worse, it reset the countdown to a full rotation *before* the fetch
+resolved, so a failed refresh left an expired code on screen counting
+confidently down while every scan bounced. The countdown is now deadline-driven
+and a failed poll marks the code stale instead of showing a reassuring number.
+
+**Proven by A/B in headless Chrome** against a scripted stand-in for the route
+(reverted; `grep TEMP_SELF_TEST` → 0), 14s per run at a 2s rotation:
+
+| scenario | old | new |
+|---|---|---|
+| `ok` (fetch count) | **14** — double-firing | **6** — one per rotation |
+| `notfound` | LABEL_CLOSED | LABEL_CLOSED (unchanged) |
+| `forbidden` | **LABEL_CLOSED** — the false one | LABEL_DISCONNECTED |
+| `recover` (403, 403, 200) | **LABEL_CLOSED, dead forever** | live countdown, recovered |
+
+The `recover` row is the point: two 403s then a 200 is exactly the expired-
+cookie case, and it used to kill the display permanently.
+
+**`0078` — `aft` reviewers were never told a project was submitted.**
+`notify_roles()` selects `where p.role = any (p_roles)`, so a role the table
+cannot hold matches nobody, and `aft_teacher` has been unstorable since `0046`.
+That makes each of `0036`'s three arrays smaller than it reads —
+`projectSubmitted` becomes `{teacher, admin}`, **omitting `aft`**, who per §6
+holds `project:recommend` and sits in the very queue the notification
+announces. The other two arrays collapse to `{admin}`, which is correct now
+that approval is admin-only; they are cleaned up anyway, because an array
+naming an unstorable role reads as intent.
+
+Same asymmetry already fixed one layer down — `projects_update_teacher_recommend`
+tested `= 'teacher'` exactly. The **policy** was corrected then; the notifier
+naming the same set was not.
+
+`notify_member_role_change()` is **dropped**, not repaired: its only condition
+needs `old.role = 'pending'`, unstorable since the same `0046`, so it has fired
+on every `profiles` UPDATE since and can never act. Nothing writes
+`role = 'pending'` any more either. EXECUTE is re-revoked on both replaced
+functions in the same migration — the `0011`→`0012` trap, hit twice before.
+
+**Checked and NOT a bug, so the next sweep starts elsewhere:** all 55
+role-bearing policies, mechanically — none names `aft_teacher`/`pending` except
+`books_storage_*`, which `0077` fixes (`profiles_update_aft_teacher` looked
+stale but `0047` drops it); the two transition triggers still bypass on
+`('admin','aft_teacher')`, i.e. admin-only, but their allowed-transition lists
+already cover every non-admin step so the dead literal changes nothing; `lib/csp.ts`
+allows `wss:` for realtime and Turnstile's host; `global-search.tsx` guards its
+response-ordering race; the attendance confirm form handles a geolocation
+denial correctly; every `formData.get()` key is rendered by some form and both
+`.extend()`ed schemas are safe. **`/api/search` shares the QR root cause** — an
+expired token silently downgrades the palette to guest scope — but it fails
+closed and its lack of a role gate is deliberate, so it is recorded rather than
+changed.
+
+`npx tsc --noEmit`, `npm run lint` and an observed `npm run build` (`BUILD_ID`
+present) all pass; the 17-route × 6-role matrix has **zero 5xx** and
+`/attend/<token>` still reaches middleware; `npm run check:responsive` is
+**90/90, 0 overflow, 0 viewport mismatches**; dictionary parity 1025 keys per
+locale, the diff exactly the two new keys.
+
+**Not applied: `0076`, `0077` and `0078` are all committed and NONE has been
+run.** `apply_migration` returns "requires approval" on every attempt. Until
+they go in by hand: `get_citizen_id()` is unconfirmed, an `aft` cannot upload a
+book PDF, and `aft` reviewers get no submit notification.
+
+
 ### ❌ Remaining
 
 * **RLS policy performance — HALF OF THIS IS DONE, and this bullet's own
