@@ -28,13 +28,22 @@ async function Feed({
   dict,
   page,
   searchParams,
+  canManage,
 }: {
   lang: Locale;
   dict: Dictionary;
   page: number;
   searchParams: URLSearchParams;
+  canManage: boolean;
 }) {
-  const { rows, total } = await listAnnouncements(lang, { page });
+  // Staff see their own drafts here, badged. Without this a draft was
+  // unreachable the moment its author navigated away from the editor: nothing
+  // in the app listed one, and createAnnouncementAction's redirect was the only
+  // route to it. This is the books shape (RLS shows staff their drafts and the
+  // card renders `status`), NOT the site_banners trap -- a reader never sees a
+  // draft, because `includeDrafts` is false for anyone without content:manage
+  // and RLS refuses it regardless of what is passed.
+  const { rows, total } = await listAnnouncements(lang, { page, includeDrafts: canManage });
   const d = dict.announcements;
 
   // A stale bookmark or a deleted announcement can leave the viewer past the
@@ -63,12 +72,17 @@ async function Feed({
           >
             <div className="flex items-start justify-between gap-3">
               <h2 className="font-heading text-base font-semibold text-foreground">{row.title}</h2>
-              {row.pinned ? (
-                <Badge variant="outline" className="shrink-0">
-                  <Pin className="mr-1 size-3" aria-hidden="true" />
-                  {d.pinned}
-                </Badge>
-              ) : null}
+              <div className="flex shrink-0 items-center gap-1">
+                {row.status === "draft" ? (
+                  <Badge variant="outline">{d.draft}</Badge>
+                ) : null}
+                {row.pinned ? (
+                  <Badge variant="outline">
+                    <Pin className="mr-1 size-3" aria-hidden="true" />
+                    {d.pinned}
+                  </Badge>
+                ) : null}
+              </div>
             </div>
             {row.publishedAt ? (
               <time
@@ -153,6 +167,7 @@ export default async function AnnouncementsPage({
           dict={dict}
           page={page}
           searchParams={searchParams}
+          canManage={canManage}
         />
       </CardBoundary>
     </div>
