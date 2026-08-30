@@ -4327,6 +4327,69 @@ they go in by hand: `get_citizen_id()` is unconfirmed, an `aft` cannot upload a
 book PDF, and `aft` reviewers get no submit notification.
 
 
+**Third sweep: the deploy guide required 4 of 9 build vars, `seed.sql` wrote a
+dropped column, and two runbooks were unrunnable.** No code defects this pass —
+the app is fine; what was broken is everything that tells a person how to stand
+it up.
+
+**`lib/env-guard.ts` fails a production build without nine variables. The
+README's deploy table listed four.** `TURNSTILE_SECRET_KEY`,
+`GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `SMTP_USER`, `SMTP_PASSWORD` and
+`SMTP_FROM` were all missing from it — the SMTP three appeared nowhere in the
+file. **This is the same defect that already broke production once**: `d6143a7`
+made `NEXT_PUBLIC_SITE_URL` build-required while the table still listed three
+vars, and every Production deploy threw at config-load until someone noticed.
+The live project has all nine set so nothing is broken today; a fresh deploy, a
+new preview project, or the §2 self-hosted Linux target would fail at
+`next build` with no clue from the docs.
+
+**The CAPTCHA section contradicted itself.** Its opening says Supabase's
+project-level CAPTCHA must be OFF — correct, and `actions/auth.ts` says so in a
+comment pointing at that very section — while a later paragraph in the same
+section said the project's CAPTCHA "is enabled with a real Turnstile secret".
+Following the later one breaks every sign-in: a Turnstile token is single-use
+and this app now spends it itself.
+
+Three more, each verified against code rather than assumed: the SMTP section
+described configuring Resend *inside Supabase*, which `0064` made irrelevant
+(nothing calls `resetPasswordForEmail`); the "Sign-up rule" section still
+described the `pending` waiting room, `/approvals` and `aft_teacher`; and
+deploy step 2 told you to add a Supabase redirect entry, citing
+`signUpWithPassword` — a function that no longer exists — when Google now
+returns to this app's own callback and the URI belongs in **Google Cloud
+Console**. Someone following that would configure the wrong allow-list and
+still be locked out.
+
+**`supabase/seed.sql` named `flipbook_url`**, which `0053` dropped from both
+`documents` and `books` — so seeding a fresh database failed with `42703`, on
+exactly the path the migration docs describe. Every value passed was already
+null. **Found by diffing every column each seed INSERT names against the Row
+types in `types/database.ts`**; that check now comes back clean.
+
+**`docs/change-user-role.md` was wrong to follow, not merely stale**: it listed
+six roles, told an admin to pick `aft_teacher` from the Table Editor dropdown
+(`profiles_role_allowed` raises `23514`), and pointed at `/th/approvals` for
+the routine case. Rewritten around the five real roles and around `aft` being
+reached by assigning a ตำแหน่ง and letting `sync_role_with_position()` promote.
+`docs/linux-database.md`'s acceptance test had the same problem — three checks
+that now FAIL against a *correct* database.
+
+**Checked and clean, so it need not be re-derived:** the activity-status rule
+`0073` deliberately duplicates between SQL and TypeScript agrees across all
+three expressions of it — `effectiveActivityStatus`, `get_activity_stats`'s
+predicates, and the two PostgREST `.or()` filters — over 9 cases including both
+boundaries (ends exactly now, starts exactly now) and a row whose stored status
+lies; `finishedOrFilter`/`upcomingOrFilter` partition the timeline with no gap
+and no overlap, and both call sites pair them with `.neq("status","cancelled")`
+so the app and the chart exclude the same rows. Also: every guard-required env
+var is in `.env.example`; `SMTP_HOST`/`SMTP_PORT` are correctly absent from the
+build guard because `lib/mailer.ts` defaults them.
+
+**A false alarm worth not repeating:** a naive odd-quote check on `seed.sql`
+reported an imbalance. The apostrophe is inside a `--` comment, and `HEAD` reads
+identically — strip comments before counting, or the checker invents a defect.
+
+
 ### ❌ Remaining
 
 * **RLS policy performance — HALF OF THIS IS DONE, and this bullet's own
