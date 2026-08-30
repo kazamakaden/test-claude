@@ -51,9 +51,10 @@ export async function QrSessionPanel({
         lang={lang}
         initialGeometry={qrGeometry(url)}
         initialExpiresIn={token.expiresInSeconds}
-        rotationSeconds={session.rotationSeconds}
         title={d.title}
         closedLabel={d.noSession}
+        reconnectingLabel={d.reconnecting}
+        disconnectedLabel={d.disconnected}
       />
 
       <dl className="flex flex-wrap items-center justify-center gap-x-6 gap-y-1 text-xs text-muted-foreground">

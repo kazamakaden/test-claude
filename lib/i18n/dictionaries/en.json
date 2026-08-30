@@ -978,6 +978,8 @@
       "title": "Check-in QR",
       "description": "Ask attendees to scan this code with their phone camera",
       "noSession": "Check-in has not been opened for this activity",
+      "reconnecting": "This code has expired — reconnecting...",
+      "disconnected": "The display lost its connection. Please refresh this page.",
       "create": "Open check-in",
       "creating": "Opening...",
       "revoke": "Close check-in",
