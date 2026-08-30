@@ -72,35 +72,33 @@ insert into public.documents (title, status) values
   ('รายงานสรุปกิจกรรมค่ายอาสา', 'draft'),
   ('หนังสือขออนุมัติจัดกิจกรรม', 'pending_approval');
 
--- §12 e-book shelf demo rows — status 'official' so anon can see them
--- (documents_select_official, 0008_dashboard_rls.sql). All three rows are
--- seeded with no flipbook_url, exercising the "book not attached" empty
--- state for every one of them. This is a deliberate step back from the
--- prior AnyFlip-era seed (0013), which had one row carrying a real,
--- verified-reachable AnyFlip book: after the FlipHTML5 host switch (0021)
--- this session's outbound network policy blocked every request to
--- fliphtml5.com (proxy returned 403 on CONNECT), so no FlipHTML5 URL could
--- be verified reachable before committing it — see CLAUDE.md §0. Attach a
--- real FlipHTML5 book via docs/add-ebook.md (or the in-app draft editor)
--- once one is available to verify by hand.
-insert into public.documents (title, description, status, flipbook_url, published_at) values
-  ('ปฏิทินกิจกรรม อวท. ตัวอย่าง', 'ตัวอย่างหนังสือ e-book แบบพลิกหน้าสำหรับสาธิตระบบ', 'official', null, now() - interval '10 days'),
-  ('คู่มือนักเรียน อวท. (ตัวอย่าง)', 'เอกสารอย่างเป็นทางการ ยังไม่แนบไฟล์ e-book', 'official', null, now() - interval '30 days'),
-  ('รายงานประจำปี อวท. (ตัวอย่าง)', 'เอกสารอย่างเป็นทางการ ยังไม่แนบไฟล์ e-book', 'official', null, now() - interval '60 days');
+-- §12 documents — status 'official' so anon can see them
+-- (documents_select_official, 0008_dashboard_rls.sql).
+--
+-- These are DOCUMENTS, not the e-book shelf. The two were briefly the same
+-- thing: `documents.flipbook_url` held a third-party flipbook link and
+-- approveDocument() copied an approved document onto the shelf. 0053 removed
+-- the flipbook integration entirely — the column is gone from both tables and
+-- the bridge with it — so a document has no file of its own and the shelf
+-- reads `books` (below). This insert used to name flipbook_url and would fail
+-- with 42703 on a fresh database.
+insert into public.documents (title, description, status, published_at) values
+  ('ปฏิทินกิจกรรม อวท. ตัวอย่าง', 'ตัวอย่างเอกสารอย่างเป็นทางการสำหรับสาธิตระบบ', 'official', now() - interval '10 days'),
+  ('คู่มือนักเรียน อวท. (ตัวอย่าง)', 'เอกสารอย่างเป็นทางการสำหรับสาธิตระบบ', 'official', now() - interval '30 days'),
+  ('รายงานประจำปี อวท. (ตัวอย่าง)', 'เอกสารอย่างเป็นทางการสำหรับสาธิตระบบ', 'official', now() - interval '60 days');
 
 -- §3 public books shelf (0027–0029). Separate from the `documents` rows
--- above — the shelf now reads from `books`, populated either directly
--- (below) or via services/documents.ts#approveDocument's bridge, which
--- only fires when that Server Action actually runs, not retroactively for
--- rows already seeded as 'official' above.
+-- above, and no longer connected to them at all: 0053 removed
+-- approveDocument()'s document -> shelf bridge along with the flipbook
+-- columns, so the only way onto this shelf is an upload.
 --
--- All three rows here are 'draft', not 'published': no flipbook_url can be
--- claimed (this session's outbound network policy blocked every request to
--- fliphtml5.com, so no URL could be verified reachable before committing
--- it — see CLAUDE.md §0), and books_published_needs_content (0027) refuses
--- a published row with neither a link nor a PDF outright — confirmed live
--- when a first attempt at this seed tried 'published' and correctly got
--- 23514. A genuinely content-less book can only legally be a draft, so a
+-- All three rows here are 'draft', not 'published', and must be:
+-- books_published_needs_pdf (0053, replacing 0027's needs_content) refuses a
+-- published row with no pdf_path outright — confirmed live, 23514, when a
+-- first attempt at this seed tried 'published'. Seeding a PDF is not
+-- possible from a SQL file, since the file has to exist in the private
+-- `books` Storage bucket first. A genuinely file-less book can only legally
+-- be a draft, so a
 -- fresh guest visiting /documents sees the honest empty "no published
 -- books yet" state, and staff/an owner browsing while signed in sees these
 -- three exercising the year/season filters and search instead.
@@ -123,14 +121,19 @@ insert into public.notifications (recipient_id, type, title, body) values
   (null, 'deadline', 'ส่งร่างเอกสารกิจกรรมภายในวันที่ 5 สิงหาคม', null),
   (null, 'meeting', 'ประชุมคณะกรรมการ อวท. ประจำเดือน', null);
 
--- §14 demo student account (the student half of the four demo accounts
--- documented in .demo-accounts.local.md, git-ignored since it holds real
--- generated passwords) previously needed a pre-approval row in
--- approved_accounts before it could sign in at all. That table — and the
--- gate it enforced — was dropped by 0020_pending_signup_flow.sql: every
--- signup now lands `pending` regardless of address shape, and an admin or
--- aft_teacher assigns a real role afterward via /approvals
--- (0024_member_approval_authority.sql). There is no seed-time equivalent
--- of "pre-approve this address" left to insert — the demo account reaches
--- `role = 'student'` the same way any real numeric-ID signup does, by
--- being approved once through that UI after the Admin-API signup step.
+-- §14 demo accounts (documented in .demo-accounts.local.md, git-ignored since
+-- it holds real generated passwords) need nothing seeded here, and the reason
+-- has changed twice.
+--
+-- Originally an address had to be listed in an `approved_accounts` roster
+-- before it could sign up at all; 0020 dropped that table and replaced it with
+-- a `pending` waiting room; 0046 then removed the waiting room too. Current
+-- behaviour: handle_new_user() assigns the role from the email's local part
+-- (§14) at first sign-in, so a numeric-ID address lands `student` and a named
+-- address lands `teacher` with no seed-time or admin step in between.
+--
+-- The one role that still needs a human action is `aft`, and it is not written
+-- directly: an admin assigns an อวท. ตำแหน่ง from /members and
+-- sync_role_with_position() (0049) promotes student -> aft. Seeding it here
+-- would need a profiles row, which needs an auth.users row, which this file
+-- cannot create.

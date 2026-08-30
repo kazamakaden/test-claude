@@ -157,11 +157,10 @@ wall of errors if you don't know why. Run `migration repair` first.
 
 ## Regenerating types
 
-`types/database.ts` is currently **hand-patched**, not generated — the
-session that wrote `0016`–`0020` had no live database access, so the
-`signature_records` table, `sign_document()` function, `rejected_reason`
-columns, and the `'pending'` addition to the `user_role` enum were all
-typed by hand to match the SQL. Once the migrations above are actually
+`types/database.ts` has been hand-patched more than once — sessions without
+live database access typed new tables, functions and columns by hand to match
+the SQL. It is kept honest by diffing it against the live catalog rather than
+by trust (see `CLAUDE.md` §0), but once the migrations above are actually
 applied, regenerate for real:
 
 ```bash
@@ -185,8 +184,14 @@ correct. At minimum:
    select table_name from information_schema.tables
      where table_schema = 'public' and table_name = 'signature_records';
    select proname from pg_proc where proname like 'enforce_%_status_transition';
-   select enumlabel from pg_enum
-     where enumtypid = 'public.user_role'::regtype and enumlabel = 'pending';
+   -- `pending` and `aft_teacher` still exist as enum LABELS (PostgreSQL
+   -- cannot drop one in place) but must be unstorable. The CHECK is what
+   -- actually enforces that, so check the constraint, not the enum:
+   select pg_get_constraintdef(oid) from pg_constraint
+     where conname = 'profiles_role_allowed';
+   -- expect: CHECK (role = ANY (ARRAY['guest','student','aft','teacher','admin']))
+   select count(*) from public.profiles where role in ('pending', 'aft_teacher');
+   -- expect 0
    -- approved_accounts should be gone, not just empty
    select table_name from information_schema.tables
      where table_schema = 'public' and table_name = 'approved_accounts';
@@ -203,13 +208,20 @@ correct. At minimum:
    approve one still at `admin_approval`, and that skipping straight from
    `draft` to `pending_approval` (bypassing the signature step) is actually
    rejected, not just assumed rejected because the code looks right.
-3. For `0019`/`0020` specifically: sign up with a genuinely new
-   `@udontech.ac.th` address (password sign-up or Google) and confirm the
-   resulting `profiles` row has `role = 'pending'`, and that visiting
-   `/th/dashboard` while signed in as that user redirects to `/th/pending`
-   rather than looping back to `/th/login`. Then, as an admin, confirm
-   `/th/approvals` lists that user and that approving them actually changes
-   `profiles.role` and lets them reach the dashboard on next reload.
+3. For the signup path: sign in with a genuinely new `@udontech.ac.th`
+   Google account and confirm `handle_new_user()` applied §14's split — a
+   numeric local part lands `role = 'student'` with `student_id` and สาขา
+   resolved from the programme code, a named address lands `teacher`. There
+   is **no** approval step to check any more: `0046` removed the `pending`
+   waiting room, `/pending` is deleted and `/approvals` is a bare redirect to
+   `/members`. Earlier revisions of this file told you to verify all three;
+   doing so now would fail against a correct database.
+
+   Then confirm the ตำแหน่ง path, which is what actually grants authority:
+   assign an office to that `student` from `/th/members` and check
+   `sync_role_with_position()` promoted them to `aft`, and that clearing it
+   demotes them back.
+
    Separately, attempt a Google sign-in with a **non**-`@udontech.ac.th`
    account and confirm it's rejected — and check `auth.users` directly
    afterward to confirm **no row was left behind**, not just that the
