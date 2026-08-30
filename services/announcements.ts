@@ -2,7 +2,7 @@ import "server-only";
 import { createClient, tryCreateClient } from "@/lib/supabase/server";
 import type { Locale } from "@/lib/i18n/config";
 import type { Announcement, AnnouncementDraft } from "@/types/announcements";
-import type { AnnouncementInput } from "@/schemas/announcements";
+import { ANNOUNCEMENTS_PER_PAGE, type AnnouncementInput } from "@/schemas/announcements";
 
 /**
  * §5/§16 announcements.
@@ -52,8 +52,11 @@ function toAnnouncement(
   };
 }
 
+/** One page of the feed, plus the unpaginated total the pager needs. */
+export type AnnouncementsResult = { rows: Announcement[]; total: number };
+
 /**
- * The public feed. Pinned first, then newest — matching the index 0060 adds,
+ * The public feed, one page at a time. Pinned first, then newest — matching the index 0060 adds,
  * so this stays an index scan as the table grows.
  *
  * `includeDrafts` does not widen access on its own: RLS decides what comes
@@ -63,21 +66,25 @@ function toAnnouncement(
  */
 export async function listAnnouncements(
   lang: Locale,
-  options: { includeDrafts?: boolean } = {}
-): Promise<Announcement[]> {
+  options: { includeDrafts?: boolean; page?: number } = {}
+): Promise<AnnouncementsResult> {
   const supabase = await tryCreateClient();
-  if (!supabase) return [];
+  if (!supabase) return { rows: [], total: 0 };
 
-  let query = supabase.from("announcements").select(COLUMNS);
+  const page = Math.max(1, options.page ?? 1);
+  const start = (page - 1) * ANNOUNCEMENTS_PER_PAGE;
+
+  let query = supabase.from("announcements").select(COLUMNS, { count: "exact" });
   if (!options.includeDrafts) query = query.eq("status", "published");
 
-  const { data, error } = await query
+  const { data, error, count } = await query
     .order("pinned", { ascending: false })
     .order("published_at", { ascending: false, nullsFirst: false })
-    .order("created_at", { ascending: false });
+    .order("created_at", { ascending: false })
+    .range(start, start + ANNOUNCEMENTS_PER_PAGE - 1);
 
-  if (error || !data) return [];
-  return data.map((row) => toAnnouncement(row, lang));
+  if (error || !data) return { rows: [], total: 0 };
+  return { rows: data.map((row) => toAnnouncement(row, lang)), total: count ?? 0 };
 }
 
 export async function getAnnouncement(id: string, lang: Locale): Promise<Announcement | null> {

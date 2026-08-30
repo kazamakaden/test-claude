@@ -1,7 +1,7 @@
 import "server-only";
 import { createClient, tryCreateClient } from "@/lib/supabase/server";
 import { isAttendanceOutcome, type ActivityAttendanceStats, type AttendanceOutcome, type AttendanceRow, type QrSession, type QrToken } from "@/types/attendance";
-import type { CreateQrSessionInput, RecordAttendanceInput } from "@/schemas/attendance";
+import { ATTENDANCE_PER_PAGE, type CreateQrSessionInput, type RecordAttendanceInput } from "@/schemas/attendance";
 import type { ManualAttendanceInput } from "@/schemas/activities";
 
 /**
@@ -159,6 +159,9 @@ export async function revokeQrSession(
   return { ok: true };
 }
 
+/** One page of an activity's attendee list, plus the total the pager needs. */
+export type ActivityAttendanceResult = { rows: AttendanceRow[]; total: number };
+
 /**
  * Who has checked in. Reviewer-scoped by RLS (attendance_select_reviewer,
  * 0008/0049) — a student calling this sees only their own row, which is
@@ -170,25 +173,41 @@ export async function revokeQrSession(
  */
 export async function listActivityAttendance(
   activityId: string,
-  search?: string
-): Promise<AttendanceRow[]> {
+  search?: string,
+  page = 1
+): Promise<ActivityAttendanceResult> {
   const supabase = await tryCreateClient();
-  if (!supabase) return [];
+  if (!supabase) return { rows: [], total: 0 };
 
   // profiles!attendance_student_id_fkey, not a bare profiles(...): 0062 added
   // `recorded_by`, giving this table TWO foreign keys into profiles, and
   // PostgREST refuses an ambiguous embed ("more than one relationship was
   // found"). The hint names the one we mean -- the person who attended, never
   // the staff member who recorded them.
-  let query = supabase
-    .from("attendance")
-    // One string literal, not a concatenation: @supabase/postgrest-js parses the
-    // select at the TYPE level, so `"a" + "b"` collapses the row type to
-    // GenericStringError and every field access below fails to compile.
-    .select("id, student_id, class_name, status, method, recorded_at, profiles!attendance_student_id_fkey(full_name, student_id), departments(name_th)")
-    .eq("activity_id", activityId);
-
   const term = search?.trim();
+  const start = (Math.max(1, page) - 1) * ATTENDANCE_PER_PAGE;
+
+  // Two whole literals rather than one built by concatenation:
+  // @supabase/postgrest-js parses the select at the TYPE level, so `"a" + "b"`
+  // collapses the row type to GenericStringError and every field access below
+  // fails to compile.
+  //
+  // `!inner` on the searched variant is what makes paging correct. A plain
+  // embed filter still returns the parent row with a NULL embed, so the
+  // non-matching rows used to be dropped in TypeScript after the fetch — which
+  // was fine for an unpaginated list and is not fine now: `count` would report
+  // the unfiltered total and a page would render short. The inner join moves
+  // the exclusion into the query, so the count and the page agree.
+  let query = term
+    ? supabase
+        .from("attendance")
+        .select("id, student_id, class_name, status, method, recorded_at, profiles!attendance_student_id_fkey!inner(full_name, student_id), departments(name_th)", { count: "exact" })
+        .eq("activity_id", activityId)
+    : supabase
+        .from("attendance")
+        .select("id, student_id, class_name, status, method, recorded_at, profiles!attendance_student_id_fkey(full_name, student_id), departments(name_th)", { count: "exact" })
+        .eq("activity_id", activityId);
+
   if (term) {
     // Same wildcard escaping as services/members.ts: an unescaped % or _ would
     // turn a name search into a bulk listing.
@@ -199,14 +218,12 @@ export async function listActivityAttendance(
     );
   }
 
-  const { data, error } = await query.order("recorded_at", { ascending: false });
-  if (error || !data) return [];
+  const { data, error, count } = await query
+    .order("recorded_at", { ascending: false })
+    .range(start, start + ATTENDANCE_PER_PAGE - 1);
+  if (error || !data) return { rows: [], total: 0 };
 
-  return data
-    // An inner-join filter on an embedded table still returns the parent row
-    // with a null embed, so a non-matching row would render as a blank line
-    // rather than disappear. Drop those here.
-    .filter((r) => (term ? r.profiles !== null : true))
+  const rows: AttendanceRow[] = data
     .map((r) => ({
       id: r.id,
       studentId: r.student_id,
@@ -218,6 +235,8 @@ export async function listActivityAttendance(
       method: r.method,
       recordedAt: r.recorded_at,
     }));
+
+  return { rows, total: count ?? 0 };
 }
 
 /**

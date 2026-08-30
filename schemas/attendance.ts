@@ -13,6 +13,25 @@ import { z } from "zod";
  * Checked here so a mistyped or truncated URL fails locally instead of
  * consuming one of the caller's ten throttled attempts.
  */
+/**
+ * Rows per page on an activity's attendee list. 20 rather than the members
+ * table's 10: this list sits inside one card on a detail page, so a shorter
+ * page would mean more paging for the same amount of reading.
+ */
+export const ATTENDANCE_PER_PAGE = 20;
+
+/**
+ * The attendee list's `?page=`. Same `.catch()` discipline as the other list
+ * pages: a garbage value degrades to page 1 rather than throwing.
+ */
+export function parseAttendeeSearchParams(
+  searchParams: Record<string, string | string[] | undefined>
+) {
+  const raw = searchParams.page;
+  const single = Array.isArray(raw) ? raw[0] : raw;
+  return { page: z.coerce.number().int().positive().catch(1).parse(single ?? "1") };
+}
+
 export const attendanceTokenSchema = z
   .string()
   .trim()

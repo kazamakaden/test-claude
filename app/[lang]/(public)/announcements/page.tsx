@@ -4,6 +4,12 @@ import { getDictionary } from "@/lib/i18n/get-dictionary";
 import { getRole } from "@/lib/auth/get-role";
 import { can } from "@/lib/auth/permissions";
 import { listAnnouncements } from "@/services/announcements";
+import {
+  ANNOUNCEMENTS_PER_PAGE,
+  parseAnnouncementSearchParams,
+} from "@/schemas/announcements";
+import { redirectIfPageOutOfRange } from "@/lib/pagination";
+import { Pagination } from "@/components/table/pagination";
 import { buttonVariants } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { CardBoundary } from "@/components/dashboard/card-boundary";
@@ -17,9 +23,24 @@ import type { Dictionary } from "@/types/i18n";
  * Public: announcements_select_published (0060) admits published rows to
  * anon, so a guest sees the feed — which is the point of an announcement.
  */
-async function Feed({ lang, dict }: { lang: Locale; dict: Dictionary }) {
-  const rows = await listAnnouncements(lang);
+async function Feed({
+  lang,
+  dict,
+  page,
+  searchParams,
+}: {
+  lang: Locale;
+  dict: Dictionary;
+  page: number;
+  searchParams: URLSearchParams;
+}) {
+  const { rows, total } = await listAnnouncements(lang, { page });
   const d = dict.announcements;
+
+  // A stale bookmark or a deleted announcement can leave the viewer past the
+  // last page, where the feed renders nothing and the pager cannot walk back
+  // more than one page at a time. Same guard the other three list pages carry.
+  redirectIfPageOutOfRange({ rows, page, pathname: `/${lang}/announcements`, searchParams });
 
   if (rows.length === 0) {
     return (
@@ -32,7 +53,8 @@ async function Feed({ lang, dict }: { lang: Locale; dict: Dictionary }) {
   }
 
   return (
-    <ul className="flex flex-col gap-3">
+    <>
+      <ul className="flex flex-col gap-3">
       {rows.map((row) => (
         <li key={row.id}>
           <Link
@@ -66,17 +88,38 @@ async function Feed({ lang, dict }: { lang: Locale; dict: Dictionary }) {
           </Link>
         </li>
       ))}
-    </ul>
+      </ul>
+      <Pagination
+        page={page}
+        perPage={ANNOUNCEMENTS_PER_PAGE}
+        total={total}
+        pathname={`/${lang}/announcements`}
+        searchParams={searchParams}
+        dict={dict}
+      />
+    </>
   );
 }
 
 export default async function AnnouncementsPage({
   params,
+  searchParams: rawSearchParamsPromise,
 }: {
   params: Promise<{ lang: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const { lang: rawLang } = await params;
   const lang = rawLang as Locale;
+  const rawSearchParams = await rawSearchParamsPromise;
+  const { page } = parseAnnouncementSearchParams(rawSearchParams);
+  // Rebuilt rather than passed through: Pagination and the out-of-range
+  // redirect both preserve every other param, so a future filter on this page
+  // survives paging without touching either of them.
+  const searchParams = new URLSearchParams(
+    Object.entries(rawSearchParams).flatMap(([k, v]) =>
+      v === undefined ? [] : [[k, Array.isArray(v) ? v[0] : v]]
+    ) as [string, string][]
+  );
   const dict = await getDictionary(lang);
   const role = await getRole();
   const canManage = can(role, "content:manage");
@@ -105,7 +148,12 @@ export default async function AnnouncementsPage({
       </header>
 
       <CardBoundary errorTitle={dict.common.errorTitle} retryLabel={dict.common.errorRetry}>
-        <Feed lang={lang} dict={dict} />
+        <Feed
+          lang={lang}
+          dict={dict}
+          page={page}
+          searchParams={searchParams}
+        />
       </CardBoundary>
     </div>
   );

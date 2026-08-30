@@ -10,6 +10,9 @@ import { getRole } from "@/lib/auth/get-role";
 import { getActivityDetail, getActivityEditors } from "@/services/activities";
 import { getActivityAttendanceStats, listActivityAttendance, getActiveQrSession } from "@/services/attendance";
 import { CardBoundary } from "@/components/dashboard/card-boundary";
+import { Pagination } from "@/components/table/pagination";
+import { redirectIfPageOutOfRange } from "@/lib/pagination";
+import { ATTENDANCE_PER_PAGE, parseAttendeeSearchParams } from "@/schemas/attendance";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -51,6 +54,14 @@ export default async function ActivityDetailPage({
 
   const sp = await searchParams;
   const search = typeof sp.q === "string" ? sp.q : "";
+  const { page } = parseAttendeeSearchParams(sp);
+  // Rebuilt from the raw params so the pager keeps `?q=` — dropping it would
+  // answer "this page is empty" by showing a different query's results.
+  const attendeeParams = new URLSearchParams(
+    Object.entries(sp).flatMap(([k, v]) =>
+      v === undefined ? [] : [[k, Array.isArray(v) ? v[0] : v]]
+    ) as [string, string][]
+  );
 
   const [dict, activity, role] = await Promise.all([
     getDictionary(lang),
@@ -151,6 +162,9 @@ export default async function ActivityDetailPage({
           <AttendeesSection
             activityId={activity.id}
             search={search}
+            page={page}
+            searchParams={attendeeParams}
+            pathname={`/${lang}/activities/${activity.id}`}
             canEdit={canEdit}
             isGuest={isGuest}
             lang={lang}
@@ -226,6 +240,9 @@ async function SummarySection({
 async function AttendeesSection({
   activityId,
   search,
+  page,
+  searchParams,
+  pathname,
   canEdit,
   isGuest,
   lang,
@@ -233,12 +250,20 @@ async function AttendeesSection({
 }: {
   activityId: string;
   search: string;
+  page: number;
+  searchParams: URLSearchParams;
+  pathname: string;
   canEdit: boolean;
   isGuest: boolean;
   lang: Locale;
   dict: Awaited<ReturnType<typeof getDictionary>>;
 }) {
-  const rows = await listActivityAttendance(activityId, search);
+  const { rows, total } = await listActivityAttendance(activityId, search, page);
+
+  // Removing an attendee can shrink the list below the page being viewed, and
+  // the revalidate re-renders at the same `?page=`. Same guard the other list
+  // pages carry.
+  redirectIfPageOutOfRange({ rows, page, pathname, searchParams });
 
   return (
     <Card>
@@ -254,6 +279,14 @@ async function AttendeesSection({
           canManage={canEdit}
           isGuest={isGuest}
           lang={lang}
+          dict={dict}
+        />
+        <Pagination
+          page={page}
+          perPage={ATTENDANCE_PER_PAGE}
+          total={total}
+          pathname={pathname}
+          searchParams={searchParams}
           dict={dict}
         />
       </CardContent>

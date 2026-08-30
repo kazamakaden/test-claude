@@ -1,5 +1,26 @@
 import { z } from "zod";
 
+const PER_PAGE = 10;
+
+export const ANNOUNCEMENTS_PER_PAGE = PER_PAGE;
+
+/**
+ * URL search params for the public feed. Same `.catch()` discipline as
+ * schemas/notifications.ts: a garbage `?page=` degrades to page 1 rather than
+ * throwing, so a stale bookmark never 500s a page a guest can reach.
+ */
+export const announcementFiltersSchema = z.object({
+  page: z.coerce.number().int().positive().catch(1),
+});
+
+export function parseAnnouncementSearchParams(
+  searchParams: Record<string, string | string[] | undefined>
+) {
+  const single = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v);
+  return announcementFiltersSchema.parse({ page: single(searchParams.page) ?? "1" });
+}
+
+
 /**
  * §5 announcement authoring. Mirrors the database constraints rather than
  * inventing looser ones — the CHECKs in 0060 are the real authority, and a

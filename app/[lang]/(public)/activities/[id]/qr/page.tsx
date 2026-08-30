@@ -34,6 +34,9 @@ export default async function ActivityQrPage({
 
   const [session, attendees] = await Promise.all([
     getActiveQrSession(id),
+    // The scan display is a live feed, not a browsable record: the newest page
+    // is the whole point of it, so it takes page 1 and no pager. The full,
+    // paginated list is on the activity's own detail page.
     listActivityAttendance(id),
   ]);
 
@@ -53,7 +56,7 @@ export default async function ActivityQrPage({
         <CreateQrSessionForm activityId={id} lang={lang} dict={dict} />
       )}
 
-      <AttendanceList rows={attendees} dict={dict} lang={lang} />
+      <AttendanceList rows={attendees.rows} dict={dict} lang={lang} />
     </div>
   );
 }
