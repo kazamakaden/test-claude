@@ -85,7 +85,12 @@ an explicit column allow-list excluding them. `get_activity_stats()` and
 `get_member_stats()` (`0009_dashboard_stat_rpcs.sql`) are `SECURITY INVOKER`
 — they run with the caller's own RLS-scoped permissions, not elevated ones.
 
-**The role split (`0010`/`0011`) and the §14 student-ID allow-list:**
+**The role split (`0010`/`0011`) and the §14 student-ID allow-list — all of
+this was later undone; read it as history, not as current behaviour.**
+`0046`–`0049` rebuilt the role model (`aft_teacher` and `pending` are both
+unstorable now, `aft` exists instead) and `0020` had already dropped
+`approved_accounts`. The paragraph is kept because the migrations are still
+in the folder and run in order on a fresh database.
 `user_role` gained a fourth value, `aft_teacher` (อาจารย์ อวท. — the AFT
 advisor teacher), added in its own migration (`0010`) because PostgreSQL
 forbids using a new enum value in the same transaction it was added in.
@@ -109,24 +114,28 @@ flipbook link is returned to draft first, since there is nothing to convert
 a link on someone else's server into a PDF. See "E-books: uploaded PDFs"
 below.
 
-## Sign-up rule: every new account lands pending, an admin approves and assigns a role
+## Sign-up rule: the email's local part decides the role
 
-`0019_add_pending_role.sql` / `0020_pending_signup_flow.sql` **replace** an
-earlier pre-approval-roster design (see "Historical: the pre-approval
-allow-list" below for why and what changed). Current behaviour: anyone with
-an `@udontech.ac.th` address — email/password sign-up or Google — can
-register freely. `handle_new_user()` gives every new signup `role =
-'pending'`, which holds guest-level permissions only (public content, no
-dashboard). An admin then opens `/approvals` (gated on `member:manage`),
-sees everyone waiting, and assigns their real role (`student` / `teacher` /
-`aft_teacher`) — granting `admin` through the UI is deliberately not
-offered; promote to admin directly in the database, out of band from this
-form.
+Anyone with an `@udontech.ac.th` address can sign in immediately — there is
+no waiting room. `handle_new_user()` reads the local part and applies §14's
+split: `^[0-9]{11,}$` is a student ID, so the account lands `student` with
+its `student_id` and สาขา resolved from the programme code; any other local
+part is a named staff address and lands `teacher`.
 
-A pending user who tries to reach a gated page is redirected to `/pending`
-("your account is awaiting approval"), not back to `/login` — see
-`deniedRedirectTarget()` in `lib/auth/require-role.ts`. The
-`@udontech.ac.th` domain restriction itself is unchanged and still enforced
+`student` is **read-only** (§6). The roles that can actually do things —
+`aft` (นักศึกษา อวท.) and `teacher` — are reached afterwards: an admin
+assigns an อวท. ตำแหน่ง from `/members`, and `sync_role_with_position()`
+promotes `student` → `aft` automatically. `admin` is deliberately not
+grantable through any form; promote in the database, out of band.
+
+**Superseded, and mentioned only because older notes describe it:** a
+`pending` role with an `/approvals` waiting room, and before that a
+pre-approval roster table. `0046_four_role_model.sql` removed the first
+(`profiles_role_allowed` now refuses to store `pending`, `/approvals` is a
+bare redirect to `/members`, and `/pending` is deleted) and the roster table
+was dropped earlier still. Nothing in the app writes `role = 'pending'`.
+
+The `@udontech.ac.th` domain restriction itself is unchanged and still enforced
 in three layers regardless of which sign-in method is used: Zod on the
 client, the same Zod schema again in every auth Server Action
 (`actions/auth.ts`), and a `CHECK (email like '%@udontech.ac.th')`
@@ -136,14 +145,18 @@ Server Action's Zod checks at all.
 
 ### Password sign-in, sign-up, and reset
 
-The login page (`/login`) takes an email + password (plus Google above it);
-there is no magic-link option anymore — `signInWithOtp` was replaced
-outright by `signInWithPassword` (`actions/auth.ts`), so an address with no
-password set cannot sign in until it goes through the reset flow below.
-`/signup` registers a new email/password account and requires clicking a
-confirmation link before the account is usable (`signUp`'s
-`emailRedirectTo` points at the existing `/auth/callback` route — the same
-one Google already used).
+The login page (`/login`) leads with the Google button and keeps an email +
+password form behind a native `<details>` disclosure — `<details>` needs no
+JavaScript to open, so both paths degrade independently. `signInWithOtp` is
+gone, replaced outright by `signInWithPassword` (`actions/auth.ts`), so an
+address with no password set cannot use that form until it goes through the
+flow below.
+
+**`/signup` is a `redirect()` to `/login`,** kept only so an old bookmark
+lands somewhere useful: registration is Google-only, and
+`signUpWithPassword` no longer exists. The one way an account gets a password
+without Google is an admin creating it from `/members` → "Add user", which
+sets one at creation.
 
 `/forgot-password` → `/reset-password` covers a forgotten password, and
 `/set-password` covers a first-time Google account that has none. **Both
@@ -180,8 +193,8 @@ Three properties carry the security of that, and none is incidental:
   submissions cannot both win, and the account acted on is the one that
   statement returned — never a form field, cookie or query parameter.
 
-Every one of `signInWithPassword` / `signUpWithPassword` /
-`requestPasswordReset` collapses its failure modes into one generic message
+Both `signInWithPassword` and `requestPasswordReset` collapse their failure
+modes into one generic message
 (`invalidCredentials`, or a uniform "check your email" success either way)
 — never revealing whether a given `@udontech.ac.th` address is already
 registered, the same account-enumeration guard `signInWithOtp` was built
@@ -190,13 +203,15 @@ around.
 Two settings this depends on, both in the Supabase dashboard, neither in
 this repo:
 
-* **Authentication → Providers → Email → "Confirm email" must stay ON.**
-  With it off, `signUp` hands back a usable session immediately and §19's
-  email-verification requirement silently stops being met.
-* **Supabase's mailer now only serves signup confirmation.** Password
-  setup and reset left it entirely (above), which also takes them out from
-  under its ~2/hour built-in cap — that cap now applies only to
-  confirmation mail.
+* **Authentication → Sign In / Providers → "Allow new users to sign up" must
+  stay ON.** `signInWithIdToken` creates the `auth.users` row on a first
+  Google sign-in; with the toggle off it is rejected with `422
+  signup_disabled` before `handle_new_user()` runs. The real gate is that
+  trigger plus the `CHECK` on `profiles.email`, not this switch.
+* **Supabase's mailer is out of the path entirely.** Password setup and
+  reset are sent by this app (above), magic link is gone, and a Google
+  identity needs no confirmation — so nothing in normal operation depends on
+  Supabase's built-in sender or its ~2/hour cap.
 
 ### Google sign-in setup
 
@@ -430,33 +445,40 @@ enters this repo:
    attempt.
 
    Supabase Auth has exactly one CAPTCHA setting per project — there is no
-   per-environment split on a single project. **This project's CAPTCHA
-   protection is enabled with a real Turnstile secret**, so the test sitekey
-   no longer validates:
+   per-environment split on a single project. That used to matter here,
+   because the setting was **on** and a Cloudflare test sitekey therefore
+   broke local login. It no longer does: with Supabase's CAPTCHA off (above),
+   the only thing that validates a token is this app, so a test sitekey
+   paired with its matching test secret works locally exactly as documented
+   two paragraphs up.
 
-   | Supabase CAPTCHA protection | Result with the test sitekey |
-   |---|---|
-   | Disabled | Token ignored, login works |
-   | Enabled with a real Turnstile secret (current state) | Test token fails validation, local login breaks |
+   If you find that setting switched back on, local login will start failing
+   with a token this app has already spent. Turn it off rather than working
+   around it.
 
-   `.env.local` accordingly holds the real sitekey, scoped to both
-   `localhost` and the production Vercel hostname.
+2. **SMTP, in this app rather than in Supabase.** Migration `0064` moved the
+   password-setup and password-reset mail out of Supabase Auth entirely:
+   `lib/mailer.ts` composes and sends it over plain SMTP via nodemailer, and
+   nothing in the codebase calls `resetPasswordForEmail` any more. Set
+   `SMTP_USER` / `SMTP_PASSWORD` / `SMTP_FROM` (host and port default to
+   `smtp.gmail.com:465`) — see `docs/email-setup.md`, which also names the
+   exact server log line for each failure mode, because the Server Action
+   deliberately reports the same success either way to avoid account
+   enumeration.
 
-2. **Custom SMTP** — the default Supabase sender (`noreply@mail.app.supabase.io`)
-   has a very low rate limit meant for dev, not real traffic (`429
-   over_email_send_rate_limit` after a handful of sends per hour). Configured
-   via Resend in Supabase → **Authentication → Emails → SMTP Settings**:
-   host `smtp.resend.com`, port `465`, username `resend`, password the
-   Resend API key (pasted directly into the dashboard — never stored in this
-   repo or `.env.local`), sender `noreply@udontech.ac.th` ("AFT UDONTECH").
-   Enabling custom SMTP raises Supabase's rate limit from the default to 30
-   emails/hour automatically (adjustable further under **Rate Limits**).
-   **The sending domain must show "Verified" in Resend → Domains before this
-   works** — Resend rejects sends through an unverified domain with a `550`
-   error, and Supabase does not fall back to the default mailer when that
-   happens. Verification requires adding the DKIM/SPF/MX records Resend
-   generates to the domain's DNS (Cloudflare, in this project's case) and can
-   take minutes to hours to propagate.
+   Three consequences worth knowing:
+
+   * Supabase's own mailer and its ~2/hour built-in cap are **out of the
+     path**. Configuring custom SMTP inside Supabase does nothing for these
+     emails.
+   * A missing `SMTP_*` is not a degraded feature, it is a locked front door
+     — setting a password is the only route into an account that has none —
+     so `lib/env-guard.ts` fails the production build without them.
+   * An earlier revision of this file described a Resend-through-Supabase
+     setup. That is historical: the credentials were cleared by Supabase's own
+     dashboard when the toggle was switched off, and the sending domain never
+     completed DNS verification. Neither matters now, because the mail no
+     longer goes that way.
 
 ## Deploying to Vercel
 
@@ -479,7 +501,22 @@ Preview scope):
 | `NEXT_PUBLIC_SUPABASE_URL` | your Supabase project URL |
 | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | your Supabase publishable key |
 | `NEXT_PUBLIC_TURNSTILE_SITE_KEY` | a **real** Cloudflare Turnstile sitekey scoped to the deployment's hostname |
+| `TURNSTILE_SECRET_KEY` | the matching Turnstile **secret**; this app runs `siteverify` itself (`lib/turnstile-server.ts`), so without it every submission is refused |
+| `GOOGLE_CLIENT_ID` | Google OAuth client id — Google sign-in runs through this app's own flow, so this is the only way in |
+| `GOOGLE_CLIENT_SECRET` | the matching client secret |
+| `SMTP_USER` | the sending mailbox; this app composes and delivers the password-setup / reset mail itself (`lib/mailer.ts`) |
+| `SMTP_PASSWORD` | its app password — see `docs/email-setup.md` |
+| `SMTP_FROM` | the envelope sender, which must be the authenticated account or one of its verified aliases |
 | `NEXT_PUBLIC_SITE_URL` | optional on Vercel — see below |
+
+That is the full set the build guard enforces; a deploy missing any of them
+fails at `next build`, not at first use. `SMTP_HOST` / `SMTP_PORT` are
+**not** in the table because `lib/mailer.ts` defaults them to
+`smtp.gmail.com:465` — set them only for a different provider. The push
+(`VAPID_*`, `PUSH_DISPATCH_SECRET`) and Facebook-banner (`FACEBOOK_*`,
+`CRON_SECRET`) variables are deliberately not build-required either: unset
+means the feature hides itself rather than failing, and `lib/env-guard.ts`
+explains that distinction where it declines to check them.
 
 `NEXT_PUBLIC_SITE_URL` (`lib/site-url.ts`) doesn't need to be set by hand on
 Vercel: when a project's "Automatically expose System Environment Variables"
@@ -499,21 +536,32 @@ Two more things, or the deploy still fails at the same step:
    `NEXT_PUBLIC_*` values are inlined into the client bundle at build time
    (see above) — saving them in the dashboard changes nothing until the next
    build actually runs.
-2. **Add the production URL to Supabase → Authentication → URL
-   Configuration** (a `https://<your-domain>/**` redirect entry, alongside
-   the existing `http://localhost:59500/**`). `signUpWithPassword` and
-   `signInWithGoogle` both build their redirect from the request's `origin`
-   header (`actions/auth.ts`), so an un-allow-listed production origin makes
-   Supabase reject the confirmation/OAuth link at send time.
+2. **Register the callback in Google Cloud Console**, as an Authorized
+   redirect URI: `https://<your-domain>/th/auth/google/callback`. Note the
+   **`/th`** — `lib/google-oauth.ts` fixes the locale segment there on
+   purpose, because Google matches the URI exactly and a per-locale path
+   would mean one registration per language; the viewer's real locale travels
+   in a cookie instead. A domain missing from that list fails with
+   `redirect_uri_mismatch`, and this project has lost sign-in to a
+   forgotten hostname allow-list twice already (Cloudflare's widget list, and
+   Supabase's redirect list) — so register **every** hostname the app answers
+   on, including any team-scoped `*.vercel.app` alias.
+
+   Supabase → Authentication → URL Configuration is **no longer part of this
+   path**: sign-in goes Google → this app's own callback →
+   `signInWithIdToken`, which performs no redirect of its own. Older
+   revisions of this file told you to add a redirect entry there; that was
+   true of the Supabase-hosted OAuth flow, which is gone.
 
 A third setting is easy to miss because it isn't in this repo at all:
 **Supabase → Authentication → Sign In / Providers → "Allow new users to sign
-up"** must be on. If it's off, every first-time sign-up — not just a broken
-demo account — is rejected with `422 signup_disabled` at the `/signup` or
-OAuth step, before `handle_new_user()` ever runs. This project relies on
-that trigger (which lands every signup as `pending`, see "Sign-up rule"
-above), not the blunt project-level toggle, to control who can actually get
-a `profiles` row.
+up"** must be on. If it's off, a first-time sign-in is rejected with `422
+signup_disabled` before `handle_new_user()` ever runs. That trigger — not
+the blunt project-level toggle — is what decides who gets a `profiles` row
+and with which role (§14: a numeric local part is a student ID and lands
+`student`; a named address lands `teacher`). The `@udontech.ac.th`
+restriction is enforced separately, and the `CHECK` on `profiles.email` is
+the layer that actually holds for the OAuth path.
 
 The `SUPABASE_SECRET_KEY` / `SUPABASE_URL` / `SUPABASE_PUBLISHABLE_KEY` /
 `SUPABASE_JWKS_URL` variables are for the future `@supabase/server` Edge
@@ -526,18 +574,22 @@ Login is restricted to `@udontech.ac.th`, via email/password and,
 optionally, Google (see "Google sign-in setup" above). After creating the
 project:
 
-1. Supabase dashboard → **Authentication → URL Configuration** → add
-   `http://localhost:59500/**` (and your production URL) to the redirect
-   allow-list. Signup confirmation links, password-reset links, and OAuth
-   all fail silently if the callback URL isn't allow-listed.
+1. Google Cloud Console → add `http://localhost:59500/th/auth/google/callback`
+   as an Authorized redirect URI (note the fixed `/th`, see "Google sign-in
+   setup"). Supabase's own **URL Configuration** redirect allow-list is not
+   part of this path any more — `signInWithIdToken` performs no redirect —
+   though leaving existing entries there is harmless.
 2. Apply all migrations above, in order.
-3. Register at `/th/signup` with an `@udontech.ac.th` address (or use the
-   Google button, if configured), confirm via the email link, then sign in
-   at `/th/login` with the same email + password — you land on
-   `/th/auth/callback`, which exchanges the code for a session and
-   redirects to `/th/pending` (every fresh signup) or `/th/dashboard` (once
-   an admin has approved you — see "Sign-up rule" above). A forgotten
-   password is recovered at `/th/forgot-password`.
+3. Sign in at `/th/login` with the Google button, using an `@udontech.ac.th`
+   address. There is no separate registration step and no waiting room: the
+   first sign-in creates the account and `handle_new_user()` assigns the role
+   from the email's local part (see "Sign-up rule" above). You land on
+   `/th` — the §8 dashboard grid renders on `/th/calendar` for a signed-in
+   viewer, and `/th/dashboard` is kept only as a redirect for old links.
+4. A first-time Google account has no password, so it is sent to
+   `/th/set-password`, which emails a link through this app's own SMTP. A
+   forgotten password is recovered the same way at `/th/forgot-password`.
+   Both need `SMTP_*` set, or the mail is logged as unsent and never arrives.
 
 ## Session timeout
 
@@ -556,9 +608,11 @@ this is a manual dashboard step, not applied by any migration here.
 
 ## Demo accounts
 
-One account per role (`student`, `teacher`, `aft_teacher`, `admin`),
-created via the Supabase Admin API with generated passwords and manually
-promoted past `pending` — credentials in `.demo-accounts.local.md`
+One account per role — the current set is `student`, `aft`, `teacher`,
+`admin` (`aft_teacher` and `pending` no longer exist; see "Sign-up rule") —
+created via the Supabase Admin API with generated passwords, with `aft`
+reached by assigning an อวท. ตำแหน่ง rather than by writing the role
+directly. Credentials are in `.demo-accounts.local.md`
 (git-ignored, never committed). Since the app's UI now supports
 email/password sign-in directly, these credentials work for **both**
 API/automated testing and ordinary browser login at `/login` — no admin
