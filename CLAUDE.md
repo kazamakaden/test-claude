@@ -4390,6 +4390,75 @@ reported an imbalance. The apostrophe is inside a `--` comment, and `HEAD` reads
 identically — strip comments before counting, or the checker invents a defect.
 
 
+**§14's administrator half built — an admin can now correct a member's
+เลขบัตรประชาชน (no migration).** The requirement says the number "cannot be
+changed without Administrator permission", which means an administrator **can**,
+and nothing in the app could. Every layer below was already in place and
+unreachable:
+
+| layer | state before |
+|---|---|
+| `prevent_citizen_id_change` (0003) | raises unless `current_role() = 'admin'` — the carve-out has always been there |
+| `get_citizen_id()` (0004/0075/0076) | admin branch returns any member's value |
+| `profiles` UPDATE grant | never revoked; `0005` revoked only SELECT |
+| app | `getOwnCitizenId(userId)` was the RPC's **only** caller, passing the caller's own id |
+
+So the admin branch of a SECURITY DEFINER accessor and the admin carve-out in a
+trigger were both **dead code**, protecting and exposing a capability nothing
+could reach. A typo in a 13-digit number set once by the member was
+uncorrectable through the app. **No migration** — adding SQL would invent a
+second authority over a rule `prevent_citizen_id_change` already owns.
+
+`setMemberCitizenId()` is deliberately a **separate narrow function** rather
+than a field on `updateMember`, the same call `revokeProfileApproval` made:
+`updateMember` writes six columns at once, so folding this in would let a
+citizen-ID correction silently rewrite the member's department or class. **Its
+error mapping differs from `setOwnCitizenId`'s on purpose** — there `P0001`
+means "you already set this once" and is the expected end of the road; here the
+caller is supposed to be exempt from that rule, so `P0001` means the database
+did not see them as an admin, and reporting it as "already set" would send them
+looking in the wrong place.
+
+Gated on **`member:manage`**, not `member:approve`: `current_role() = 'admin'`
+is what the trigger tests, so a looser app gate would only turn a clear refusal
+into a confusing one. The value is read **on demand** when the sheet opens,
+never carried on the members list — it is §15-sensitive and `/members` must keep
+rendering it zero times for every role.
+
+**Verified in a real browser** (fixtures reverted; `grep TEMP_SELF_TEST` → 0):
+admin opens the sheet and gets exactly **1** `citizenId` input, the value
+rendered formatted (`1-1017-00234-56-8`), and **2 forms with 0 NESTED forms** —
+which is the point worth keeping, since HTML forbids nesting and this posts to a
+different action than the sheet does, so it had to be a sibling. `teacher` and
+`student` get no edit trigger at all (member editing went admin-only in `0049`),
+so 0 inputs and 0 forms. The number appears **0 times** in the list HTML for all
+six roles including signed-out. `member:manage` confirmed true only for `admin`
+against the compiled permissions module; `lib/citizen-id.ts` re-run 9/9.
+
+**Not verified, and it cannot be from here:** the trigger path itself — an admin
+actually changing an already-set value, and a non-admin being refused by the
+database rather than by the app. Needs the same live matrix `0076`'s does, and
+no member has a citizen ID on file yet.
+
+**Swept and clean this pass, so the next one starts elsewhere:**
+`types/database.ts` vs the migrations — 45 live functions, 24 typed, and every
+one of the 21 missing is a trigger function (`returns trigger`, no args, never
+reachable over PostgREST) which `supabase gen types` correctly omits; every RPC
+the app calls **is** typed, including after `0078` drops
+`notify_member_role_change`. Dependencies: the only genuinely unused ones are
+`react-hook-form`/`@hookform/resolvers`, **kept deliberately** (0 imports,
+`components/ui/form.tsx` is Base UI, but keeping them costs nothing and leaves
+RHF available) — `tw-animate-css` looked unused to a JS-import scan and is
+imported by `app/globals.css`, so the scan was wrong, not the dependency.
+`public/sw.js` has no `fetch` handler and no caching on purpose and its icon
+path resolves.
+
+`npx tsc --noEmit`, `npm run lint` and an observed `npm run build` (`BUILD_ID`
+present) all pass; the route matrix has **zero 5xx**;
+`npm run check:responsive` is **90/90, 0 overflow**; dictionary parity 1033 keys
+per locale.
+
+
 ### ❌ Remaining
 
 * **RLS policy performance — HALF OF THIS IS DONE, and this bullet's own
