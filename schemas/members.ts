@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { isValidCitizenId, normalizeCitizenId } from "@/lib/citizen-id";
 import { memberPositions, roles } from "@/types/auth";
 import { emailSchema, newPasswordField } from "@/schemas/auth";
 
@@ -181,3 +182,20 @@ export const updateDepartmentSchema = z.object({
     .max(100, { message: "departmentNameTooLong" }),
 });
 export type UpdateDepartmentInput = z.infer<typeof updateDepartmentSchema>;
+
+/**
+ * §14 admin correction. Same normalise-then-mod-11 shape as
+ * schemas/profile.ts's own-value schema, plus the target id — the caller is
+ * editing someone else's row, so the subject has to be named. Which subjects
+ * they may name is not decided here: actions/members.ts gates on
+ * `member:manage`, and prevent_citizen_id_change (0003) is the authority that
+ * holds even if both app layers were bypassed.
+ */
+export const setMemberCitizenIdSchema = z.object({
+  id: z.uuid(),
+  citizenId: z
+    .string()
+    .transform(normalizeCitizenId)
+    .refine(isValidCitizenId, { message: "citizenIdInvalid" }),
+});
+export type SetMemberCitizenIdInput = z.infer<typeof setMemberCitizenIdSchema>;

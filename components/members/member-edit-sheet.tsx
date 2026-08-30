@@ -25,6 +25,8 @@ import {
   SheetFooter,
 } from "@/components/ui/sheet";
 import { updateMemberAction, type UpdateMemberResult } from "@/actions/members";
+import { MemberCitizenIdField } from "@/components/members/member-citizen-id-field";
+import { can } from "@/lib/auth/permissions";
 import type { Locale } from "@/lib/i18n/config";
 import type { Dictionary } from "@/types/i18n";
 import { memberPositions, type Role } from "@/types/auth";
@@ -80,6 +82,8 @@ export function MemberEditSheet({
   // Both entries are assignable by anyone who can reach this form
   // (admin or a ตำแหน่ง holder), so no actor-based narrowing is needed.
   const assignableRoles = ASSIGNABLE_ROLES;
+
+  const canManageMembers = can(actorRole, "member:manage");
 
   const errorMessage = state && !state.ok ? d.errors[state.messageKey] : undefined;
 
@@ -239,6 +243,18 @@ export function MemberEditSheet({
             <SaveButton label={d.save} pendingLabel={d.saving} />
           </SheetFooter>
         </form>
+
+        {/* §14 admin correction, as a SIBLING form -- HTML forbids nesting one
+            form in another, and this posts to a different action. Gated on
+            member:manage (admin only), not member:approve (which `aft` also
+            holds): prevent_citizen_id_change tests current_role() = 'admin',
+            so a looser gate here would only produce a refusal from the
+            database instead of a clear one from the app. */}
+        {canManageMembers ? (
+          <div className="px-4 pb-4">
+            <MemberCitizenIdField memberId={member.id} lang={lang} dict={dict} />
+          </div>
+        ) : null}
       </SheetContent>
     </Sheet>
   );

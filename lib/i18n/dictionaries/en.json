@@ -425,6 +425,12 @@
       "classLabel": "Class",
       "studentIdLabel": "Student ID",
       "studentIdHint": "Editing the student ID also changes the automatically-derived academic year.",
+      "citizenIdLabel": "Citizen ID",
+      "citizenIdHint": "Administrators only — for correcting a number the member entered wrongly.",
+      "citizenIdNone": "Not on file",
+      "citizenIdSave": "Save citizen ID",
+      "citizenIdSaving": "Saving...",
+      "citizenIdSaved": "Citizen ID saved",
       "save": "Save",
       "saving": "Saving...",
       "saved": "Member updated",
@@ -437,7 +443,9 @@
         "unknown": "Something went wrong. Please try again.",
         "invalidPosition": "Invalid position.",
         "forbiddenPosition": "Only an administrator can assign a position.",
-        "forbidden": "You do not have permission to make this change."
+        "forbidden": "You do not have permission to make this change.",
+        "citizenIdInvalid": "That citizen ID is not valid — please check it again.",
+        "notAdmin": "Only an administrator can change a citizen ID."
       }
     },
     "autoinput": {

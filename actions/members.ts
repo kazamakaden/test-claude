@@ -7,6 +7,7 @@ import {
   createMemberSchema,
   createDepartmentSchema,
   updateDepartmentSchema,
+  setMemberCitizenIdSchema,
 } from "@/schemas/members";
 import {
   updateMember,
@@ -16,8 +17,9 @@ import {
   updateDepartment,
   deleteDepartment,
 } from "@/services/members";
+import { getMemberCitizenId, setMemberCitizenId } from "@/services/profiles";
 import { createClient } from "@/lib/supabase/server";
-import { isLocale, defaultLocale, type Locale } from "@/lib/i18n/config";
+import { isLocale, defaultLocale, readLang, type Locale } from "@/lib/i18n/config";
 
 type UpdateMemberErrorKey =
   | "invalidRole"
@@ -92,6 +94,87 @@ export type DeleteMemberResult =
 export type RevokeMemberResult =
   | { ok: true }
   | { ok: false; messageKey: "selfRevoke" | "adminRevoke" | "unknown" };
+
+/**
+ * Read one member's เลขบัตรประชาชน, on demand.
+ *
+ * An action rather than a prop on the members list: the number is §15-sensitive
+ * and the list renders it zero times for every role today, which is worth
+ * keeping. Fetching it only when an admin actually opens the edit sheet means
+ * one row's value crosses the wire instead of a page's worth.
+ *
+ * Gated identically to the write below. get_citizen_id() enforces its own
+ * authorization too and would refuse anyway — this is the layer that gives a
+ * clear answer rather than an empty one.
+ */
+export async function getMemberCitizenIdAction(
+  lang: Locale,
+  id: string
+): Promise<string | null> {
+  await requirePermission("member:manage", lang);
+  return getMemberCitizenId(id);
+}
+
+type SetMemberCitizenIdErrorKey = "citizenIdInvalid" | "notAdmin" | "unknown";
+
+export type SetMemberCitizenIdResult =
+  | { ok: true }
+  | { ok: false; messageKey: SetMemberCitizenIdErrorKey };
+
+const SET_CITIZEN_ID_ERROR_KEYS = new Set<SetMemberCitizenIdErrorKey>([
+  "citizenIdInvalid",
+  "notAdmin",
+  "unknown",
+]);
+
+function isSetCitizenIdErrorKey(
+  value: string | undefined
+): value is SetMemberCitizenIdErrorKey {
+  return Boolean(value) && SET_CITIZEN_ID_ERROR_KEYS.has(value as SetMemberCitizenIdErrorKey);
+}
+
+/**
+ * §14: "cannot be changed without Administrator permission" — the half that had
+ * no way to happen. `prevent_citizen_id_change` (0003) has always exempted an
+ * admin, and 0005 revoked only SELECT on the column, so the database has
+ * allowed this all along; nothing ever called it.
+ *
+ * Gated on `member:manage`, NOT `member:approve` (which `aft` also holds).
+ * `current_role() = 'admin'` is what the trigger actually tests, so a looser
+ * app gate would only produce a confusing refusal from the database instead of
+ * a clear one here.
+ */
+export async function setMemberCitizenIdAction(
+  _prevState: SetMemberCitizenIdResult | null,
+  formData: FormData
+): Promise<SetMemberCitizenIdResult> {
+  const lang = readLang(formData);
+
+  await requirePermission("member:manage", lang);
+
+  const parsed = setMemberCitizenIdSchema.safeParse({
+    id: formData.get("id"),
+    citizenId: formData.get("citizenId"),
+  });
+  if (!parsed.success) {
+    const rawKey = parsed.error.issues[0]?.message;
+    return { ok: false, messageKey: isSetCitizenIdErrorKey(rawKey) ? rawKey : "unknown" };
+  }
+
+  const result = await setMemberCitizenId(parsed.data.id, parsed.data.citizenId);
+  if (!result.ok) {
+    return {
+      ok: false,
+      messageKey: isSetCitizenIdErrorKey(result.error) ? result.error : "unknown",
+    };
+  }
+
+  // /members only, deliberately: the number is never rendered in the list, so
+  // nothing there changes visually — but the edit sheet reads it back on open,
+  // and that read is what has to see the new value.
+  revalidatePath(`/${lang}/members`);
+  return { ok: true };
+}
 
 /**
  * Re-checks member:approve server-side (§19) — never trusts the page guard
